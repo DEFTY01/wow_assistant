@@ -32,6 +32,20 @@ export async function importAddon(env: Env, db: Obj) {
   const fights = await storeFights(env, (c as Obj).fights);
   delete (c as Obj).fights;
 
+  // A scan taken while logging out reports zero gold and empty bags. Never let that replace
+  // real data: keep what the previous upload had.
+  const emptyScan = !c.money && Object.keys(c.bags ?? {}).length === 0;
+  if (emptyScan) {
+    const prev = (await loadAddon(env))?.state;
+    if (prev) {
+      c.money = prev.money;
+      c.bags = prev.bags;
+      c.bagsAt = prev.bagsAt;
+    } else {
+      delete c.money;
+    }
+  }
+
   const now = new Date().toISOString();
   const put = (k: string, v: string) =>
     env.DB.prepare(
@@ -43,20 +57,25 @@ export async function importAddon(env: Env, db: Obj) {
   if (typeof c.money === "number") stmts.push(put("gold_copper", String(c.money)));
 
   const trainer = Object.values(c.trainer ?? {});
+  if (trainer.length) stmts.push(env.DB.prepare("DELETE FROM trainer_skills"));
   for (const t of trainer) {
+    // Older addon versions stored the Forever client's (name, category, icon) as (name, rank, state).
+    const STATES = ["available", "unavailable", "used"];
+    const state = STATES.includes(String(t.rank)) ? String(t.rank) : STATES.includes(String(t.state)) ? String(t.state) : "unavailable";
     const rank = Number(String(t.rank).match(/\d+/)?.[0] ?? 0);
     stmts.push(
       env.DB.prepare(
-        "INSERT INTO trainer_skills (name, rank, required_level, cost_copper, learned, updated_at) VALUES (?, ?, ?, ?, ?, ?) " +
-          "ON CONFLICT(name, rank) DO UPDATE SET required_level = excluded.required_level, " +
-          "cost_copper = excluded.cost_copper, learned = excluded.learned, updated_at = excluded.updated_at",
-      ).bind(t.name, rank, t.level || null, t.cost || 0, t.state === "used" ? 1 : 0, now),
+        "INSERT INTO trainer_skills (name, rank, required_level, cost_copper, state, learned, tradeskill, updated_at) " +
+          "VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(name, rank, required_level) DO UPDATE SET " +
+          "cost_copper = excluded.cost_copper, state = excluded.state, learned = excluded.learned, updated_at = excluded.updated_at",
+      ).bind(t.name, rank, t.level || 0, t.cost || 0, state, state === "used" ? 1 : 0, t.tradeskill ? 1 : 0, now),
     );
   }
   for (let i = 0; i < stmts.length; i += 80) await env.DB.batch(stmts.slice(i, i + 80));
   return {
     character: c.name,
     money: c.money ?? null,
+    keptPrevious: emptyScan,
     bagItems: Object.keys(c.bags ?? {}).length,
     bankItems: Object.keys(c.bank ?? {}).length,
     trainerSkills: trainer.length,

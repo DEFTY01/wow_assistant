@@ -122,14 +122,20 @@ local function ScanTrainer()
   if not GetNumTrainerServices then return end
   char.trainer = char.trainer or {}
   for i = 1, GetNumTrainerServices() do
-    local name, sub, category = GetTrainerServiceInfo(i)
+    -- Classic returns (name, rank text, category); the Forever client returns (name, category, icon).
+    local name, a, b = GetTrainerServiceInfo(i)
+    local sub, category = a, b
+    if a == "available" or a == "unavailable" or a == "used" or a == "header" then
+      sub, category = "", a
+    end
+    local level = GetTrainerServiceLevelReq and GetTrainerServiceLevelReq(i) or 0
     if name and category ~= "header" then
-      char.trainer[name .. "|" .. (sub or "")] = {
+      char.trainer[name .. "|" .. (sub or "") .. "|" .. level] = {
         name = name,
         rank = sub or "",
         state = category, -- available / unavailable / used
         cost = GetTrainerServiceCost(i) or 0,
-        level = GetTrainerServiceLevelReq and GetTrainerServiceLevelReq(i) or 0,
+        level = level,
         tradeskill = IsTradeskillTrainer and IsTradeskillTrainer() and true or false,
         at = time(),
       }
@@ -177,7 +183,8 @@ end
 frame:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGIN" then
     local name = UnitName("player")
-    WowAssistantDB.version = 3
+    if (WowAssistantDB.version or 0) < 4 then char.trainer = nil end -- older versions stored trainer rows wrongly
+    WowAssistantDB.version = 4
     WowAssistantDB.chars = WowAssistantDB.chars or {}
     WowAssistantDB.chars[name] = WowAssistantDB.chars[name] or {}
     char = WowAssistantDB.chars[name]
@@ -203,16 +210,15 @@ frame:SetScript("OnEvent", function(_, event)
     Safe("spells", ScanSpells)
   elseif event == "TRAINER_SHOW" or event == "TRAINER_UPDATE" then
     Safe("trainer", ScanTrainer)
-  elseif event == "PLAYER_LOGOUT" then
-    Safe("money", ScanMoney)
-    Safe("inventory", ScanInventory)
   end
+  -- Nothing is scanned on PLAYER_LOGOUT: at that point the Forever client already reports
+  -- zero gold and empty bags, which would overwrite the good data.
 end)
 
 for _, event in ipairs({
   "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_MONEY", "BAG_UPDATE_DELAYED", "BANKFRAME_OPENED",
   "PLAYERBANKSLOTS_CHANGED", "SKILL_LINES_CHANGED", "PLAYER_LEVEL_UP", "SPELLS_CHANGED",
-  "TRAINER_SHOW", "TRAINER_UPDATE", "PLAYER_LOGOUT",
+  "TRAINER_SHOW", "TRAINER_UPDATE",
 }) do
   pcall(frame.RegisterEvent, frame, event) -- an event unknown to this client must not break the rest
 end

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { importAddon, loadAddon } from "./addon";
 import { apiGet } from "./blizzard";
+import { saveSelectedBuffs } from "./buffs";
 import { combatReport, storeFights } from "./combat";
 import { combatPage } from "./combatView";
 import type { Env } from "./env";
@@ -26,8 +27,8 @@ async function loadDashboard(env: Env): Promise<DashboardData> {
       value: string;
     }>(),
     env.DB.prepare(
-      "SELECT name, rank, required_level, cost_copper, learned FROM trainer_skills " +
-        "ORDER BY required_level, name, rank",
+      "SELECT name, rank, required_level, cost_copper, learned, state FROM trainer_skills " +
+        "ORDER BY learned, required_level, name, rank",
     ).all<DashboardData["trainerSkills"][number]>(),
   ]);
   return {
@@ -78,6 +79,13 @@ app.post("/api/fights", async (c) => {
 
 app.get("/combat", async (c) => c.html(await combatPage(await combatReport(c.env))));
 app.get("/api/combat", async (c) => c.json(await combatReport(c.env)));
+
+app.post("/gear/buffs", async (c) => {
+  const form = await c.req.parseBody({ all: true });
+  const picked = form.buff == null ? [] : Array.isArray(form.buff) ? form.buff : [form.buff];
+  await saveSelectedBuffs(c.env, picked.map(String));
+  return c.redirect("/gear", 303);
+});
 
 app.get("/gear", async (c) => c.html(await gearPage(await gearReport(c.env))));
 app.get("/api/gear", async (c) => c.json(await gearReport(c.env)));

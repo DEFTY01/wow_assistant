@@ -1,41 +1,63 @@
-import { html, raw } from "hono/html";
+import { html } from "hono/html";
+import { QUALITY_BY_INDEX as Q, page } from "./layout";
+import type { ResolvedBuff } from "./buffs";
 import type { GearReport, Upgrade } from "./gear";
-import { CSS } from "./view";
 
-const Q = ["#9d9d9d", "#e8e8e8", "#1eff00", "#3d9eff", "#c26bff", "#ff8000"];
 
 function item(u: Upgrade) {
-  return html`<span style="color:${Q[u.quality] ?? "inherit"}">${u.name}</span>${u.warning ? html` <span class="tag">${u.warning}</span>` : ""}`;
+  return html`<b style="color:${Q[u.quality] ?? "inherit"}">${u.name}</b>${u.warning ? html` <span class="tag tag-fix">${u.warning}</span>` : ""}`;
 }
 function gain(u: { gain: number; gainPct: number }) {
-  return html`<b>+${u.gain.toFixed(1)}</b> <span class="muted">(${u.gainPct.toFixed(1)}%)</span>`;
+  return html`<b style="color:var(--good)">+${u.gain.toFixed(1)}</b> <span class="muted">${u.gainPct.toFixed(1)}%</span>`;
+}
+
+function buffPicker(buffs: ResolvedBuff[]) {
+  const group = (g: ResolvedBuff["group"]) =>
+    buffs
+      .filter((b) => b.group === g)
+      .map(
+        (b) => html`<label class="buff ${b.effect ? "" : "off"}">
+          <input type="checkbox" name="buff" value="${b.id}" ${b.selected ? "checked" : ""} ${b.effect ? "" : "disabled"}>
+          <span><b>${b.name}</b><small>${b.summary} · ${b.source}</small></span>
+        </label>`,
+      );
+  return html`<form method="post" action="/gear/buffs">
+    <h3 style="margin-top:0">Csapat</h3><div class="buffs">${group("party")}</div>
+    <h3>Fogyóeszközök</h3><div class="buffs">${group("consumable")}</div>
+    <p style="margin:14px 0 0"><button>Újraszámol</button></p>
+  </form>`;
 }
 
 export function gearPage(r: GearReport | null) {
-  return html`<!doctype html>
-<html lang="hu">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gear és dungeonök</title>
-<style>${raw(CSS)}</style>
-</head>
-<body>
-<header><h1><a href="/" style="color:inherit;text-decoration:none">←</a> Gear és dungeonök</h1></header>
-<main>
+  return page({
+    title: "Felszerelés",
+    active: "gear",
+    body: html`
 ${r
   ? html`
-  <section class="wide">
-    <p>Modellezett DPS most: <b>${r.baseline.toFixed(1)}</b>${r.measuredDps != null ? html` · mért DPS a rögzített harcokban: <b>${r.measuredDps.toFixed(1)}</b>` : ""}
-      <span class="muted">(${r.sheet.ap} AP, ${r.sheet.crit.toFixed(1)}% crit, ${r.sheet.hit}% hit)</span></p>
+  <section class="wide"><h2>A modell</h2>
+    <div class="stats" style="margin-bottom:14px">
+      <div><span>Modellezett DPS</span><b>${r.baseline.toFixed(1)}</b></div>
+      ${r.baseline !== r.unbuffed ? html`<div><span>Buffok nélkül</span><b>${r.unbuffed.toFixed(1)}</b></div>` : ""}
+      <div><span>Mért DPS</span><b>${r.measuredDps != null ? r.measuredDps.toFixed(1) : "–"}</b></div>
+      <div><span>Attack power</span><b>${r.sheet.ap}</b></div>
+      <div><span>Crit</span><b>${r.sheet.crit.toFixed(1)}%</b></div>
+      <div><span>Hit</span><b>${r.sheet.hit}%</b></div>
+    </div>
     <p class="muted">Egyszerűsített modell: a tárgyak egymáshoz viszonyított sorrendjére jó, az abszolút szám nem a valós DPS-ed.</p>
     ${r.params.notes.map((n) => html`<p class="muted">• ${n}</p>`)}
   </section>
 
+  <section class="wide"><h2>Buffok <span class="muted">amikkel a számolás történik</span></h2>
+    ${buffPicker(r.buffs)}
+    <p class="muted" style="margin:12px 0 0">A csapatbuffok azt a rankot használják, amit egy veled azonos szintű játékos tud.
+      Az értékek a Wowhead Forever tooltipekből származnak; azt nem ellenőriztem, hogy melyek adódnak össze egymással.</p>
+  </section>
+
   <section class="wide"><h2>Melyik dungeonbe érdemes menni</h2>
-    <table><thead><tr><th>Dungeon</th><th>Szint</th><th>Össz. nyereség</th><th>Legjobb dropok</th></tr></thead><tbody>
+    <table><thead><tr><th>Dungeon</th><th>Szint</th><th>DPS nyereség</th><th>Legjobb dropok</th></tr></thead><tbody>
     ${r.dungeons.map(
-      (d) => html`<tr><td>${d.name}</td><td>${d.levels}</td><td>${gain(d)}</td>
+      (d) => html`<tr><td><b>${d.name}</b></td><td class="muted">${d.levels}</td><td>${gain(d)}</td>
         <td>${d.upgrades.slice(0, 4).map((u, i) => html`${i ? ", " : ""}${item(u)} <span class="muted">(${u.boss ?? "trash drop"}, +${u.gain.toFixed(1)})</span>`)}</td></tr>`,
     )}
     </tbody></table>
@@ -63,7 +85,6 @@ ${r
       </tbody></table></section>`
     : ""}`
   : html`<section class="wide"><p class="muted">Nincs elég adat: kell profil-, stat- és felszerelés-pillanatkép.</p></section>`}
-</main>
-</body>
-</html>`;
+`,
+  });
 }

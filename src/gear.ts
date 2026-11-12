@@ -1,4 +1,5 @@
 import { loadAddon } from "./addon";
+import { loadSelectedBuffs, resolveBuffs, type ResolvedBuff } from "./buffs";
 import { combatReport } from "./combat";
 import type { Env } from "./env";
 import { latestSnapshots } from "./sync";
@@ -90,6 +91,8 @@ export interface ModelParams {
   evisDamage: number;
   /** Damage the model does not scale with gear (poison, procs, racials). */
   otherDps: number;
+  /** Multiplier on Agility and Strength from percent buffs (Blessing of Kings). */
+  statMult: number;
   notes: string[];
 }
 
@@ -162,10 +165,11 @@ export function dps(sh: Sheet, p: ModelParams): number {
 }
 
 function apply(sh: Sheet, remove: ItemStats, add: ItemStats, p: ModelParams): Sheet {
-  const dAgi = add.agi - remove.agi;
+  const dAgi = (add.agi - remove.agi) * p.statMult;
+  const dStr = (add.str - remove.str) * p.statMult;
   return {
     ...sh,
-    ap: sh.ap + (add.ap - remove.ap) + (add.str - remove.str) + dAgi,
+    ap: sh.ap + (add.ap - remove.ap) + dStr + dAgi,
     crit: sh.crit + (add.crit - remove.crit) + dAgi / p.agiPerCrit,
     hit: sh.hit + (add.hit - remove.hit),
   };
@@ -218,6 +222,9 @@ export interface GearReport {
   baseline: number;
   /** DPS measured in recorded fights, when there are any. */
   measuredDps: number | null;
+  /** Model DPS without the selected buffs. */
+  unbuffed: number;
+  buffs: ResolvedBuff[];
   params: ModelParams;
   sheet: Sheet;
   dungeons: DungeonScore[];
@@ -292,6 +299,7 @@ export async function gearReport(env: Env, lookahead = 3): Promise<GearReport | 
     ssBonus: Math.round(level / 2),
     evisDamage: Math.round(12 * level * evisBonus),
     otherDps: 0,
+    statMult: 1,
     notes,
   };
 
@@ -348,6 +356,30 @@ export async function gearReport(env: Env, lookahead = 3): Promise<GearReport | 
         "5 Sinister Strike után Eviscerate. Kapcsold be a harcnaplót (/wa log) a kalibráláshoz.",
     );
   }
+  // Selected buffs change the character sheet every candidate item is compared against.
+  const unbuffed = dps(sheet, params);
+  const buffs = resolveBuffs(level, await loadSelectedBuffs(env));
+  let bAgi = 0;
+  let bStr = 0;
+  let bAp = 0;
+  let bCrit = 0;
+  let pct = 0;
+  for (const b of buffs) {
+    if (!b.selected || !b.effect) continue;
+    bAgi += b.effect.agi ?? 0;
+    bStr += b.effect.str ?? 0;
+    bAp += b.effect.ap ?? 0;
+    bCrit += b.effect.crit ?? 0;
+    pct += b.effect.statPct ?? 0;
+  }
+  if (pct > 0) {
+    // The percent bonus also applies to what you already have and to the flat buffs.
+    bAgi += pct * (agi + bAgi);
+    bStr += pct * (Number(stats.strength?.effective ?? 0) + bStr);
+    params.statMult = 1 + pct;
+  }
+  sheet.ap += bAgi + bStr + bAp;
+  sheet.crit += bCrit + bAgi / agiPerCrit;
   const baseline = dps(sheet, params);
 
   const rows = await env.DB.prepare(
@@ -461,6 +493,8 @@ export async function gearReport(env: Env, lookahead = 3): Promise<GearReport | 
   return {
     baseline,
     measuredDps: combat ? combat.dps : null,
+    unbuffed,
+    buffs,
     params,
     sheet,
     dungeons,
