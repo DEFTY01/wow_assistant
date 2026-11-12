@@ -1,0 +1,34 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "wow-assistant",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-01-01",
+  "observability": { "enabled": true },
+
+  // Profile sync every 30 minutes (the API only refreshes after logout anyway).
+  "triggers": { "crons": ["*/30 * * * *"] },
+
+  "vars": {
+    "REGION": "eu",
+    "GAME_NAMESPACE_SUFFIX": "forever",
+    "CHARACTER_SLUG": "defty-graveshade",
+    "LOCALE": "en_GB",
+    // Normal ruleset = 2. Horde house 113 confirmed against an in-game price on 2026-11-12
+    // (the API lists 113, 114, 115, 120, 124 without saying which ruleset each serves).
+    "RULESET_ID": "2",
+    "AUCTION_HOUSE_ID": "113"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "wow-assistant",
+      // Replace after running: npx wrangler d1 create wow-assistant
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
+
+  // Uncomment for production once the D1 database exists:
+  // "routes": [{ "pattern": "wow.mucsibence.hu", "custom_domain": true }]
+}

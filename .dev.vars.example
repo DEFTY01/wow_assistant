@@ -1,0 +1,4 @@
+# Copy to .dev.vars and fill in (never commit .dev.vars).
+# Create the client at https://develop.battle.net/access/clients
+BLIZZARD_CLIENT_ID=
+BLIZZARD_CLIENT_SECRET=

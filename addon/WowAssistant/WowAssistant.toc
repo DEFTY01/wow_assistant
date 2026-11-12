@@ -1,0 +1,8 @@
+## Interface: 16001
+## Title: WoW Assistant
+## Notes: Exports gold, bags, bank, skills, spells and trainer offers for the WoW Assistant web app.
+## Author: Defty
+## Version: 1.0.0
+## SavedVariables: WowAssistantDB
+
+WowAssistant.lua
