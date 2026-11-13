@@ -245,7 +245,7 @@ function rawBlock(title: string, snap: LatestSnapshot | undefined): Html {
 
 // ---------------------------------------------------------------- page
 
-export function dashboard(d: DashboardData): Html {
+export function dashboard(d: DashboardData, extra?: Html): Html {
   const s = d.snapshots;
   const profile = s.profile?.json as Obj | undefined;
   return page({
@@ -262,6 +262,7 @@ export function dashboard(d: DashboardData): Html {
   <section><h2>Mesterségek</h2>${professionList(s.professions?.json as Obj | undefined)}</section>
   <section><h2>Trainer skillek</h2>${trainerTable(d)}</section>
   <section><h2>Adatforrások</h2>${sources(d)}</section>
+  ${extra ?? ""}
   <section class="wide"><h2>Műszaki adatok</h2>
     <details><summary>Szinkron napló</summary>
       <table><thead><tr><th>Idő</th><th>Végpont</th><th>HTTP</th><th>Változott</th><th>Üzenet</th></tr></thead><tbody>

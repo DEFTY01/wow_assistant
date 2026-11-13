@@ -254,6 +254,7 @@ export async function gearContext(env: Env) {
   const equip = snaps.equipment?.json as Obj | undefined;
   const specs = snaps.specializations?.json as Obj | undefined;
   if (!profile || !stats || !equip) return null;
+  if (Number(profile.character_class?.id) !== 4) return null; // the DPS model is rogue-only so far
 
   const level = Number(profile.level);
   const equipped = new Map<string, Obj>();

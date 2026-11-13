@@ -3,6 +3,7 @@ import type { Env } from "./env";
 import { type GearContext, type GearReport, gearContext, gearReport } from "./gear";
 import { INV_SLOTS, type GearItem, loadAuctionGear, loadGear } from "./market";
 import { loadPriceBook, planRoutes } from "./professions";
+import { stateGet } from "./state";
 import { latestSnapshots } from "./sync";
 
 type Obj = Record<string, any>;
@@ -197,7 +198,7 @@ export async function buildPlan(env: Env): Promise<Plan | null> {
   const profSnap = snaps.professions?.json as Obj | undefined;
   const addon = await loadAddon(env);
   const owned = ownedItems(addon?.state);
-  const goldRow = await env.DB.prepare("SELECT value FROM manual_state WHERE key = 'gold_copper'").first<{ value: string }>();
+  const goldRow = await stateGet(env, "gold_copper");
   const gold = goldRow ? Number(goldRow.value) : null;
   const { level, baseline } = ctx;
 
@@ -289,8 +290,10 @@ export async function buildPlan(env: Env): Promise<Plan | null> {
 
   // --- trainer skills
   const trainerRows = await env.DB.prepare(
-    "SELECT name, required_level, cost_copper, state, tradeskill FROM trainer_skills",
-  ).all<{ name: string; required_level: number; cost_copper: number; state: string; tradeskill: number }>();
+    "SELECT name, required_level, cost_copper, state, tradeskill FROM trainer_skills WHERE slug = ?",
+  )
+    .bind(env.CHARACTER_SLUG)
+    .all<{ name: string; required_level: number; cost_copper: number; state: string; tradeskill: number }>();
   const skills = rankSkills(trainerRows.results, ctx);
   for (const s of skills) {
     if (s.tier !== "dps" || s.cost <= 0) continue;
@@ -402,6 +405,12 @@ export async function buildPlan(env: Env): Promise<Plan | null> {
   const priceAt = await env.DB.prepare("SELECT MAX(updated_at) AS at FROM ah_gear").first<{ at: string | null }>();
   if (hours(priceAt?.at) > 6) warnings.push("Az aukciós árak több mint 6 órásak, a vásárlási javaslatok elavultak lehetnek.");
   if (!ctx.combat) warnings.push("Nincs rögzített harc: a modell tankönyvi értékekkel számol. /wa log a játékban.");
+  if (profile?.faction?.type && profile.faction.type !== "HORDE") {
+    warnings.push("Az aukciós árak a Horde aukciósházból származnak; Alliance karakternél az árak és a kínálat eltérhet.");
+  }
+  if (profile?.ruleset?.id != null && String(profile.ruleset.id) !== env.RULESET_ID) {
+    warnings.push("Az aukciós árak egy másik ruleset aukciósházából származnak, nálad eltérhetnek.");
+  }
   if (hours(snaps.profile?.last_seen_at) > 12) warnings.push("A Blizzard API adata régi: a profil csak kijelentkezés után frissül.");
 
   return {

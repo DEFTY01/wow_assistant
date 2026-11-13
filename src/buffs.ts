@@ -1,4 +1,5 @@
 import type { Env } from "./env";
+import { stateGet, statePut } from "./state";
 
 /** What a buff adds. `statPct` multiplies total Agility and Strength (Blessing of Kings). */
 export interface BuffEffect {
@@ -124,7 +125,7 @@ export function resolveBuffs(level: number, selected: Set<string>): ResolvedBuff
 }
 
 export async function loadSelectedBuffs(env: Env): Promise<Set<string>> {
-  const row = await env.DB.prepare("SELECT value FROM manual_state WHERE key = 'buffs'").first<{ value: string }>();
+  const row = await stateGet(env, "buffs");
   try {
     return new Set(row ? (JSON.parse(row.value) as string[]) : []);
   } catch {
@@ -134,10 +135,5 @@ export async function loadSelectedBuffs(env: Env): Promise<Set<string>> {
 
 export async function saveSelectedBuffs(env: Env, ids: string[]): Promise<void> {
   const known = new Set(BUFFS.map((b) => b.id));
-  await env.DB.prepare(
-    "INSERT INTO manual_state (key, value, updated_at) VALUES ('buffs', ?, ?) " +
-      "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-  )
-    .bind(JSON.stringify(ids.filter((id) => known.has(id))), new Date().toISOString())
-    .run();
+  await statePut(env, "buffs", JSON.stringify(ids.filter((id) => known.has(id))));
 }

@@ -36,12 +36,20 @@ function row(o: Option, showCost = true): Html {
   </li>`;
 }
 
-export function planPage(p: Plan | null): Html {
+export function planPage(p: Plan | null, info: { hasProfile: boolean; rogue: boolean } = { hasProfile: false, rogue: true }): Html {
   if (!p) {
     return page({
       title: "Haditerv",
       active: "plan",
-      body: html`<section class="wide"><h2>Haditerv</h2><p class="muted">Még nincs karakteradat. Nyomd meg a Szinkron gombot a Karakter oldalon.</p></section>`,
+      toolbar: html`<form method="post" action="/plan/refresh"><button>Frissítés</button></form>`,
+      body: html`<section class="wide"><h2>Haditerv</h2>
+        ${info.hasProfile && !info.rogue
+          ? html`<p>A sebzésmodell és a vásárlási terv egyelőre csak <b>rogue</b> karakterre készült el.</p>
+              <p class="muted">Ami nálad is működik: a <a href="/character">karakterlap</a>, a
+              <a href="/professions">mesterség-útvonal</a> az aukciós árakkal, és a <a href="/combat">harcnapló</a> számai.</p>`
+          : html`<p class="muted">Még nincs karakteradat. Nyomd meg a Frissítés gombot; ha utána is üres, jelentkezz ki
+              egyszer a karaktereddel, mert a Blizzard API csak kijelentkezés után frissül.</p>`}
+      </section>`,
     });
   }
   const up = p.projected - p.baseline;

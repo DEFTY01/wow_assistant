@@ -1,6 +1,7 @@
 import { storeFights } from "./combat";
 import type { Env } from "./env";
 import { queueUnknownItems } from "./market";
+import { stateGet, statePutStmt } from "./state";
 
 type Obj = Record<string, any>;
 
@@ -48,17 +49,13 @@ export async function importAddon(env: Env, db: Obj) {
   }
 
   const now = new Date().toISOString();
-  const put = (k: string, v: string) =>
-    env.DB.prepare(
-      "INSERT INTO manual_state (key, value, updated_at) VALUES (?, ?, ?) " +
-        "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-    ).bind(k, v, now);
+  const put = (k: string, v: string) => statePutStmt(env, k, v, now);
 
   const stmts = [put("addon", JSON.stringify(c))];
   if (typeof c.money === "number") stmts.push(put("gold_copper", String(c.money)));
 
   const trainer = Object.values(c.trainer ?? {});
-  if (trainer.length) stmts.push(env.DB.prepare("DELETE FROM trainer_skills"));
+  if (trainer.length) stmts.push(env.DB.prepare("DELETE FROM trainer_skills WHERE slug = ?").bind(env.CHARACTER_SLUG));
   for (const t of trainer) {
     // Older addon versions stored the Forever client's (name, category, icon) as (name, rank, state).
     const STATES = ["available", "unavailable", "used"];
@@ -66,10 +63,10 @@ export async function importAddon(env: Env, db: Obj) {
     const rank = Number(String(t.rank).match(/\d+/)?.[0] ?? 0);
     stmts.push(
       env.DB.prepare(
-        "INSERT INTO trainer_skills (name, rank, required_level, cost_copper, state, learned, tradeskill, updated_at) " +
-          "VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(name, rank, required_level) DO UPDATE SET " +
+        "INSERT INTO trainer_skills (slug, name, rank, required_level, cost_copper, state, learned, tradeskill, updated_at) " +
+          "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(slug, name, rank, required_level) DO UPDATE SET " +
           "cost_copper = excluded.cost_copper, state = excluded.state, learned = excluded.learned, updated_at = excluded.updated_at",
-      ).bind(t.name, rank, t.level || 0, t.cost || 0, state, state === "used" ? 1 : 0, t.tradeskill ? 1 : 0, now),
+      ).bind(env.CHARACTER_SLUG, t.name, rank, t.level || 0, t.cost || 0, state, state === "used" ? 1 : 0, t.tradeskill ? 1 : 0, now),
     );
   }
   for (let i = 0; i < stmts.length; i += 80) await env.DB.batch(stmts.slice(i, i + 80));
@@ -91,11 +88,8 @@ export async function importAddon(env: Env, db: Obj) {
 }
 
 export async function loadAddon(env: Env): Promise<{ state: AddonState; updatedAt: string } | null> {
-  const row = await env.DB.prepare("SELECT value, updated_at FROM manual_state WHERE key = 'addon'").first<{
-    value: string;
-    updated_at: string;
-  }>();
-  return row ? { state: JSON.parse(row.value), updatedAt: row.updated_at } : null;
+  const row = await stateGet(env, "addon");
+  return row ? { state: JSON.parse(row.value), updatedAt: row.updatedAt } : null;
 }
 
 /** Bags + bank, itemId -> count. */

@@ -6,6 +6,7 @@ WowAssistantDB = WowAssistantDB or {}
 
 local frame = CreateFrame("Frame")
 local char -- this character's table inside WowAssistantDB
+local bankOpen = false
 
 local function Print(msg)
   DEFAULT_CHAT_FRAME:AddMessage("|cfff0c040WoW Assistant:|r " .. msg)
@@ -202,8 +203,14 @@ frame:SetScript("OnEvent", function(_, event)
     Safe("money", ScanMoney)
   elseif event == "BAG_UPDATE_DELAYED" then
     Safe("inventory", ScanInventory)
-  elseif event == "BANKFRAME_OPENED" or event == "PLAYERBANKSLOTS_CHANGED" then
+  elseif event == "BANKFRAME_OPENED" then
+    bankOpen = true
     Safe("bank", ScanBank)
+  elseif event == "BANKFRAME_CLOSED" then
+    bankOpen = false
+  elseif event == "PLAYERBANKSLOTS_CHANGED" then
+    -- Away from the banker the bank reads as almost empty; only trust a scan while it is open.
+    if bankOpen then Safe("bank", ScanBank) end
   elseif event == "SKILL_LINES_CHANGED" or event == "PLAYER_LEVEL_UP" then
     Safe("money", ScanMoney)
     Safe("skills", ScanSkills)
@@ -217,7 +224,7 @@ frame:SetScript("OnEvent", function(_, event)
 end)
 
 for _, event in ipairs({
-  "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_MONEY", "BAG_UPDATE_DELAYED", "BANKFRAME_OPENED",
+  "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_MONEY", "BAG_UPDATE_DELAYED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
   "PLAYERBANKSLOTS_CHANGED", "SKILL_LINES_CHANGED", "PLAYER_LEVEL_UP", "SPELLS_CHANGED",
   "TRAINER_SHOW", "TRAINER_UPDATE",
 }) do

@@ -9,7 +9,9 @@ import type { Env } from "./env";
 // audience, expiry). Without them only the header's presence is checked, which stops
 // casual visitors but can be forged, so set both.
 
-const TOKEN_PATHS = new Set(["/api/addon", "/api/fights"]); // protected by UPLOAD_TOKEN instead
+const TOKEN_PATHS = new Set(["/api/addon", "/api/fights"]); // protected by an upload token instead
+// Shared characters live under /u/<secret key>; the key in the link is their protection.
+const isShared = (path: string) => path === "/u" || path.startsWith("/u/");
 
 interface Jwk {
   kid: string;
@@ -63,7 +65,7 @@ export const requireAccess: MiddlewareHandler<{ Bindings: Env }> = async (c, nex
   // wrangler dev rewrites the request host to the production route, so local development is
   // marked by a variable that only the dev script sets (see package.json).
   if (c.env.LOCAL_DEV === "1") return next();
-  if (TOKEN_PATHS.has(c.req.path)) return next();
+  if (TOKEN_PATHS.has(c.req.path) || isShared(c.req.path)) return next();
 
   const token = c.req.header("Cf-Access-Jwt-Assertion");
   if (!token) {

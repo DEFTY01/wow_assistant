@@ -39,7 +39,8 @@ export async function storeFights(env: Env, fights: unknown): Promise<number> {
   const stmts = list
     .filter((f) => f && Number(f.start) > 0 && Number(f.dur) > 0)
     .map((f) =>
-      env.DB.prepare("INSERT OR REPLACE INTO fights (start, duration, damage, json) VALUES (?, ?, ?, ?)").bind(
+      env.DB.prepare("INSERT OR REPLACE INTO fights (slug, start, duration, damage, json) VALUES (?, ?, ?, ?, ?)").bind(
+        env.CHARACTER_SLUG,
         f.start,
         f.dur,
         Math.round(f.dmg),
@@ -97,7 +98,7 @@ function add(into: AbilityStats, a: Partial<AbilityStats>) {
 const pct = (part: number, whole: number) => (whole > 0 ? (part / whole) * 100 : 0);
 
 export async function combatReport(env: Env, limit = 200): Promise<CombatReport | null> {
-  const rows = await env.DB.prepare("SELECT json FROM fights ORDER BY start DESC LIMIT ?").bind(limit).all<{ json: string }>();
+  const rows = await env.DB.prepare("SELECT json FROM fights WHERE slug = ? ORDER BY start DESC LIMIT ?").bind(env.CHARACTER_SLUG, limit).all<{ json: string }>();
   const fights = rows.results.map((r) => JSON.parse(r.json) as Fight);
   if (!fights.length) return null;
 

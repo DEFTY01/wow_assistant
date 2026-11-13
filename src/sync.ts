@@ -1,5 +1,6 @@
 import { apiGet } from "./blizzard";
 import type { Env } from "./env";
+import { touchCharacter } from "./share";
 
 export const KINDS = [
   "profile",
@@ -38,9 +39,9 @@ async function syncOne(env: Env, kind: Kind): Promise<SyncResult> {
       const json = JSON.stringify(body);
       const hash = await sha256(json);
       const latest = await env.DB.prepare(
-        "SELECT id, hash FROM snapshots WHERE kind = ? ORDER BY id DESC LIMIT 1",
+        "SELECT id, hash FROM snapshots WHERE slug = ? AND kind = ? ORDER BY id DESC LIMIT 1",
       )
-        .bind(kind)
+        .bind(env.CHARACTER_SLUG, kind)
         .first<{ id: number; hash: string }>();
       if (latest?.hash === hash) {
         await env.DB.prepare("UPDATE snapshots SET last_seen_at = ? WHERE id = ?")
@@ -49,9 +50,9 @@ async function syncOne(env: Env, kind: Kind): Promise<SyncResult> {
         result = { kind, status, changed: false };
       } else {
         await env.DB.prepare(
-          "INSERT INTO snapshots (kind, hash, json, fetched_at, last_seen_at) VALUES (?, ?, ?, ?, ?)",
+          "INSERT INTO snapshots (slug, kind, hash, json, fetched_at, last_seen_at) VALUES (?, ?, ?, ?, ?, ?)",
         )
-          .bind(kind, hash, json, now, now)
+          .bind(env.CHARACTER_SLUG, kind, hash, json, now, now)
           .run();
         result = { kind, status, changed: true };
       }
@@ -60,9 +61,9 @@ async function syncOne(env: Env, kind: Kind): Promise<SyncResult> {
     result = { kind, status: 0, changed: false, message: String(err).slice(0, 300) };
   }
   await env.DB.prepare(
-    "INSERT INTO sync_log (kind, status, changed, message, at) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO sync_log (slug, kind, status, changed, message, at) VALUES (?, ?, ?, ?, ?, ?)",
   )
-    .bind(kind, result.status, result.changed ? 1 : 0, result.message ?? null, now)
+    .bind(env.CHARACTER_SLUG, kind, result.status, result.changed ? 1 : 0, result.message ?? null, now)
     .run();
   return result;
 }
@@ -74,6 +75,7 @@ export async function syncAll(env: Env): Promise<SyncResult[]> {
   await env.DB.prepare(
     "DELETE FROM sync_log WHERE id < (SELECT MAX(id) FROM sync_log) - 2000",
   ).run();
+  await touchCharacter(env, (await latestSnapshots(env)).profile?.json as Record<string, unknown> | undefined);
   return results;
 }
 
@@ -87,9 +89,9 @@ export async function latestSnapshots(env: Env): Promise<Partial<Record<Kind, La
   const out: Partial<Record<Kind, LatestSnapshot>> = {};
   for (const kind of KINDS) {
     const row = await env.DB.prepare(
-      "SELECT json, fetched_at, last_seen_at FROM snapshots WHERE kind = ? ORDER BY id DESC LIMIT 1",
+      "SELECT json, fetched_at, last_seen_at FROM snapshots WHERE slug = ? AND kind = ? ORDER BY id DESC LIMIT 1",
     )
-      .bind(kind)
+      .bind(env.CHARACTER_SLUG, kind)
       .first<{ json: string; fetched_at: string; last_seen_at: string }>();
     if (row) {
       out[kind] = {

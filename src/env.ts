@@ -15,4 +15,6 @@ export interface Env {
   ACCESS_AUD?: string;
   /** Set to "1" only by the local dev script; never present in production. */
   LOCAL_DEV?: string;
+  /** Set per request for a shared character: the "/u/<key>" prefix its links live under. */
+  SHARE_PREFIX?: string;
 }

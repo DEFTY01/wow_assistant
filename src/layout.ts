@@ -43,7 +43,7 @@ const TABS = [
 ] as const;
 export type TabId = (typeof TABS)[number]["id"];
 
-export function page(opts: { title: string; active: TabId; body: Html; toolbar?: Html }): Html {
+export function page(opts: { title: string; active: TabId | null; body: Html; toolbar?: Html }): Html {
   return html`<!doctype html>
 <html lang="hu">
 <head>
@@ -58,9 +58,11 @@ export function page(opts: { title: string; active: TabId; body: Html; toolbar?:
 <body>
 <header class="bar">
   <a class="brand" href="/"><span class="sigil" aria-hidden="true"></span><span>WoW Assistant</span></a>
-  <nav class="tabs">
+  ${opts.active
+    ? html`<nav class="tabs">
     ${TABS.map((t) => html`<a href="${t.href}" class="${t.id === opts.active ? "on" : ""}">${t.label}</a>`)}
-  </nav>
+  </nav>`
+    : ""}
   <div class="tools">${opts.toolbar ?? ""}</div>
 </header>
 <main>
