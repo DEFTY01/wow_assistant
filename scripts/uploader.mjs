@@ -9,12 +9,25 @@
 //   WOW_DIR       game flavor folder, default "F:/World of Warcraft/_forever_"
 //   APP_URL       web app, default "http://127.0.0.1:8787"
 //   WOW_CHARACTER character first name in the combat log, default "Defty"
+//   (the same keys can be put in a .uploader.env file in the project folder)
 //   UPLOAD_TOKEN  must match the worker's UPLOAD_TOKEN secret when that is set
 import { cpSync, existsSync, readFileSync, readdirSync, statSync, watchFile } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseCombatLog } from "./combat-log.mjs";
 import { parseSavedVariables } from "./lua-table.mjs";
+
+// Optional settings file next to package.json (.uploader.env, KEY=VALUE per line, not committed),
+// so the scheduled task needs no environment variables of its own.
+{
+  const envFile = join(dirname(fileURLToPath(import.meta.url)), "..", ".uploader.env");
+  if (existsSync(envFile)) {
+    for (const line of readFileSync(envFile, "utf8").split(/\r?\n/)) {
+      const m = /^\s*([A-Z_]+)\s*=\s*(.*?)\s*$/.exec(line);
+      if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
+    }
+  }
+}
 
 const WOW_DIR = process.env.WOW_DIR ?? "F:/World of Warcraft/_forever_";
 const APP_URL = (process.env.APP_URL ?? "http://127.0.0.1:8787").replace(/\/$/, "");
@@ -32,6 +45,26 @@ function install() {
   console.log(`Addon telepítve: ${target}`);
 }
 
+async function post(path, body) {
+  const res = await fetch(`${APP_URL}${path}`, {
+    method: "POST",
+    redirect: "manual",
+    headers: { "Content-Type": "application/json", ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}) },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  if (res.status >= 300 && res.status < 400) {
+    throw new Error(`HTTP ${res.status}: átirányítás a bejelentkező oldalra (a Cloudflare Access nem engedi át a ${path} útvonalat)`);
+  }
+  if (res.status === 401) throw new Error("HTTP 401: hibás vagy hiányzó UPLOAD_TOKEN");
+  if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`A válasz nem az apptól jött: ${text.slice(0, 80).replace(/\s+/g, " ")}`);
+  }
+}
+
 function findSavedVariables() {
   const accounts = join(WOW_DIR, "WTF", "Account");
   if (!existsSync(accounts)) return [];
@@ -47,12 +80,11 @@ async function upload(file) {
     console.log("A fájlban még nincs adat.");
     return;
   }
-  const res = await fetch(`${APP_URL}/api/addon`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}) },
-    body: JSON.stringify(db),
-  });
-  console.log(`${new Date().toLocaleTimeString()} feltöltve → HTTP ${res.status} ${await res.text()}`);
+  const r = await post("/api/addon", db);
+  console.log(
+    `${new Date().toLocaleTimeString()} feltöltve → ${APP_URL}: ${r.money ?? "?"} copper, ${r.bagItems} féle tárgy a táskákban, ` +
+      `${r.bankItems} a bankban, ${r.trainerSkills} trainer skill`,
+  );
 }
 
 // Newest combat log file written by the game (/wa log or /combatlog turns logging on).
@@ -73,17 +105,13 @@ async function uploadFights(final = false) {
   const st = statSync(file);
   const key = `${file}:${st.size}`;
   if (key === lastLogKey) return;
-  lastLogKey = key;
   // A file that has not grown for a while cannot contain a fight still in progress.
   const idle = Date.now() - st.mtimeMs > 15000;
   const fights = parseCombatLog(readFileSync(file, "utf8"), CHARACTER, { includeOpen: final || idle });
   if (!fights.length) return;
-  const res = await fetch(`${APP_URL}/api/fights`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...(TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {}) },
-    body: JSON.stringify(fights),
-  });
-  console.log(`${new Date().toLocaleTimeString()} harcnapló: ${fights.length} harc → HTTP ${res.status} ${await res.text()}`);
+  const r = await post("/api/fights", fights);
+  lastLogKey = key;
+  console.log(`${new Date().toLocaleTimeString()} harcnapló: ${r.stored} harc feltöltve`);
 }
 
 if (process.argv.includes("--install")) {

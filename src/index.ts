@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { requireAccess } from "./access";
 import { importAddon, loadAddon } from "./addon";
 import { apiGet } from "./blizzard";
 import { saveSelectedBuffs } from "./buffs";
@@ -15,6 +16,7 @@ import { dashboard, type DashboardData } from "./view";
 // NOTE: there is no auth in the app itself. Before exposing it on a public
 // domain, put it behind Cloudflare Access so only you can reach it.
 const app = new Hono<{ Bindings: Env }>();
+app.use("*", requireAccess);
 
 async function loadDashboard(env: Env): Promise<DashboardData> {
   const [addon, snapshots, log, gold, skills] = await Promise.all([

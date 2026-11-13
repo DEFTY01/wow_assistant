@@ -183,11 +183,12 @@ end
 frame:SetScript("OnEvent", function(_, event)
   if event == "PLAYER_LOGIN" then
     local name = UnitName("player")
-    if (WowAssistantDB.version or 0) < 4 then char.trainer = nil end -- older versions stored trainer rows wrongly
+    local oldVersion = WowAssistantDB.version or 0
     WowAssistantDB.version = 4
     WowAssistantDB.chars = WowAssistantDB.chars or {}
     WowAssistantDB.chars[name] = WowAssistantDB.chars[name] or {}
     char = WowAssistantDB.chars[name]
+    if oldVersion < 4 then char.trainer = nil end -- older versions stored trainer rows wrongly
     char.name = name
     char.class = select(2, UnitClass("player"))
     char.errors = nil

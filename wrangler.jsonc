@@ -1,34 +1,41 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "wow-assistant",
-  "main": "src/index.ts",
-  "compatibility_date": "2026-01-01",
-  "observability": { "enabled": true },
-
-  // Profile sync every 30 minutes (the API only refreshes after logout anyway).
-  "triggers": { "crons": ["*/30 * * * *"] },
-
-  "vars": {
-    "REGION": "eu",
-    "GAME_NAMESPACE_SUFFIX": "forever",
-    "CHARACTER_SLUG": "defty-graveshade",
-    "LOCALE": "en_GB",
-    // Normal ruleset = 2. Horde house 113 confirmed against an in-game price on 2026-11-12
-    // (the API lists 113, 114, 115, 120, 124 without saying which ruleset each serves).
-    "RULESET_ID": "2",
-    "AUCTION_HOUSE_ID": "113"
-  },
-
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "wow-assistant",
-      // Replace after running: npx wrangler d1 create wow-assistant
-      "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "migrations"
-    }
-  ]
-
-  // Uncomment for production once the D1 database exists:
-  // "routes": [{ "pattern": "wow.mucsibence.hu", "custom_domain": true }]
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "wow-assistant",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-01-01",
+	"observability": {
+		"enabled": true
+	},
+	// Profile sync every 30 minutes (the API only refreshes after logout anyway).
+	"triggers": {
+		"crons": [
+			"*/30 * * * *"
+		]
+	},
+	"vars": {
+		"REGION": "eu",
+		"GAME_NAMESPACE_SUFFIX": "forever",
+		"CHARACTER_SLUG": "defty-graveshade",
+		"LOCALE": "en_GB",
+		// Normal ruleset = 2. Horde house 113 confirmed against an in-game price on 2026-11-12
+		// (the API lists 113, 114, 115, 120, 124 without saying which ruleset each serves).
+		"RULESET_ID": "2",
+		"AUCTION_HOUSE_ID": "113",
+		// Cloudflare Access: every request's JWT is verified against this team and application.
+		"ACCESS_TEAM_DOMAIN": "bencemucsi.cloudflareaccess.com",
+		"ACCESS_AUD": "799a3dad3c68167f7f8914b2e92aa65dea695cd8b8fa3448abc6e16a75e6a9cf"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "wow-assistant",
+			"database_id": "9c653b66-1d7a-4b4f-baf6-6ebfa2dbd0f2",
+			"migrations_dir": "migrations"
+		}
+	],
+	// Only the custom domain serves the app, so Access cannot be bypassed via workers.dev.
+	"workers_dev": false,
+	"preview_urls": false,
+	// Custom domain. Put Cloudflare Access in front of it: the app has no login of its own.
+	"routes": [{ "pattern": "wow.mucsibence.hu", "custom_domain": true }]
 }

@@ -10,4 +10,7 @@ export interface Env {
   BLIZZARD_CLIENT_SECRET: string;
   /** Optional: when set, the addon uploader must send it as a Bearer token. */
   UPLOAD_TOKEN?: string;
+  /** Cloudflare Access team domain, e.g. "myteam.cloudflareaccess.com", and the application AUD tag. */
+  ACCESS_TEAM_DOMAIN?: string;
+  ACCESS_AUD?: string;
 }
