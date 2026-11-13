@@ -13,4 +13,6 @@ export interface Env {
   /** Cloudflare Access team domain, e.g. "myteam.cloudflareaccess.com", and the application AUD tag. */
   ACCESS_TEAM_DOMAIN?: string;
   ACCESS_AUD?: string;
+  /** Set to "1" only by the local dev script; never present in production. */
+  LOCAL_DEV?: string;
 }

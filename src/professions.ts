@@ -1,5 +1,6 @@
 import { loadAddon, ownedItems } from "./addon";
 import { apiGet } from "./blizzard";
+import { discoverItems, queueUnknownItems, storeAuctionGear } from "./market";
 import type { Env } from "./env";
 import { latestSnapshots } from "./sync";
 
@@ -88,7 +89,13 @@ interface Listing {
   qty: number;
 }
 
-async function fetchListings(env: Env, houseId: number, wanted: Set<number> | null) {
+/** `gear` collects the cheapest buyout of every fixed-stat (no random suffix) non-commodity item. */
+async function fetchListings(
+  env: Env,
+  houseId: number,
+  wanted: Set<number> | null,
+  gear?: Map<number, { min: number; n: number }>,
+) {
   const byItem = new Map<number, Listing[]>();
   for (const suffix of ["", "/commodities"]) {
     const { status, body } = await apiGet(
@@ -99,6 +106,15 @@ async function fetchListings(env: Env, houseId: number, wanted: Set<number> | nu
     if (status !== 200) throw new Error(`Auction house ${houseId}${suffix}: HTTP ${status}`);
     for (const a of ((body as Obj).auctions ?? []) as Obj[]) {
       const id = a.item?.id as number;
+      if (gear && suffix === "" && a.buyout > 0 && !a.item?.bonus_lists && !a.item?.modifiers) {
+        const unit = Number(a.buyout) / (Number(a.quantity) || 1);
+        const g = gear.get(id);
+        if (!g) gear.set(id, { min: unit, n: 1 });
+        else {
+          g.n++;
+          if (unit < g.min) g.min = unit;
+        }
+      }
       if (wanted && !wanted.has(id)) continue;
       const qty = Number(a.quantity) || 1;
       const price = a.unit_price != null ? Number(a.unit_price) : Number(a.buyout) / qty;
@@ -143,11 +159,11 @@ async function reagentIds(env: Env): Promise<Set<number>> {
   return ids;
 }
 
-export async function syncPrices(env: Env): Promise<{ items: number; house: number }> {
+export async function syncPrices(env: Env): Promise<{ items: number; house: number; gear: number; queued: number }> {
   const house = Number(env.AUCTION_HOUSE_ID);
   const wanted = await reagentIds(env);
-  if (!wanted.size) return { items: 0, house };
-  const listings = await fetchListings(env, house, wanted);
+  const gearListings = new Map<number, { min: number; n: number }>();
+  const listings = await fetchListings(env, house, wanted, gearListings);
   const now = new Date().toISOString();
   const stmts = [env.DB.prepare("DELETE FROM prices")];
   for (const [id, list] of listings) {
@@ -159,7 +175,9 @@ export async function syncPrices(env: Env): Promise<{ items: number; house: numb
     );
   }
   for (let i = 0; i < stmts.length; i += 80) await env.DB.batch(stmts.slice(i, i + 80));
-  return { items: listings.size, house };
+  const level = Number(((await latestSnapshots(env)).profile?.json as Obj | undefined)?.level) || 60;
+  const gear = await storeAuctionGear(env, gearListings, level);
+  return { items: listings.size, house, ...gear };
 }
 
 /** Price of one item in several auction houses, to find out which house is yours. */
@@ -178,34 +196,9 @@ export async function compareHouses(env: Env, itemId: number, houses: number[]) 
 
 /** Look up vendor prices / names for items we have not asked the Blizzard API about yet. */
 export async function syncItems(env: Env, limit = 40): Promise<{ fetched: number; remaining: number }> {
-  const wanted = [...(await reagentIds(env))];
-  const known = await env.DB.prepare("SELECT item_id FROM items WHERE api_status IS NOT NULL").all<{
-    item_id: number;
-  }>();
-  const done = new Set(known.results.map((r) => r.item_id));
-  const todo = wanted.filter((id) => !done.has(id));
-  const now = new Date().toISOString();
-  const batch = todo.slice(0, limit);
-  for (const id of batch) {
-    const { status, body } = await apiGet(env, `/data/wow/item/${id}`, "static");
-    const b = (body ?? {}) as Obj;
-    await env.DB.prepare(
-      "INSERT INTO items (item_id, name, vendor_buy, vendor_sell, api_status, updated_at) VALUES (?, ?, ?, ?, ?, ?) " +
-        "ON CONFLICT(item_id) DO UPDATE SET name = COALESCE(excluded.name, items.name), " +
-        "vendor_buy = excluded.vendor_buy, vendor_sell = excluded.vendor_sell, " +
-        "api_status = excluded.api_status, updated_at = excluded.updated_at",
-    )
-      .bind(
-        id,
-        status === 200 ? (b.name ?? null) : null,
-        status === 200 ? (b.purchase_price ?? null) : null,
-        status === 200 ? (b.sell_price ?? null) : null,
-        status,
-        now,
-      )
-      .run();
-  }
-  return { fetched: batch.length, remaining: todo.length - batch.length };
+  // Reagents and crafted items join the same queue as auction house and bag items.
+  await queueUnknownItems(env, await reagentIds(env));
+  return discoverItems(env, limit);
 }
 
 // ---------------------------------------------------------------- optimizer
@@ -261,13 +254,13 @@ function skillUpChance(r: Recipe, skill: number): number {
   return (r.grey - skill) / (r.grey - r.yellow);
 }
 
-interface PriceBook {
+export interface PriceBook {
   unit(itemId: number): { price: number; source: string } | null;
   vendorSell(itemId: number | null): number;
   name(itemId: number): string;
 }
 
-async function loadPriceBook(env: Env): Promise<PriceBook> {
+export async function loadPriceBook(env: Env): Promise<PriceBook> {
   const [prices, items] = await Promise.all([
     env.DB.prepare("SELECT item_id, depth_price FROM prices").all<{ item_id: number; depth_price: number }>(),
     env.DB.prepare("SELECT item_id, name, vendor_buy, vendor_sell FROM items").all<{

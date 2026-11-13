@@ -8,6 +8,8 @@ import { combatPage } from "./combatView";
 import type { Env } from "./env";
 import { gearReport, importLoot, type LootImport } from "./gear";
 import { gearPage } from "./gearView";
+import { buildPlan } from "./plan";
+import { planPage } from "./planView";
 import { compareHouses, importRecipes, planRoutes, syncItems, syncPrices, type RecipeImport } from "./professions";
 import { professionsPage } from "./professionsView";
 import { latestSnapshots, syncAll } from "./sync";
@@ -50,7 +52,19 @@ async function loadDashboard(env: Env): Promise<DashboardData> {
   };
 }
 
-app.get("/", async (c) => c.html(await dashboard(await loadDashboard(c.env))));
+app.get("/", async (c) => c.html(await planPage(await buildPlan(c.env))));
+
+app.get("/character", async (c) => c.html(await dashboard(await loadDashboard(c.env))));
+
+// Pull everything the plan depends on: character, auction prices, a batch of item stats.
+app.post("/plan/refresh", async (c) => {
+  await syncAll(c.env);
+  await syncPrices(c.env);
+  await syncItems(c.env, 40);
+  return c.redirect("/", 303);
+});
+
+app.get("/api/plan", async (c) => c.json(await buildPlan(c.env)));
 
 app.get("/api/state", async (c) => c.json(await loadDashboard(c.env)));
 
@@ -118,7 +132,9 @@ app.post("/professions/refresh", async (c) => {
   return c.redirect("/professions", 303);
 });
 
-app.post("/api/items/sync", async (c) => c.json(await syncItems(c.env)));
+app.post("/api/items/sync", async (c) =>
+  c.json(await syncItems(c.env, Math.min(400, Number(c.req.query("limit")) || 40))),
+);
 app.post("/api/prices/sync", async (c) => c.json(await syncPrices(c.env)));
 
 // Which auction house is yours? Compare one item's price across houses with the in-game price.
@@ -137,7 +153,7 @@ app.post("/api/import/recipes", async (c) => {
 
 app.post("/sync", async (c) => {
   await syncAll(c.env);
-  return c.redirect("/", 303);
+  return c.redirect("/character", 303);
 });
 
 app.post("/manual/gold", async (c) => {
@@ -150,7 +166,7 @@ app.post("/manual/gold", async (c) => {
   )
     .bind(String(Math.round(gold * 10000)), new Date().toISOString())
     .run();
-  return c.redirect("/", 303);
+  return c.redirect("/character", 303);
 });
 
 export default {
@@ -160,6 +176,10 @@ export default {
     // Auction data refreshes about hourly, so only pull it on the full hour.
     if (new Date(_event.scheduledTime).getUTCMinutes() === 0) {
       ctx.waitUntil(syncPrices(env).catch((err) => console.error("price sync failed", err)));
+    }
+    // Item stats are looked up a few at a time so a run stays within the request limits.
+    if (new Date(_event.scheduledTime).getUTCMinutes() !== 0) {
+      ctx.waitUntil(syncItems(env, 40).catch((err) => console.error("item sync failed", err)));
     }
   },
 } satisfies ExportedHandler<Env>;

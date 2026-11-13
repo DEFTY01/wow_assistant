@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --test-scheduled",
+    "dev": "wrangler dev --test-scheduled --var LOCAL_DEV:1",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "addon:install": "node scripts/uploader.mjs --install",

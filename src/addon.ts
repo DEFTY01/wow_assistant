@@ -1,5 +1,6 @@
 import { storeFights } from "./combat";
 import type { Env } from "./env";
+import { queueUnknownItems } from "./market";
 
 type Obj = Record<string, any>;
 
@@ -72,6 +73,8 @@ export async function importAddon(env: Env, db: Obj) {
     );
   }
   for (let i = 0; i < stmts.length; i += 80) await env.DB.batch(stmts.slice(i, i + 80));
+  // Look up what is in the bags and bank, so upgrades already owned can be spotted.
+  await queueUnknownItems(env, [...Object.keys(c.bags ?? {}), ...Object.keys(c.bank ?? {})].map(Number));
   return {
     character: c.name,
     money: c.money ?? null,

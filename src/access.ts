@@ -60,8 +60,9 @@ async function verify(token: string, teamDomain: string, aud: string): Promise<b
 }
 
 export const requireAccess: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
-  const host = new URL(c.req.url).hostname;
-  if (host === "localhost" || host === "127.0.0.1") return next(); // local development
+  // wrangler dev rewrites the request host to the production route, so local development is
+  // marked by a variable that only the dev script sets (see package.json).
+  if (c.env.LOCAL_DEV === "1") return next();
   if (TOKEN_PATHS.has(c.req.path)) return next();
 
   const token = c.req.header("Cf-Access-Jwt-Assertion");

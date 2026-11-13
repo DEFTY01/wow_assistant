@@ -65,7 +65,7 @@ interface Weapon {
   speed: number;
 }
 /** What one item contributes. */
-interface ItemStats {
+export interface ItemStats {
   agi: number;
   str: number;
   ap: number;
@@ -99,7 +99,7 @@ export interface ModelParams {
 const ZERO: ItemStats = { agi: 0, str: 0, ap: 0, crit: 0, hit: 0, weapon: null };
 
 /** Stats of an equipped item as the Blizzard equipment endpoint reports them. */
-function equippedStats(it: Obj | undefined): ItemStats {
+export function equippedStats(it: Obj | undefined): ItemStats {
   if (!it) return ZERO;
   const s: ItemStats = { ...ZERO };
   for (const st of (it.stats ?? []) as Obj[]) {
@@ -246,7 +246,8 @@ function talentRank(specs: Obj | undefined, name: string): { rank: number; desc:
   return { rank: 0, desc: "" };
 }
 
-export async function gearReport(env: Env, lookahead = 3): Promise<GearReport | null> {
+/** Everything needed to score a piece of gear against what is equipped now. */
+export async function gearContext(env: Env) {
   const snaps = await latestSnapshots(env);
   const profile = snaps.profile?.json as Obj | undefined;
   const stats = snaps.statistics?.json as Obj | undefined;
@@ -381,6 +382,54 @@ export async function gearReport(env: Env, lookahead = 3): Promise<GearReport | 
   sheet.ap += bAgi + bStr + bAp;
   sheet.crit += bCrit + bAgi / agiPerCrit;
   const baseline = dps(sheet, params);
+  const skills = (await loadAddon(env))?.state.skills;
+  const equippedIds = new Set([...equipped.values()].map((it) => Number(it.item?.id)));
+
+  /** Best slot for an item and the DPS it adds there; null when it is not an upgrade. */
+  const score = (add: ItemStats, slots: string[]): { slot: string; gain: number } | null => {
+    let best: { slot: string; gain: number } | null = null;
+    for (const slot of slots) {
+      let sh = apply(sheet, equippedStats(equipped.get(slot)), add, params);
+      if (slot === "MAIN_HAND") sh = { ...sh, mh: add.weapon };
+      if (slot === "OFF_HAND") sh = { ...sh, oh: add.weapon };
+      const gain = dps(sh, params) - baseline;
+      if (!best || gain > best.gain) best = { slot, gain };
+    }
+    return best && best.gain > 0.05 ? best : null;
+  };
+  const describe = (add: ItemStats, weaponSub?: number): string => {
+    const bits: string[] = [];
+    if (add.weapon) {
+      const w = add.weapon;
+      bits.push(`${WEAPON_NAMES[weaponSub ?? -1] ?? "Weapon"} ${w.min}–${w.max} / ${w.speed.toFixed(1)}`);
+    }
+    if (add.agi) bits.push(`+${add.agi} agi`);
+    if (add.str) bits.push(`+${add.str} str`);
+    if (add.ap) bits.push(`+${add.ap} AP`);
+    if (add.crit) bits.push(`+${add.crit}% crit`);
+    if (add.hit) bits.push(`+${add.hit}% hit`);
+    return bits.join(", ");
+  };
+  const weaponWarning = (itemClass: number, sub: number): string | null => {
+    if (itemClass !== 2 || !skills || !Object.keys(skills).length) return null;
+    const line = WEAPON_SKILLS[sub];
+    const s = skills[line];
+    if (!s) return `${line} nincs kitanulva`;
+    return s.rank < s.max - 15 ? `${line} skill ${s.rank}/${s.max}` : null;
+  };
+
+  return {
+    level, baseline, unbuffed, buffs, params, sheet, equipped, equippedIds, combat,
+    gold: null as number | null,
+    score, describe, weaponWarning,
+  };
+}
+export type GearContext = NonNullable<Awaited<ReturnType<typeof gearContext>>>;
+
+export async function gearReport(env: Env, lookahead = 3, given?: GearContext): Promise<GearReport | null> {
+  const ctx = given ?? (await gearContext(env));
+  if (!ctx) return null;
+  const { level, baseline, unbuffed, buffs, params, sheet, equipped, equippedIds, combat } = ctx;
 
   const rows = await env.DB.prepare(
     "SELECT l.*, d.name AS dungeon, d.min_level, d.max_level FROM loot l JOIN dungeons d ON d.zone_id = l.zone_id " +
@@ -389,8 +438,6 @@ export async function gearReport(env: Env, lookahead = 3): Promise<GearReport | 
     .bind(level + lookahead)
     .all<Obj>();
 
-  const skills = (await loadAddon(env))?.state.skills;
-  const equippedIds = new Set([...equipped.values()].map((it) => Number(it.item?.id)));
   const upgrades: Upgrade[] = [];
   for (const r of rows.results) {
     if (equippedIds.has(r.item_id)) continue;
@@ -401,27 +448,8 @@ export async function gearReport(env: Env, lookahead = 3): Promise<GearReport | 
     const add = lootStats(JSON.parse(r.stats));
     if (r.item_class === 2 && !add.weapon) continue;
 
-    let best: { slot: string; gain: number } | null = null;
-    for (const slot of slots) {
-      const cur = equipped.get(slot);
-      let sh = apply(sheet, equippedStats(cur), add, params);
-      if (slot === "MAIN_HAND") sh = { ...sh, mh: add.weapon };
-      if (slot === "OFF_HAND") sh = { ...sh, oh: add.weapon };
-      const gain = dps(sh, params) - baseline;
-      if (!best || gain > best.gain) best = { slot, gain };
-    }
-    if (!best || best.gain <= 0.05) continue;
-
-    const bits: string[] = [];
-    if (add.weapon) {
-      const w = add.weapon;
-      bits.push(`${WEAPON_NAMES[r.subclass] ?? "Weapon"} ${w.min}–${w.max} / ${w.speed.toFixed(1)}`);
-    }
-    if (add.agi) bits.push(`+${add.agi} agi`);
-    if (add.str) bits.push(`+${add.str} str`);
-    if (add.ap) bits.push(`+${add.ap} AP`);
-    if (add.crit) bits.push(`+${add.crit}% crit`);
-    if (add.hit) bits.push(`+${add.hit}% hit`);
+    const best = ctx.score(add, slots);
+    if (!best) continue;
 
     upgrades.push({
       itemId: r.item_id,
@@ -437,14 +465,8 @@ export async function gearReport(env: Env, lookahead = 3): Promise<GearReport | 
       gain: best.gain,
       gainPct: (best.gain / baseline) * 100,
       usableNow: r.req_level <= level,
-      detail: bits.join(", "),
-      warning: (() => {
-        if (r.item_class !== 2 || !skills || !Object.keys(skills).length) return null;
-        const line = WEAPON_SKILLS[r.subclass];
-        const s = skills[line];
-        if (!s) return `${line} nincs kitanulva`;
-        return s.rank < s.max - 15 ? `${line} skill ${s.rank}/${s.max}` : null;
-      })(),
+      detail: ctx.describe(add, r.subclass),
+      warning: ctx.weaponWarning(r.item_class, r.subclass),
     });
   }
   upgrades.sort((a, b) => b.gain - a.gain);

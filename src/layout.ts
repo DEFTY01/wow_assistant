@@ -35,7 +35,8 @@ export function money(copper: number | null | undefined): Html {
 }
 
 const TABS = [
-  { id: "char", href: "/", label: "Karakter" },
+  { id: "plan", href: "/", label: "Haditerv" },
+  { id: "char", href: "/character", label: "Karakter" },
   { id: "combat", href: "/combat", label: "Harc" },
   { id: "gear", href: "/gear", label: "Felszerelés" },
   { id: "prof", href: "/professions", label: "Mesterségek" },
@@ -237,6 +238,46 @@ pre{overflow:auto;max-height:380px;font:12px ui-monospace,Consolas,monospace;bac
 .tree li b{color:var(--good);font-weight:700}
 .tree.zero{opacity:.45}
 
+/* battle plan */
+.notice{padding:10px 14px;border:1px solid #6a4a1c;border-left:3px solid var(--gold);background:rgba(201,162,74,.07);color:#d8c59a;font-size:15px}
+.notice p{margin:2px 0}
+.verdict{display:grid;grid-template-columns:auto auto auto 1fr;align-items:center;gap:8px 26px;padding:22px 26px}
+.verdict>div{display:flex;flex-direction:column}
+.verdict>div>span{font:500 11px var(--display);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.verdict>div>b{font:700 44px/1.05 var(--display);color:var(--text);font-variant-numeric:tabular-nums}
+.verdict>div>small{color:var(--muted);font-size:14px}
+.verdict-then b{color:var(--gold-hi);text-shadow:0 0 22px rgba(243,213,138,.25)}
+.verdict-then em{font-style:normal;color:var(--good);font-weight:700}
+.verdict-arrow{width:44px;height:2px;background:linear-gradient(90deg,var(--edge),var(--gold-hi));position:relative;align-self:center}
+.verdict-arrow::after{content:"";position:absolute;right:-1px;top:-5px;border:6px solid transparent;border-left-color:var(--gold-hi);border-right:0}
+.purse{justify-self:end;min-width:240px;padding:12px 16px;border:1px solid var(--hair);background:#100e0a;box-shadow:inset 0 2px 8px rgba(0,0,0,.55)}
+.verdict>.purse>b{font:700 24px var(--body);margin:2px 0 8px;color:var(--text)}
+.purse .bar-track{height:8px;margin-bottom:6px}
+.acts{list-style:none;margin:0;padding:0}
+.act{display:grid;grid-template-columns:76px minmax(0,1fr) auto;gap:14px;align-items:center;padding:11px 0;border-bottom:1px solid var(--hair)}
+.act:last-child{border-bottom:0;padding-bottom:0}
+.act:first-child{padding-top:2px}
+.src{justify-self:start;font:700 10px var(--display);letter-spacing:.1em;text-transform:uppercase;padding:4px 0;width:76px;text-align:center;border:1px solid var(--edge);color:var(--gold-hi);background:rgba(201,162,74,.08)}
+.src-craft{color:#9fd6a0;border-color:#2f5a35;background:rgba(111,211,111,.08)}
+.src-owned{color:#b8d6ee;border-color:#2f4a60;background:rgba(127,178,217,.09)}
+.src-trainer{color:#e2b8f2;border-color:#553066;background:rgba(176,72,248,.09)}
+.act-title{font-weight:700;font-size:17px}
+.act-detail{color:var(--muted);font-size:14px;line-height:1.35}
+.act-num{display:flex;flex-direction:column;align-items:flex-end;gap:1px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.act-num small{color:var(--dim);font-size:12px}
+.gain{color:var(--good);font-weight:700}
+.gain sup{color:var(--muted);margin-left:1px}
+.warn{color:#e8b25a}
+.tag-good{color:#a9e6aa;border-color:#2f5a35;background:rgba(111,211,111,.09)}
+.tag-dim{color:var(--dim);border-color:var(--hair);background:none}
+tr.dim td{opacity:.55}
+.road{list-style:none;margin:0;padding:0;position:relative}
+.road::before{content:"";position:absolute;left:17px;top:6px;bottom:6px;width:1px;background:var(--edge)}
+.road li{display:grid;grid-template-columns:36px 1fr;gap:14px;padding:6px 0;position:relative}
+.road-lvl{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font:700 14px var(--display);color:var(--gold-hi);
+  border:1px solid var(--gold);background:#14110c;box-shadow:0 0 0 3px var(--panel)}
+.road li>div{align-self:center;font-size:15px}
+
 /* buff picker */
 .buffs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
 .buff{display:flex;gap:10px;align-items:center;padding:8px 10px;cursor:pointer;color:var(--text);border:1px solid var(--hair);background:#100e0a}
@@ -265,6 +306,11 @@ pre{overflow:auto;max-height:380px;font:12px ui-monospace,Consolas,monospace;bac
   .tabs{order:3;width:100%;margin:0;overflow-x:auto}
   .tabs a{padding:8px 12px}
   .chips{margin-left:0}
+  .verdict{grid-template-columns:1fr auto 1fr;padding:18px 16px;gap:14px}
+  .verdict>div>b{font-size:34px}
+  .purse{grid-column:1/-1;justify-self:stretch}
+  .act{grid-template-columns:1fr auto}
+  .src{grid-column:1/-1}
   main{padding:14px 12px 30px;gap:14px}
 }
 `;
