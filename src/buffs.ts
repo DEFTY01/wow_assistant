@@ -83,6 +83,51 @@ const BUFFS: BuffDef[] = [
   { id: "juju-might", name: "Juju Might", source: "Winterspring", group: "consumable", tiers: [{ level: 55, ap: 40 }] },
 ];
 
+// Item id and duration of each consumable, keyed by its name (ids from the Wowhead Forever database).
+const CONSUMABLE_ITEMS: Record<string, { itemId: number; minutes: number }> = {
+  "Elixir of Minor Agility": { itemId: 2457, minutes: 60 },
+  "Elixir of Lesser Agility": { itemId: 3390, minutes: 60 },
+  "Elixir of Agility": { itemId: 8949, minutes: 60 },
+  "Elixir of Greater Agility": { itemId: 9187, minutes: 60 },
+  "Elixir of the Mongoose": { itemId: 13452, minutes: 60 },
+  "Scroll of Agility": { itemId: 3012, minutes: 30 },
+  "Scroll of Agility II": { itemId: 1477, minutes: 30 },
+  "Scroll of Agility III": { itemId: 4425, minutes: 30 },
+  "Scroll of Agility IV": { itemId: 10309, minutes: 30 },
+  "Scroll of Strength": { itemId: 954, minutes: 30 },
+  "Scroll of Strength II": { itemId: 2289, minutes: 30 },
+  "Scroll of Strength III": { itemId: 4426, minutes: 30 },
+  "Scroll of Strength IV": { itemId: 10310, minutes: 30 },
+  "Winterfall Firewater": { itemId: 12820, minutes: 20 },
+  "Juju Power": { itemId: 12451, minutes: 30 },
+  "Juju Might": { itemId: 12460, minutes: 10 },
+};
+export const CONSUMABLE_ITEM_IDS = Object.values(CONSUMABLE_ITEMS).map((c) => c.itemId);
+
+export interface Consumable {
+  name: string;
+  itemId: number;
+  minutes: number;
+  effect: BuffEffect;
+  summary: string;
+}
+
+/** Every consumable usable at this level, weaker ranks included (they can be the better deal). */
+export function consumablesFor(level: number): Consumable[] {
+  const out: Consumable[] = [];
+  for (const b of BUFFS) {
+    if (b.group !== "consumable") continue;
+    for (const tier of b.tiers) {
+      if (tier.level > level) continue;
+      const { level: _level, label, ...effect } = tier;
+      const name = label ?? b.name;
+      const item = CONSUMABLE_ITEMS[name];
+      if (item) out.push({ name, ...item, effect, summary: describe(effect) });
+    }
+  }
+  return out;
+}
+
 export interface ResolvedBuff {
   id: string;
   name: string;

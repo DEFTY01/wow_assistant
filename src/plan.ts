@@ -1,4 +1,5 @@
 import { loadAddon, ownedItems } from "./addon";
+import { consumablesFor } from "./buffs";
 import type { Env } from "./env";
 import { type GearContext, type GearReport, gearContext, gearReport } from "./gear";
 import { INV_SLOTS, type GearItem, loadAuctionGear, loadGear } from "./market";
@@ -51,6 +52,8 @@ export interface Plan {
   farm: GearReport["dungeons"];
   professions: { name: string; skill: number; cap: number; next: string | null; cost: number; note: string | null }[];
   roadmap: { level: number; skillCost: number; skills: string[]; gear: Option[] }[];
+  /** Temporary buffs you can buy, best DPS per gold per hour first. */
+  consumables: { name: string; summary: string; gain: number; price: number | null; minutes: number; perHour: number | null }[];
   warnings: string[];
 }
 
@@ -381,6 +384,25 @@ export async function buildPlan(env: Env): Promise<Plan | null> {
   });
 
   // --- what the next levels bring
+  // --- consumables: what an hour of each buff costs at auction house prices
+  const selectedAlready = new Set(ctx.buffs.filter((b) => b.selected).map((b) => b.name));
+  const consumables = consumablesFor(level)
+    .filter((c) => !selectedAlready.has(c.name)) // already part of the baseline
+    .map((c) => {
+      const u = book.unit(c.itemId);
+      const price = u?.price ?? null;
+      return {
+        name: c.name,
+        summary: c.summary,
+        gain: ctx.buffGain(c.effect),
+        price,
+        minutes: c.minutes,
+        perHour: price != null ? Math.round(price * (60 / c.minutes)) : null,
+      };
+    })
+    .filter((c) => c.gain > 0.05)
+    .sort((a, b) => (b.perHour ? b.gain / b.perHour : -1) - (a.perHour ? a.gain / a.perHour : -1));
+
   const roadmap: Plan["roadmap"] = [];
   for (let l = level + 1; l <= level + 4; l++) {
     const rows = trainerRows.results.filter((r) => r.state === "unavailable" && !r.tradeskill && r.required_level === l);
@@ -430,6 +452,7 @@ export async function buildPlan(env: Env): Promise<Plan | null> {
     farm: (report?.dungeons ?? []).slice(0, 3),
     professions,
     roadmap,
+    consumables,
     warnings,
   };
 }

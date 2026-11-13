@@ -138,6 +138,21 @@ export function planPage(p: Plan | null, info: { hasProfile: boolean; rogue: boo
       : html`<p class="muted">Nincs mesterség-adat.</p>`}
   </section>
 
+  <section><h2>Fogyóeszközök <span class="muted">megéri-e bedobni</span></h2>
+    ${p.consumables.length
+      ? html`<table><thead><tr><th>Tárgy</th><th class="num">DPS</th><th class="num">Darabár</th><th class="num">Óránként</th></tr></thead><tbody>
+          ${p.consumables.map(
+            (c) => html`<tr><td><b>${c.name}</b><div class="act-detail">${c.summary} · ${c.minutes} perc</div></td>
+              <td class="num"><b class="gain">+${c.gain.toFixed(2)}</b></td>
+              <td class="num">${c.price != null ? money(c.price) : html`<span class="muted">nincs kint</span>`}</td>
+              <td class="num">${c.perHour != null ? money(c.perHour) : ""}</td></tr>`,
+          )}
+        </tbody></table>
+        <p class="muted" style="margin:10px 0 0">Farmoláshoz ritkán éri meg; dungeonre vagy nehéz questre a lista teteje a legjobb vétel.
+          Amit a Felszerelés oldalon buffként bepipáltál, az már benne van a számolásban, ezért itt nem szerepel.</p>`
+      : html`<p class="muted">Ezen a szinten nincs olyan fogyóeszköz, ami érdemben számítana.</p>`}
+  </section>
+
   <section><h2>A következő szintek <span class="muted">mire gyűjts</span></h2>
     ${p.roadmap.length
       ? html`<ol class="road">${p.roadmap.map(

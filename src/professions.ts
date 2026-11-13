@@ -1,5 +1,6 @@
 import { loadAddon, ownedItems } from "./addon";
 import { apiGet } from "./blizzard";
+import { CONSUMABLE_ITEM_IDS } from "./buffs";
 import { discoverItems, queueUnknownItems, storeAuctionGear } from "./market";
 import type { Env } from "./env";
 import { latestSnapshots } from "./sync";
@@ -162,6 +163,7 @@ async function reagentIds(env: Env): Promise<Set<number>> {
 export async function syncPrices(env: Env): Promise<{ items: number; house: number; gear: number; queued: number }> {
   const house = Number(env.AUCTION_HOUSE_ID);
   const wanted = await reagentIds(env);
+  for (const id of CONSUMABLE_ITEM_IDS) wanted.add(id);
   const gearListings = new Map<number, { min: number; n: number }>();
   const listings = await fetchListings(env, house, wanted, gearListings);
   const now = new Date().toISOString();

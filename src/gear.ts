@@ -1,5 +1,5 @@
 import { loadAddon } from "./addon";
-import { loadSelectedBuffs, resolveBuffs, type ResolvedBuff } from "./buffs";
+import { type BuffEffect, loadSelectedBuffs, resolveBuffs, type ResolvedBuff } from "./buffs";
 import { combatReport } from "./combat";
 import type { Env } from "./env";
 import { latestSnapshots } from "./sync";
@@ -411,6 +411,13 @@ export async function gearContext(env: Env) {
     if (add.hit) bits.push(`+${add.hit}% hit`);
     return bits.join(", ");
   };
+  /** DPS a temporary buff adds on top of the current sheet. */
+  const buffGain = (e: BuffEffect): number => {
+    const dAgi = (e.agi ?? 0) * params.statMult;
+    const dStr = (e.str ?? 0) * params.statMult;
+    const sh = { ...sheet, ap: sheet.ap + dAgi + dStr + (e.ap ?? 0), crit: sheet.crit + (e.crit ?? 0) + dAgi / agiPerCrit };
+    return dps(sh, params) - baseline;
+  };
   const weaponWarning = (itemClass: number, sub: number): string | null => {
     if (itemClass !== 2 || !skills || !Object.keys(skills).length) return null;
     const line = WEAPON_SKILLS[sub];
@@ -422,7 +429,7 @@ export async function gearContext(env: Env) {
   return {
     level, baseline, unbuffed, buffs, params, sheet, equipped, equippedIds, combat,
     gold: null as number | null,
-    score, describe, weaponWarning,
+    score, describe, weaponWarning, buffGain,
   };
 }
 export type GearContext = NonNullable<Awaited<ReturnType<typeof gearContext>>>;
