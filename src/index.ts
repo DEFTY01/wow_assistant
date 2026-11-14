@@ -18,6 +18,8 @@ import { createCharacter, findByKey, inviteCode, listCharacters, removeCharacter
 import { joinPage, setupPanel, sharePanel } from "./shareView";
 import { stateGet, statePut } from "./state";
 import { latestSnapshots, syncAll } from "./sync";
+import { cachedTalentReport, importTalents, type TalentData } from "./talents";
+import { talentsPage } from "./talentsView";
 import { dashboard, type DashboardData } from "./view";
 
 // ====================================================================================
@@ -110,6 +112,13 @@ app.post("/plan/refresh", async (c) => {
   return c.redirect("/", 303);
 });
 
+app.get("/talents", async (c) => {
+  const snaps = await latestSnapshots(c.env);
+  const rogue = Number((snaps.profile?.json as Record<string, any> | undefined)?.character_class?.id) === 4;
+  const hasData = !!(await c.env.DB.prepare("SELECT 1 AS x FROM talent_data WHERE class_id = 4").first());
+  return c.html(await talentsPage(rogue && hasData ? await cachedTalentReport(c.env, (work) => c.executionCtx.waitUntil(work)) : null, { rogue, hasData }));
+});
+
 app.get("/combat", async (c) => c.html(await combatPage(await combatReport(c.env))));
 
 app.post("/gear/buffs", async (c) => {
@@ -174,6 +183,12 @@ ownerOnly.post("/api/import/loot", async (c) => {
   const data = JSON.parse(await c.req.text()) as LootImport;
   if (!Array.isArray(data?.dungeons) || !Array.isArray(data.items)) return c.text("Hibás import", 400);
   return c.json(await importLoot(c.env, data));
+});
+ownerOnly.get("/api/talents", async (c) => c.json(await cachedTalentReport(c.env)));
+ownerOnly.post("/api/import/talents", async (c) => {
+  const data = JSON.parse(await c.req.text()) as { classId: number } & TalentData;
+  if (!Number.isInteger(data?.classId) || !Array.isArray(data.trees)) return c.text("Hibás import", 400);
+  return c.json({ imported: await importTalents(c.env, data.classId, { trees: data.trees }) });
 });
 ownerOnly.post("/api/import/recipes", async (c) => {
   const data = JSON.parse(await c.req.text()) as RecipeImport;
@@ -247,7 +262,7 @@ root.post("/u/join", async (c) => {
 });
 
 // What a shared link may reach. Everything else stays owner-only.
-const SHARED_GET = new Set(["/", "/character", "/gear", "/combat", "/professions", "/client.js"]);
+const SHARED_GET = new Set(["/", "/character", "/gear", "/combat", "/professions", "/talents", "/client.js"]);
 const SHARED_POST = new Set([
   "/sync", "/manual/gold", "/gear/buffs", "/plan/refresh", "/professions/refresh", "/upload/addon", "/upload/fights",
 ]);
@@ -309,7 +324,10 @@ export default {
         if (minute === 0) await syncPrices(env).catch((err) => console.error("price sync failed", err));
         else await syncItems(env, 40).catch((err) => console.error("item sync failed", err));
         // Rebuild the plans now, so page views find them ready.
-        for (const e of [env, ...scoped]) await cachedPlan(e).catch((err) => console.error("plan rebuild failed", err));
+        for (const e of [env, ...scoped]) {
+          await cachedPlan(e).catch((err) => console.error("plan rebuild failed", err));
+          await cachedTalentReport(e).catch((err) => console.error("talent rebuild failed", err));
+        }
       })().catch((err) => console.error("scheduled run failed", err)),
     );
   },

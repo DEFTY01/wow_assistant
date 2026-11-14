@@ -37,6 +37,7 @@ export function money(copper: number | null | undefined): Html {
 const TABS = [
   { id: "plan", href: "/", label: "Haditerv" },
   { id: "char", href: "/character", label: "Karakter" },
+  { id: "talents", href: "/talents", label: "Talentek" },
   { id: "combat", href: "/combat", label: "Harc" },
   { id: "gear", href: "/gear", label: "Felszerelés" },
   { id: "prof", href: "/professions", label: "Mesterségek" },
@@ -295,6 +296,12 @@ tr.dim td{opacity:.55}
 .buff b{font-weight:700}
 .buff small{font-size:13px;color:var(--muted)}
 .buff.off{cursor:default;opacity:.45}
+
+.tree li b.gone{color:var(--dim)}
+.tree li small{margin-left:5px;font-weight:700}
+.tree li small.up{color:var(--good)}
+.tree li small.down{color:var(--bad)}
+.tree sup{color:var(--gold);margin-left:2px}
 
 /* advice */
 .advice{display:grid;gap:10px}
