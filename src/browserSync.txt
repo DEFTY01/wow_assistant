@@ -1,0 +1,204 @@
+// Browser-side sync: reads the addon's SavedVariables and the game's combat log straight from
+// the game folder (File System Access API) and uploads them, so nothing has to be installed.
+// Served as part of /client.js, where parseSavedVariables, parseCombatLog and ADDON are defined.
+
+const root = document.getElementById("bsync");
+if (!root) return;
+const base = root.dataset.base || "";
+const character = root.dataset.character || "";
+const $ = (name) => root.querySelector("[data-" + name + "]");
+const show = (name, on) => { const el = $(name); if (el) el.hidden = !on; };
+
+function setStatus(text, kind) {
+  const el = $("status");
+  el.textContent = text;
+  el.className = kind === "err" ? "err" : kind === "ok" ? "ok" : "muted";
+}
+function log(text) {
+  const li = document.createElement("li");
+  li.textContent = new Date().toLocaleTimeString("hu-HU") + " · " + text;
+  const list = $("log");
+  list.prepend(li);
+  while (list.children.length > 6) list.lastChild.remove();
+}
+
+if (!window.showDirectoryPicker) {
+  setStatus("Ez a böngésző nem tud mappát olvasni. Chrome-ban vagy Edge-ben működik; különben használd a feltöltő scriptet.", "err");
+  return;
+}
+
+// --- remember the chosen folder between visits
+const db = () => new Promise((resolve, reject) => {
+  const req = indexedDB.open("wow-assistant", 1);
+  req.onupgradeneeded = () => req.result.createObjectStore("kv");
+  req.onsuccess = () => resolve(req.result);
+  req.onerror = () => reject(req.error);
+});
+const kv = async (mode, fn) => {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const req = fn(d.transaction("kv", mode).objectStore("kv"));
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+};
+const remember = (handle) => kv("readwrite", (s) => s.put(handle, "dir" + base));
+const recall = () => kv("readonly", (s) => s.get("dir" + base));
+const forget = () => kv("readwrite", (s) => s.delete("dir" + base));
+
+let dir = null;
+let timer = null;
+const seen = { saved: 0, log: "" };
+
+async function child(handle, ...names) {
+  for (const name of names) handle = await handle.getDirectoryHandle(name);
+  return handle;
+}
+const has = (handle, name) => handle.getDirectoryHandle(name).then(() => true, () => false);
+
+// Accept either the "_forever_" folder or the "World of Warcraft" folder above it.
+async function gameDir(picked) {
+  if (await has(picked, "Interface")) return picked;
+  if (await has(picked, "_forever_")) return picked.getDirectoryHandle("_forever_");
+  throw new Error('Ebben a mappában nincs "Interface" vagy "_forever_" almappa. A "World of Warcraft" vagy a "_forever_" mappát válaszd.');
+}
+
+async function newestSavedVariables() {
+  let best = null;
+  let accounts;
+  try { accounts = await child(dir, "WTF", "Account"); } catch { return null; }
+  for await (const handle of accounts.values()) {
+    if (handle.kind !== "directory") continue;
+    try {
+      const sv = await handle.getDirectoryHandle("SavedVariables");
+      const file = await (await sv.getFileHandle("WowAssistant.lua")).getFile();
+      if (!best || file.lastModified > best.lastModified) best = file;
+    } catch { /* this account has not run the addon */ }
+  }
+  return best;
+}
+
+async function newestCombatLog() {
+  let best = null;
+  let logs;
+  try { logs = await child(dir, "Logs"); } catch { return null; }
+  for await (const handle of logs.values()) {
+    if (handle.kind !== "file" || !/^WoWCombatLog.*\.txt$/i.test(handle.name)) continue;
+    const file = await handle.getFile();
+    if (!best || file.lastModified > best.lastModified) best = file;
+  }
+  return best;
+}
+
+async function post(path, body) {
+  const res = await fetch(base + path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error("A feltöltés nem sikerült (HTTP " + res.status + ")");
+  return res.json();
+}
+
+async function tick() {
+  try {
+    const saved = await newestSavedVariables();
+    if (saved && saved.lastModified !== seen.saved) {
+      const data = parseSavedVariables(await saved.text()).WowAssistantDB;
+      if (data && data.chars) {
+        const r = await post("/upload/addon", data);
+        log("Addon: " + r.bagItems + " féle tárgy a táskákban, " + r.bankItems + " a bankban, " + r.trainerSkills + " trainer skill");
+      }
+      seen.saved = saved.lastModified;
+    }
+
+    const file = await newestCombatLog();
+    if (file) {
+      const key = file.name + ":" + file.size;
+      if (key !== seen.log) {
+        // A long session's log can be huge; the tail is enough, fights are keyed by start time.
+        const MAX = 40 * 1024 * 1024;
+        const text = await (file.size > MAX ? file.slice(file.size - MAX) : file).text();
+        const idle = Date.now() - file.lastModified > 15000;
+        const fights = parseCombatLog(text, character, { includeOpen: idle });
+        if (fights.length) {
+          const r = await post("/upload/fights", fights);
+          log("Harcnapló: " + r.stored + " harc");
+        }
+        seen.log = key;
+      }
+    }
+
+    const missing = [];
+    if (!saved) missing.push("az addon még nem mentett (a játékban: /wa save)");
+    if (!file) missing.push("nincs harcnapló (a játékban: /wa log)");
+    setStatus(
+      "Figyelem a játék mappáját, 20 másodpercenként nézek rá." + (missing.length ? " Hiányzik: " + missing.join("; ") + "." : ""),
+      "ok",
+    );
+  } catch (err) {
+    setStatus(String(err && err.message ? err.message : err), "err");
+  }
+}
+
+function start() {
+  show("pick", false);
+  show("grant", false);
+  show("install", true);
+  show("stop", true);
+  clearInterval(timer);
+  timer = setInterval(tick, 20000);
+  tick();
+}
+
+async function installAddon() {
+  try {
+    const addons = await child(dir, "Interface", "AddOns");
+    const folder = await addons.getDirectoryHandle("WowAssistant", { create: true });
+    for (const [name, text] of Object.entries(ADDON)) {
+      const writable = await (await folder.getFileHandle(name, { create: true })).createWritable();
+      await writable.write(text);
+      await writable.close();
+    }
+    log("Addon telepítve. Ha a játék fut: /reload; ha most települt először, indítsd újra a játékot.");
+  } catch (err) {
+    setStatus("Az addon telepítése nem sikerült: " + (err && err.message ? err.message : err), "err");
+  }
+}
+
+$("pick").addEventListener("click", async () => {
+  try {
+    dir = await gameDir(await window.showDirectoryPicker({ id: "wow-forever", mode: "readwrite" }));
+    await remember(dir);
+    start();
+  } catch (err) {
+    if (err && err.name !== "AbortError") setStatus(String(err.message || err), "err");
+  }
+});
+$("grant").addEventListener("click", async () => {
+  if ((await dir.requestPermission({ mode: "readwrite" })) === "granted") start();
+});
+$("install").addEventListener("click", installAddon);
+$("stop").addEventListener("click", async () => {
+  clearInterval(timer);
+  await forget();
+  dir = null;
+  show("pick", true);
+  show("install", false);
+  show("stop", false);
+  setStatus("Leállítva. A mappa engedélyét elfelejtettem.", "muted");
+});
+
+// Resume with the folder chosen last time; the browser asks to confirm access once per visit.
+(async () => {
+  try {
+    dir = await recall();
+  } catch { dir = null; }
+  if (!dir) return;
+  if ((await dir.queryPermission({ mode: "readwrite" })) === "granted") start();
+  else {
+    show("pick", false);
+    show("grant", true);
+    setStatus("A korábban kiválasztott mappához újra engedély kell.", "muted");
+  }
+})();

@@ -60,10 +60,9 @@ export function sharePanel(opts: { origin: string; code: string; characters: Cha
 
 /** Shown to a shared user on their character page: how to connect the addon and uploader. */
 export function setupPanel(opts: { origin: string; key: string; name: string }): Html {
-  return html`<section class="wide"><h2>Addon és feltöltő <span class="muted">a gold, a táskák, a trainer és a harcok miatt</span></h2>
-    <p>Az addon nélkül is működik a karakterlap és a mesterség-útvonal. A vásárlási tervhez (gold, táskák, bank, trainer skillek)
-      és a harcelemzéshez az addon és a feltöltő script kell, amit attól kapsz, aki meghívott.</p>
-    <p>A feltöltő <code>.uploader.env</code> fájljába ez kerüljön:</p>
+  return html`<section class="wide"><h2>Feltöltő script <span class="muted">ha a háttérben akarod futtatni</span></h2>
+    <p>A fenti böngészős szinkron elég. Ha azt szeretnéd, hogy zárt böngészővel is menjen a feltöltés, a meghívódtól kapott
+      projektben a feltöltő script ugyanezt csinálja; a <code>.uploader.env</code> fájljába ez kerüljön:</p>
     <pre style="user-select:all">APP_URL=${opts.origin}
 UPLOAD_TOKEN=${opts.key}
 WOW_CHARACTER=${opts.name}

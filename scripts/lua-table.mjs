@@ -39,7 +39,7 @@ export function parseSavedVariables(src) {
     i++;
     // \ddd escapes are raw UTF-8 bytes; turn them back into text. Strings without
     // escapes were already decoded when the file was read.
-    return byteEscapes && !/[^\x00-\xff]/.test(s) ? Buffer.from(s, "latin1").toString("utf8") : s;
+    return byteEscapes && !/[^\x00-\xff]/.test(s) ? new TextDecoder().decode(Uint8Array.from(s, (ch) => ch.charCodeAt(0))) : s;
   }
 
   function value() {

@@ -280,6 +280,11 @@ tr.dim td{opacity:.55}
   border:1px solid var(--gold);background:#14110c;box-shadow:0 0 0 3px var(--panel)}
 .road li>div{align-self:center;font-size:15px}
 
+.synclog{list-style:none;margin:8px 0;padding:0;font-size:14px;color:var(--muted)}
+.synclog li{padding:2px 0}
+.ok{color:var(--good)}
+[hidden]{display:none!important}
+
 /* buff picker */
 .buffs{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
 .buff{display:flex;gap:10px;align-items:center;padding:8px 10px;cursor:pointer;color:var(--text);border:1px solid var(--hair);background:#100e0a}

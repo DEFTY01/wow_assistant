@@ -3,6 +3,8 @@
 	"name": "wow-assistant",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-01-01",
+	// The addon files are shipped to the browser as text for the in-page installer.
+	"rules": [{ "type": "Text", "globs": ["**/*.lua", "**/*.toc"], "fallthrough": true }],
 	"observability": {
 		"enabled": true
 	},

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { html } from "hono/html";
 import { requireAccess } from "./access";
 import { importAddon, loadAddon } from "./addon";
 import { apiGet } from "./blizzard";
@@ -8,6 +9,7 @@ import { combatPage } from "./combatView";
 import type { Env } from "./env";
 import { gearReport, importLoot, type LootImport } from "./gear";
 import { gearPage } from "./gearView";
+import { clientScript, syncPanel } from "./client";
 import { buildPlan } from "./plan";
 import { planPage } from "./planView";
 import { compareHouses, importRecipes, planRoutes, syncItems, syncPrices, type RecipeImport } from "./professions";
@@ -73,8 +75,24 @@ app.get("/character", async (c) => {
         name: String((data.snapshots.profile?.json as Record<string, any> | undefined)?.name ?? ""),
       })
     : sharePanel({ origin, code: await inviteCode(c.env), characters: await listCharacters(c.env) });
-  return c.html(await dashboard(data, extra));
+  const name = String((data.snapshots.profile?.json as Record<string, any> | undefined)?.name ?? "");
+  const sync = syncPanel({ base: c.env.SHARE_PREFIX ?? "", character: name });
+  return c.html(await dashboard(data, html`${sync}${extra}`));
 });
+
+// Browser-side sync: the script, and upload targets that rely on how the page itself was
+// reached (Access for the owner, the secret link for a shared character) instead of a token.
+app.get("/client.js", (c) =>
+  c.body(clientScript(), 200, { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache" }),
+);
+app.post("/upload/addon", async (c) => {
+  try {
+    return c.json(await importAddon(c.env, await c.req.json()));
+  } catch (err) {
+    return c.json({ error: String(err instanceof Error ? err.message : err) }, 400);
+  }
+});
+app.post("/upload/fights", async (c) => c.json({ stored: await storeFights(c.env, await c.req.json()) }));
 
 // Pull everything the plan depends on. Auction prices are shared, so only the owner refreshes them.
 app.post("/plan/refresh", async (c) => {
@@ -219,8 +237,10 @@ root.post("/u/join", async (c) => {
 });
 
 // What a shared link may reach. Everything else stays owner-only.
-const SHARED_GET = new Set(["/", "/character", "/gear", "/combat", "/professions"]);
-const SHARED_POST = new Set(["/sync", "/manual/gold", "/gear/buffs", "/plan/refresh", "/professions/refresh"]);
+const SHARED_GET = new Set(["/", "/character", "/gear", "/combat", "/professions", "/client.js"]);
+const SHARED_POST = new Set([
+  "/sync", "/manual/gold", "/gear/buffs", "/plan/refresh", "/professions/refresh", "/upload/addon", "/upload/fights",
+]);
 
 root.all("/u/:key/*", async (c) => {
   const guest = await findByKey(c.env, c.req.param("key"));
@@ -248,7 +268,11 @@ root.all("/u/:key/*", async (c) => {
       if (v?.startsWith("/") && !v.startsWith("//")) el.setAttribute(attr, prefix + v);
     },
   });
-  return new HTMLRewriter().on("a[href]", rewrite("href")).on("form[action]", rewrite("action")).transform(res);
+  return new HTMLRewriter()
+    .on("a[href]", rewrite("href"))
+    .on("form[action]", rewrite("action"))
+    .on("script[src]", rewrite("src"))
+    .transform(res);
 });
 
 root.route("/", ownerOnly);

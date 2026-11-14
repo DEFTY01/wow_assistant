@@ -1,0 +1,47 @@
+import { html } from "hono/html";
+import addonLua from "../addon/WowAssistant/WowAssistant.lua";
+import addonToc from "../addon/WowAssistant/WowAssistant.toc";
+import { parseCombatLog } from "../scripts/combat-log.mjs";
+import { parseSavedVariables } from "../scripts/lua-table.mjs";
+import main from "./browserSync.txt";
+import type { Html } from "./layout";
+
+/**
+ * The script behind the "sync from the browser" panel. The two parsers are the very functions
+ * the Node uploader uses: both are self-contained, so their own source can be shipped as is.
+ */
+export function clientScript(): string {
+  const addon = { "WowAssistant.toc": addonToc, "WowAssistant.lua": addonLua };
+  return [
+    "(async () => {",
+    '"use strict";',
+    // The bundler wraps inner functions in a naming helper; give the copied source a stand-in.
+    "const __name = (fn) => fn;",
+    `const parseSavedVariables = ${parseSavedVariables.toString()};`,
+    `const parseCombatLog = ${parseCombatLog.toString()};`,
+    `const ADDON = ${JSON.stringify(addon)};`,
+    main,
+    "})();",
+  ].join("\n");
+}
+
+/** Panel on the character page. `base` is the shared-link prefix ("" for the owner). */
+export function syncPanel(opts: { base: string; character: string }): Html {
+  return html`<section class="wide" id="bsync" data-base="${opts.base}" data-character="${opts.character}">
+    <h2>Szinkron a böngészőből <span class="muted">telepítés nélkül</span></h2>
+    <p>Válaszd ki egyszer a játék mappáját, és ez az oldal maga olvassa ki az addon adatait és a harcnaplót, amíg nyitva van egy fülön.
+      A <b>World of Warcraft</b> vagy a benne lévő <b>_forever_</b> mappát add meg.</p>
+    <p class="gold">
+      <button type="button" data-pick>Játék mappa kiválasztása</button>
+      <button type="button" data-grant hidden>Engedély megerősítése</button>
+      <button type="button" data-install hidden>Addon telepítése / frissítése</button>
+      <button type="button" data-stop hidden>Leállítás</button>
+    </p>
+    <p data-status class="muted">Még nincs mappa kiválasztva.</p>
+    <ul data-log class="synclog"></ul>
+    <p class="muted" style="margin-bottom:0">Chrome-ban és Edge-ben működik. A böngésző a fájlokat csak olvassa, írni egyedül az addon
+      mappájába ír, és csak akkor, ha a telepítés gombra kattintasz. A játékban: <code>/wa log</code> bekapcsolja a harcnaplót,
+      <code>/wa save</code> kiírja a goldot, a táskákat és a trainer adatait.</p>
+    <script src="/client.js" defer></script>
+  </section>`;
+}

@@ -9,43 +9,45 @@
 //   level) followed by amount, base amount, overkill, school, resisted, blocked, absorbed,
 //   critical, glancing, crushing.
 
-const FIGHT_GAP = 8; // seconds without any action of ours ends a fight
-const MAX_CASTS = 150;
-const FINISHERS = new Set(["Eviscerate", "Slice and Dice", "Rupture", "Kidney Shot", "Expose Armor"]);
-const COMBO_POINTS = "4";
-
-function splitCsv(line) {
-  const out = [];
-  let cur = "";
-  let quoted = false;
-  for (const ch of line) {
-    if (ch === '"') quoted = !quoted;
-    else if (ch === "," && !quoted) {
-      out.push(cur);
-      cur = "";
-    } else cur += ch;
-  }
-  out.push(cur);
-  return out;
-}
-
-// "11/12/2026 18:12:44.2981" -> seconds (local time). The 4th fraction digit is not milliseconds.
-function parseTime(stamp) {
-  const m = /^(\d+)\/(\d+)\/(\d+) (\d+):(\d+):(\d+)\.(\d{3})/.exec(stamp);
-  if (!m) return null;
-  return new Date(+m[3], +m[1] - 1, +m[2], +m[4], +m[5], +m[6], +m[7]).getTime() / 1000;
-}
-
-const newAbility = () => ({ n: 0, dmg: 0, hit: 0, crit: 0, glance: 0, miss: 0, dodge: 0, parry: 0, block: 0, other: 0, max: 0 });
-const MISS = { MISS: "miss", DODGE: "dodge", PARRY: "parry", BLOCK: "block" };
-const round1 = (n) => Math.round(n * 10) / 10;
-
+// Everything lives inside the function on purpose: the web app serves this function's own
+// source to the browser (Function.prototype.toString), so it must not lean on module scope.
 /**
  * @param {string} text  whole log file
  * @param {string} character  first name of the character, e.g. "Defty"
  * @param {{ includeOpen?: boolean }} [opts]  includeOpen: also return a fight that may still be going on
  */
 export function parseCombatLog(text, character, opts = {}) {
+  const FIGHT_GAP = 8; // seconds without any action of ours ends a fight
+  const MAX_CASTS = 150;
+  const FINISHERS = new Set(["Eviscerate", "Slice and Dice", "Rupture", "Kidney Shot", "Expose Armor"]);
+  const COMBO_POINTS = "4";
+
+  function splitCsv(line) {
+    const out = [];
+    let cur = "";
+    let quoted = false;
+    for (const ch of line) {
+      if (ch === '"') quoted = !quoted;
+      else if (ch === "," && !quoted) {
+        out.push(cur);
+        cur = "";
+      } else cur += ch;
+    }
+    out.push(cur);
+    return out;
+  }
+
+  // "11/12/2026 18:12:44.2981" -> seconds (local time). The 4th fraction digit is not milliseconds.
+  function parseTime(stamp) {
+    const m = /^(\d+)\/(\d+)\/(\d+) (\d+):(\d+):(\d+)\.(\d{3})/.exec(stamp);
+    if (!m) return null;
+    return new Date(+m[3], +m[1] - 1, +m[2], +m[4], +m[5], +m[6], +m[7]).getTime() / 1000;
+  }
+
+  const newAbility = () => ({ n: 0, dmg: 0, hit: 0, crit: 0, glance: 0, miss: 0, dodge: 0, parry: 0, block: 0, other: 0, max: 0 });
+  const MISS = { MISS: "miss", DODGE: "dodge", PARRY: "parry", BLOCK: "block" };
+  const round1 = (n) => Math.round(n * 10) / 10;
+
   const prefix = `${character}-`;
   const fights = [];
   let fight = null;
