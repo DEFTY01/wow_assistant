@@ -4,7 +4,7 @@ import type { Env } from "./env";
 import { type GearContext, type GearReport, gearContext, gearReport } from "./gear";
 import { INV_SLOTS, type GearItem, loadAuctionGear, loadGear } from "./market";
 import { loadPriceBook, planRoutes } from "./professions";
-import { stateGet } from "./state";
+import { stateGet, statePut } from "./state";
 import { latestSnapshots } from "./sync";
 
 type Obj = Record<string, any>;
@@ -192,6 +192,45 @@ const SLOT_HU: Record<string, string> = {
   WAIST: "öv", LEGS: "láb", FEET: "lábfej", FINGER_1: "gyűrű", FINGER_2: "gyűrű", TRINKET_1: "trinket",
   TRINKET_2: "trinket", MAIN_HAND: "főkéz", OFF_HAND: "balkéz",
 };
+
+// Building the plan is the most expensive thing the app does, and a Worker request has a
+// small CPU budget. So the result is stored and reused until one of its inputs changes; the
+// scheduled sync and the uploads rebuild it in the background, so a page view rarely has to.
+const PLAN_VERSION = 2; // bump when the plan's shape or logic changes
+
+async function planStamp(env: Env): Promise<string> {
+  const slug = env.CHARACTER_SLUG;
+  const row = await env.DB.prepare(
+    "SELECT (SELECT MAX(id) FROM snapshots WHERE slug = ?1) AS snap, " +
+      "(SELECT updated_at FROM manual_state WHERE key = ?1 || ':addon') AS addon, " +
+      "(SELECT updated_at FROM manual_state WHERE key = ?1 || ':gold_copper') AS gold, " +
+      "(SELECT updated_at FROM manual_state WHERE key = ?1 || ':buffs') AS buffs, " +
+      "(SELECT MAX(updated_at) FROM prices) AS prices, (SELECT MAX(updated_at) FROM ah_gear) AS gear, " +
+      "(SELECT COUNT(*) || ':' || MAX(start) FROM fights WHERE slug = ?1) AS fights, " +
+      "(SELECT MAX(updated_at) FROM trainer_skills WHERE slug = ?1) AS trainer",
+  )
+    .bind(slug)
+    .first<Record<string, unknown>>();
+  return [PLAN_VERSION, ...Object.values(row ?? {})].join("|");
+}
+
+/** The plan, from the cache when nothing it depends on has changed. */
+export async function cachedPlan(env: Env): Promise<Plan | null> {
+  const stamp = await planStamp(env);
+  const hit = await stateGet(env, "plan_cache");
+  if (hit) {
+    try {
+      const cached = JSON.parse(hit.value) as { stamp: string; plan: Plan | null };
+      if (cached.stamp === stamp) return cached.plan;
+    } catch {
+      // unreadable cache: rebuild
+    }
+  }
+  const plan = await buildPlan(env);
+  // The plan's own inputs include settings rows, but not this one: writing it does not change the stamp.
+  await statePut(env, "plan_cache", JSON.stringify({ stamp, plan }));
+  return plan;
+}
 
 export async function buildPlan(env: Env): Promise<Plan | null> {
   const ctx = await gearContext(env);

@@ -10,7 +10,7 @@ import type { Env } from "./env";
 import { gearReport, importLoot, type LootImport } from "./gear";
 import { gearPage } from "./gearView";
 import { clientScript, syncPanel } from "./client";
-import { buildPlan } from "./plan";
+import { buildPlan, cachedPlan } from "./plan";
 import { planPage } from "./planView";
 import { compareHouses, importRecipes, planRoutes, syncItems, syncPrices, type RecipeImport } from "./professions";
 import { professionsPage } from "./professionsView";
@@ -62,7 +62,7 @@ async function loadDashboard(env: Env): Promise<DashboardData> {
 app.get("/", async (c) => {
   const snaps = await latestSnapshots(c.env);
   const classId = Number((snaps.profile?.json as Record<string, any> | undefined)?.character_class?.id);
-  return c.html(await planPage(await buildPlan(c.env), { hasProfile: !!snaps.profile, rogue: classId === 4 }));
+  return c.html(await planPage(await cachedPlan(c.env), { hasProfile: !!snaps.profile, rogue: classId === 4 }));
 });
 
 app.get("/character", async (c) => {
@@ -87,12 +87,18 @@ app.get("/client.js", (c) =>
 );
 app.post("/upload/addon", async (c) => {
   try {
-    return c.json(await importAddon(c.env, await c.req.json()));
+    const result = await importAddon(c.env, await c.req.json());
+    c.executionCtx.waitUntil(cachedPlan(c.env).catch(() => null));
+    return c.json(result);
   } catch (err) {
     return c.json({ error: String(err instanceof Error ? err.message : err) }, 400);
   }
 });
-app.post("/upload/fights", async (c) => c.json({ stored: await storeFights(c.env, await c.req.json()) }));
+app.post("/upload/fights", async (c) => {
+  const stored = await storeFights(c.env, await c.req.json());
+  c.executionCtx.waitUntil(cachedPlan(c.env).catch(() => null));
+  return c.json({ stored });
+});
 
 // Pull everything the plan depends on. Auction prices are shared, so only the owner refreshes them.
 app.post("/plan/refresh", async (c) => {
@@ -211,12 +217,16 @@ async function uploadTarget(env: Env, header: string | undefined): Promise<Env |
 root.post("/api/addon", async (c) => {
   const env = await uploadTarget(c.env, c.req.header("Authorization"));
   if (!env) return c.text("Unauthorized", 401);
-  return c.json(await importAddon(env, await c.req.json()));
+  const result = await importAddon(env, await c.req.json());
+  c.executionCtx.waitUntil(cachedPlan(env).catch(() => null));
+  return c.json(result);
 });
 root.post("/api/fights", async (c) => {
   const env = await uploadTarget(c.env, c.req.header("Authorization"));
   if (!env) return c.text("Unauthorized", 401);
-  return c.json({ stored: await storeFights(env, await c.req.json()) });
+  const stored = await storeFights(env, await c.req.json());
+  c.executionCtx.waitUntil(cachedPlan(env).catch(() => null));
+  return c.json({ stored });
 });
 
 // --- shared characters -----------------------------------------------------------
@@ -291,13 +301,16 @@ export default {
           .filter((ch) => !ch.is_owner && ch.share_key)
           .sort((a, b) => (a.last_sync ?? "").localeCompare(b.last_sync ?? ""))
           .slice(0, 5);
-        await syncAll(env);
-        for (const g of guests) await syncAll(scopedEnv(env, g.slug, `/u/${g.share_key}`));
-      })().catch((err) => console.error("character sync failed", err)),
+        const scoped = guests.map((g) => scopedEnv(env, g.slug, `/u/${g.share_key}`));
+        await syncAll(env).catch((err) => console.error("owner sync failed", err));
+        for (const g of scoped) await syncAll(g).catch((err) => console.error("guest sync failed", err));
+        // Auction data refreshes about hourly, so only pull it on the full hour; in between,
+        // look up item stats a few at a time.
+        if (minute === 0) await syncPrices(env).catch((err) => console.error("price sync failed", err));
+        else await syncItems(env, 40).catch((err) => console.error("item sync failed", err));
+        // Rebuild the plans now, so page views find them ready.
+        for (const e of [env, ...scoped]) await cachedPlan(e).catch((err) => console.error("plan rebuild failed", err));
+      })().catch((err) => console.error("scheduled run failed", err)),
     );
-    // Auction data refreshes about hourly, so only pull it on the full hour; in between,
-    // look up item stats a few at a time.
-    if (minute === 0) ctx.waitUntil(syncPrices(env).catch((err) => console.error("price sync failed", err)));
-    else ctx.waitUntil(syncItems(env, 40).catch((err) => console.error("item sync failed", err)));
   },
 } satisfies ExportedHandler<Env>;

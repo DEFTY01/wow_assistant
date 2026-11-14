@@ -303,25 +303,6 @@ interface Plan {
   stuckAt: number | null;
 }
 
-function greedy(recipes: { r: Recipe; cost: number; net: number }[], skill: number, target: number): Plan {
-  const perPoint: Plan["perPoint"] = [];
-  let total = 0;
-  for (let s = skill; s < target; s++) {
-    let best: { recipe: Recipe; crafts: number; net: number } | null = null;
-    for (const { r, net } of recipes) {
-      const p = skillUpChance(r, s);
-      if (p <= 0) continue;
-      const crafts = 1 / p;
-      const expected = crafts * net;
-      if (!best || expected < best.crafts * best.net) best = { recipe: r, crafts, net };
-    }
-    if (!best) return { perPoint, total, stuckAt: s };
-    perPoint.push(best);
-    total += best.crafts * best.net;
-  }
-  return { perPoint, total, stuckAt: null };
-}
-
 export async function planRoutes(env: Env, targetOverride?: number): Promise<Route[]> {
   const snaps = await latestSnapshots(env);
   const prof = snaps.professions?.json as Obj | undefined;
@@ -380,31 +361,63 @@ export async function planRoutes(env: Env, targetOverride?: number): Promise<Rou
       );
     }
 
-    // Start from known recipes, then buy a trainer recipe whenever it pays for itself.
-    const chosen = [...known];
-    const bought: Recipe[] = [];
-    let plan = greedy(chosen, skill, target);
-    // A plan that gets stuck earlier is always worse than one that reaches further.
-    const score = (p: Plan) => (target - skill - p.perPoint.length) * 1e12 + p.total;
+    // Cheapest recipe for every skill point with the recipes available so far. Start from the
+    // known ones, then buy a trainer recipe whenever it pays for itself.
+    type Priced = { r: Recipe; cost: number; net: number };
+    const BIG = 1e12; // a point nothing can skill up on
+    const points = Math.max(0, target - skill);
+    const pointCost = (x: Priced, i: number) => {
+      const p = skillUpChance(x.r, skill + i);
+      return p > 0 ? x.net / p : BIG;
+    };
+    const bestCost = new Float64Array(points).fill(BIG);
+    const bestOf: (Priced | null)[] = new Array(points).fill(null);
+    const adopt = (x: Priced) => {
+      for (let i = 0; i < points; i++) {
+        const c = pointCost(x, i);
+        if (c < bestCost[i]) {
+          bestCost[i] = c;
+          bestOf[i] = x;
+        }
+      }
+    };
+    // Cost up to the first unreachable point; every point from there on counts as BIG, so
+    // getting further always beats getting cheaper.
+    const total = (extra?: Priced) => {
+      let sum = 0;
+      for (let i = 0; i < points; i++) {
+        const c = extra ? Math.min(bestCost[i], pointCost(extra, i)) : bestCost[i];
+        if (c >= BIG) return sum + (points - i) * BIG;
+        sum += c;
+      }
+      return sum;
+    };
+    known.forEach(adopt);
+    const pool = [...trainable];
     for (;;) {
+      const current = total();
       let bestGain = 0;
       let bestIdx = -1;
-      let bestPlan: Plan | null = null;
-      for (let i = 0; i < trainable.length; i++) {
-        const cand = trainable[i];
-        if (bought.includes(cand.r)) continue;
-        const p = greedy([...chosen, cand], skill, target);
-        const gain = score(plan) - (score(p) + (cand.r.training_cost ?? 0));
+      for (let i = 0; i < pool.length; i++) {
+        const gain = current - (total(pool[i]) + (pool[i].r.training_cost ?? 0));
         if (gain > bestGain) {
           bestGain = gain;
           bestIdx = i;
-          bestPlan = p;
         }
       }
-      if (bestIdx < 0 || !bestPlan) break;
-      chosen.push(trainable[bestIdx]);
-      bought.push(trainable[bestIdx].r);
-      plan = bestPlan;
+      if (bestIdx < 0) break;
+      adopt(pool[bestIdx]);
+      pool.splice(bestIdx, 1);
+    }
+    const plan: Plan = { perPoint: [], total: 0, stuckAt: null };
+    for (let i = 0; i < points; i++) {
+      const x = bestOf[i];
+      if (!x || bestCost[i] >= BIG) {
+        plan.stuckAt = skill + i;
+        break;
+      }
+      plan.perPoint.push({ recipe: x.r, crafts: bestCost[i] / x.net, net: x.net });
+      plan.total += bestCost[i];
     }
 
     // Collapse consecutive points on the same recipe into steps.
