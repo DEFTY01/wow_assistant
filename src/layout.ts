@@ -142,6 +142,8 @@ th{text-align:left;padding:6px 10px;font:500 11px var(--display);letter-spacing:
   border-bottom:1px solid var(--edge);white-space:nowrap}
 td{padding:7px 10px;border-bottom:1px solid var(--hair);vertical-align:top}
 td:first-child{white-space:nowrap}
+table.wrap td:first-child{white-space:normal}
+table.wrap td{white-space:nowrap}
 tbody tr:last-child td{border-bottom:0}
 tbody tr:hover td{background:rgba(243,213,138,.035)}
 tr.err td{color:var(--bad)}
@@ -302,6 +304,9 @@ tr.dim td{opacity:.55}
 .tree li small.up{color:var(--good)}
 .tree li small.down{color:var(--bad)}
 .tree sup{color:var(--gold);margin-left:2px}
+.tree li>span{min-width:0}
+.tree li small.why{display:block;margin:0;font-weight:400;font-size:12px;line-height:1.3;color:var(--dim)}
+details h3{margin-top:14px}
 
 /* advice */
 .advice{display:grid;gap:10px}

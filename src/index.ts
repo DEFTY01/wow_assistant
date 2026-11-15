@@ -18,7 +18,7 @@ import { createCharacter, findByKey, inviteCode, listCharacters, removeCharacter
 import { joinPage, setupPanel, sharePanel } from "./shareView";
 import { stateGet, statePut } from "./state";
 import { latestSnapshots, syncAll } from "./sync";
-import { cachedTalentReport, importTalents, type TalentData } from "./talents";
+import { advanceTalents, cachedTalentReport, importTalents, type TalentData } from "./talents";
 import { talentsPage } from "./talentsView";
 import { dashboard, type DashboardData } from "./view";
 
@@ -185,6 +185,8 @@ ownerOnly.post("/api/import/loot", async (c) => {
   return c.json(await importLoot(c.env, data));
 });
 ownerOnly.get("/api/talents", async (c) => c.json(await cachedTalentReport(c.env)));
+// Compute the next missing part of the talent report now (the scheduled run does one per run).
+ownerOnly.post("/api/talents/advance", async (c) => c.json({ advanced: await advanceTalents(c.env) }));
 ownerOnly.post("/api/import/talents", async (c) => {
   const data = JSON.parse(await c.req.text()) as { classId: number } & TalentData;
   if (!Number.isInteger(data?.classId) || !Array.isArray(data.trees)) return c.text("Hibás import", 400);
@@ -326,7 +328,8 @@ export default {
         // Rebuild the plans now, so page views find them ready.
         for (const e of [env, ...scoped]) {
           await cachedPlan(e).catch((err) => console.error("plan rebuild failed", err));
-          await cachedTalentReport(e).catch((err) => console.error("talent rebuild failed", err));
+          // One part of the talent report per character and run; the rest follows on later runs.
+          await advanceTalents(e).catch((err) => console.error("talent rebuild failed", err));
         }
       })().catch((err) => console.error("scheduled run failed", err)),
     );

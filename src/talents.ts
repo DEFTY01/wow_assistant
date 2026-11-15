@@ -73,6 +73,10 @@ function index(data: TalentData): Index {
     if (!t) continue;
     values.set(name, { id: t.id, byRank: [0, ...t.desc.map((d) => Number(re.exec(d)?.[1] ?? 0))] });
   }
+  for (const [key, [name, re]] of Object.entries(READ_MORE)) {
+    const t = byName.get(name);
+    if (t) values.set(key, { id: t.id, byRank: [0, ...t.desc.map((d) => Number(re.exec(d)?.[1] ?? 0))] });
+  }
   return { all: [...defs.values()], values, defs, treeOf, byName };
 }
 const spent = (b: Build) => {
@@ -121,6 +125,12 @@ interface Effects {
   bladeFlurry: boolean;
   adrenalineRush: boolean;
   coldBlood: boolean;
+  opportunity: number; // +fraction Backstab and Mutilate damage
+  backstabCrit: number; // extra % crit
+  mutilateCrit: number;
+  backstabCombo: number; // chance of an extra combo point from Backstab
+  hemorrhage: boolean;
+  mutilate: boolean;
 }
 
 // Which number to read from each modelled talent's description.
@@ -142,6 +152,13 @@ const READ: Record<string, RegExp> = {
   "Seal Fate": /a (\d+)% chance/,
   "Relentless Strikes": /a (\d+)% chance/,
   "Improved Slice and Dice": /by (\d+)%/,
+  Opportunity: /by (\d+)%/,
+};
+// Talents with more than one number: key -> [talent, pattern].
+const READ_MORE: Record<string, [string, RegExp]> = {
+  "pw.backstab": ["Puncturing Wounds", /Backstab by (\d+)%/],
+  "pw.mutilate": ["Puncturing Wounds", /Mutilate by (\d+)%/],
+  "pw.combo": ["Puncturing Wounds", /a (\d+)% chance to add/],
 };
 
 /** Value of a modelled talent at the build's rank (0 when not taken), from a table built once. */
@@ -181,13 +198,17 @@ function effects(ix: Index, b: Build, ssPerFight: number): Effects {
     bladeFlurry: has(ix, b, "Blade Flurry"),
     adrenalineRush: has(ix, b, "Adrenaline Rush"),
     coldBlood: has(ix, b, "Cold Blood"),
+    opportunity: num(ix, b, "Opportunity") / 100,
+    backstabCrit: num(ix, b, "pw.backstab"),
+    mutilateCrit: num(ix, b, "pw.mutilate"),
+    backstabCombo: num(ix, b, "pw.combo") / 100,
+    hemorrhage: has(ix, b, "Hemorrhage"),
+    mutilate: has(ix, b, "Mutilate"),
   };
 }
 
 /** Talents that change damage but that this model cannot value: listed for the user, never chosen for value. */
 const UNMODELLED: Record<string, string> = {
-  Mutilate: "új támadás, a Sinister Strike helyére lépne; tőrös buildhez való",
-  Hemorrhage: "új támadás, a Sinister Strike helyére lépne",
   "Ghostly Strike": "új támadás cooldownnal",
   "Death Mark": "új finisher, a sebzése a tárolt sebzéstől függ",
   Venom: "a Shank használatától függ",
@@ -195,8 +216,6 @@ const UNMODELLED: Record<string, string> = {
   "Boot Knife": "a Shank használatától függ",
   Riposte: "csak akkor üt, ha te parryzol; szólóban ér valamit, csapatban alig",
   Composure: "a Poised csak harcon kívül, tele energiával hat",
-  "Puncturing Wounds": "Backstab és Mutilate talent",
-  Opportunity: "Backstab, Ambush, Garrote és Mutilate talent",
   "Improved Ambush": "nyitótámadás",
   Initiative: "nyitótámadás",
   Premeditation: "nyitás, 2 combo pont cooldownnal",
@@ -212,10 +231,26 @@ const FILLER: Record<string, number> = {
   Vigor: 3, Elusiveness: 2, Camouflage: 2, "Master of Deception": 1, Setup: 1, "Heightened Senses": 1,
 };
 
-interface Weapons {
-  mh: number | null; // item subclass id
-  oh: number | null;
+interface Weapon {
+  min: number;
+  max: number;
+  speed: number;
 }
+/** The weapons a rotation is evaluated with (a dagger rotation may swap the hands). */
+interface Loadout {
+  mh: Weapon | null;
+  oh: Weapon | null;
+  mhSub: number | null; // item subclass id: 15 dagger, 7 sword, 4 mace, 13 fist, 0 axe
+  ohSub: number | null;
+}
+
+export type Rotation = "ss" | "hemo" | "backstab" | "mutilate";
+
+// Ability values from the Wowhead Forever tooltips: [level learned, bonus damage].
+const BACKSTAB_BONUS: [number, number][] = [[4, 10], [12, 20], [20, 32], [28, 46], [36, 60], [44, 90], [52, 110], [60, 150]];
+const MUTILATE_BONUS: [number, number][] = [[40, 40], [50, 57], [60, 79]];
+const atLevel = (table: [number, number][], level: number) =>
+  [...table].reverse().find(([l]) => l <= level)?.[1] ?? table[0][1];
 // Hack and Slash per weapon type: swords and axes proc extra attacks, daggers and fists crit, maces ignore armor.
 const hack = (sub: number | null, rank: number) => ({
   extra: sub === 7 || sub === 0 ? rank / 100 : 0,
@@ -231,19 +266,27 @@ interface Calibration {
 }
 
 /** DPS of a build, using the character's gear, measured hit table and measured rotation. */
-function evaluate(ctx: GearContext, e: Effects, now: Effects, w: Weapons, cal: Calibration): number {
+function evaluate(
+  ctx: GearContext,
+  e: Effects,
+  now: Effects,
+  w: Loadout,
+  home: Loadout, // the weapons as worn today, which the measured numbers belong to
+  cal: Calibration,
+  rotation: Rotation,
+): number {
   const p = ctx.params;
-  const sh = ctx.sheet;
-  if (!sh.mh) return 0;
+  const sh = { ...ctx.sheet, mh: w.mh, oh: w.oh };
+  if (!sh.mh || !home.mh) return 0;
   const lvl = p.level;
 
   // Armor: Classic formula with an assumed mob armor, only used for the "ignore armor" talents.
   const armor = 35 * lvl;
   const taken = (ignore: number) => 1 - (armor * (1 - ignore)) / (armor * (1 - ignore) + 400 + 85 * lvl);
-  const hMh = hack(w.mh, e.hackRank);
-  const hOh = hack(w.oh, e.hackRank);
-  const hMhNow = hack(w.mh, now.hackRank);
-  const hOhNow = hack(w.oh, now.hackRank);
+  const hMh = hack(w.mhSub, e.hackRank);
+  const hOh = hack(w.ohSub, e.hackRank);
+  const hMhNow = hack(home.mhSub, now.hackRank);
+  const hOhNow = hack(home.ohSub, now.hackRank);
   const pfMh = taken(Math.min(0.9, e.armorIgnore + hMh.armor)) / taken(Math.min(0.9, now.armorIgnore + hMhNow.armor));
   const pfOh = taken(Math.min(0.9, e.armorIgnore + hOh.armor)) / taken(Math.min(0.9, now.armorIgnore + hOhNow.armor));
 
@@ -265,22 +308,50 @@ function evaluate(ctx: GearContext, e: Effects, now: Effects, w: Weapons, cal: C
     ((1 + 0.2 * snd(e.sndDuration)) / (1 + 0.2 * snd(now.sndDuration))) *
     ((1 + (e.bladeFlurry ? 0.2 * (15 / 120) : 0)) / (1 + (now.bladeFlurry ? 0.2 * (15 / 120) : 0)));
 
-  // Energy: how many Sinister Strikes a 5-point finisher cycle takes, and how long it lasts.
-  const cycle = (x: Effects, crit: number) => {
-    const regen = 10 * (1 + (x.adrenalineRush ? 15 / 300 : 0));
-    const strikes = Math.max(1, (5 - x.ruthless) / (1 + x.sealFate * crit));
-    const energy = strikes * (45 - x.ssCost) + (35 - x.evisCost) - 25 * Math.min(1, x.relentless * 5);
-    const seconds = Math.max(1, energy) / regen;
-    return { ss: strikes / seconds, fin: 1 / seconds };
-  };
-  const critNowMh = Math.min(100, sh.crit) / 100;
-  const cNew = cycle(e, critMh + e.ssCritChance / 100);
-  const cNow = cycle(now, critNowMh + now.ssCritChance / 100);
-  const ssRate = p.ssPerSec * (cNew.ss / cNow.ss);
-  const evisRate = p.evisPerSec * (cNew.fin / cNow.fin);
-
-  const avg = (wpn: { min: number; max: number; speed: number }) => (wpn.min + wpn.max) / 2 + (sh.ap / 14) * wpn.speed;
+  const avg = (wpn: Weapon) => (wpn.min + wpn.max) / 2 + (sh.ap / 14) * wpn.speed;
   const mhHit = avg(sh.mh);
+  const dagger = w.mhSub === 15;
+
+  // The combo point builder of this rotation: energy cost, combo points, damage and crit.
+  const builder = (() => {
+    if (rotation === "hemo") {
+      return { cost: 35 - e.ssCost, cp: 1, crit: 0, dmg: mhHit * (dagger ? 1.45 : 1) };
+    }
+    if (rotation === "backstab") {
+      return {
+        cost: 60,
+        cp: 1 + e.backstabCombo,
+        crit: e.backstabCrit,
+        dmg: (1.5 * mhHit + atLevel(BACKSTAB_BONUS, lvl)) * (1 + e.opportunity),
+      };
+    }
+    if (rotation === "mutilate") {
+      const bonus = atLevel(MUTILATE_BONUS, lvl);
+      // Both weapons, +20% against a poisoned target (poisons are assumed to be on).
+      const hit = 0.9 * mhHit + bonus + (sh.oh ? (0.9 * avg(sh.oh) + bonus) * 0.5 * (1 + e.offhand) : 0);
+      return { cost: 60, cp: 2, crit: e.mutilateCrit, dmg: hit * 1.2 * (1 + e.opportunity) };
+    }
+    // Sinister Strike: the bonus damage is the one measured in your fights.
+    return { cost: 45 - e.ssCost, cp: 1, crit: e.ssCritChance, dmg: (mhHit + p.ssBonus) * ((1 + e.ssDmg) / (1 + now.ssDmg)) };
+  })();
+
+  // Energy: how many builders a 5-point finisher cycle takes, and how long the cycle lasts.
+  const cycle = (x: Effects, cost: number, cp: number, crit: number) => {
+    const regen = 10 * (1 + (x.adrenalineRush ? 15 / 300 : 0));
+    const strikes = Math.max(1, (5 - x.ruthless) / (cp + x.sealFate * crit));
+    const energy = strikes * cost + (35 - x.evisCost) - 25 * Math.min(1, x.relentless * 5);
+    const seconds = Math.max(1, energy) / regen;
+    return { builders: strikes / seconds, fin: 1 / seconds };
+  };
+  // The measured Sinister Strike and Eviscerate rates say how much of the theoretical energy
+  // you really turn into attacks; the same share is assumed for every rotation.
+  const critHome = Math.min(100, ctx.sheet.crit) / 100;
+  const theoryNow = cycle(now, 45 - now.ssCost, 1, critHome + now.ssCritChance / 100);
+  const builderCrit = Math.min(1, critMh + builder.crit / 100);
+  const theory = cycle(e, builder.cost, builder.cp, builderCrit);
+  const ssRate = p.ssPerSec * (theory.builders / theoryNow.builders);
+  const evisRate = p.evisPerSec * (theory.fin / theoryNow.fin);
+
   let total = cal.restDps;
 
   // Auto-attacks; extra attacks from Hack and Slash are extra main-hand swings.
@@ -291,9 +362,8 @@ function evaluate(ctx: GearContext, e: Effects, now: Effects, w: Weapons, cal: C
     total += p.swingRate * haste * ((avg(sh.oh) * 0.5) / sh.oh.speed) * white(critOh) * pfOh * ohMult * (1 + hOh.extra);
   }
 
-  // Sinister Strike and Eviscerate.
-  const ssCrit = Math.min(1, critMh + e.ssCritChance / 100);
-  total += ssRate * (mhHit + p.ssBonus) * ((1 + e.ssDmg) / (1 + now.ssDmg)) * pfMh * landed * (1 + ssCrit * (1 + e.ssCritBonus));
+  // Builder and Eviscerate. Lethality raises the crit multiplier of every builder here.
+  total += ssRate * builder.dmg * pfMh * landed * (1 + builderCrit * (1 + e.ssCritBonus));
   const evis = p.evisDamage * ((1 + e.evisDmg) / (1 + now.evisDmg));
   total += evisRate * evis * landed * (1 + critMh);
   // Cold Blood: one guaranteed crit on an Eviscerate every 3 minutes.
@@ -409,12 +479,89 @@ function polish(start: Build, ix: Index, score: (x: Build) => number): Build {
   return cur;
 }
 
+// ---------------------------------------------------------------- PvP
+
+// A PvP build cannot be computed from a damage model: it is about burst, control and getting
+// away. These weights are a judgement of each talent's worth in duels and battlegrounds
+// (0-10 for the fully ranked talent), with the reason shown to the user.
+const PVP: Record<string, [number, string]> = {
+  Preparation: [10, "minden cooldown újra: második Vanish, Sprint, Evasion"],
+  "Cold Blood": [9, "garantált crit a nyitásra vagy az Eviscerate-re"],
+  Malice: [8, "crit: a burst alapja"],
+  Lethality: [8, "nagyobb critek"],
+  "Seal Fate": [8, "crit után extra combo pont: gyorsabb Kidney Shot és Eviscerate"],
+  Initiative: [8, "nyitásból rögtön 2-3 combo pont"],
+  Premeditation: [8, "2 ingyen combo pont a harc elején"],
+  Elusiveness: [8, "rövidebb Vanish és Blind cooldown"],
+  Riposte: [8, "lefegyverzés: melee ellen harcot dönt el"],
+  "Improved Kick": [8, "némítás: casterek ellen kulcs"],
+  "Improved Kidney Shot": [7, "a stun alatt több sebzést kap a célpont"],
+  "Improved Sprint": [7, "kiszabadít a lassításból és a gyökerekből"],
+  Camouflage: [7, "gyorsabb lopakodás, rövidebb Stealth cooldown"],
+  Opportunity: [7, "nagyobb Ambush és Backstab"],
+  "Improved Ambush": [7, "szinte biztos Ambush crit"],
+  Hemorrhage: [7, "olcsó combo pont gyűjtő"],
+  "Improved Gouge": [6, "hosszabb Gouge: több idő kötözni vagy újranyitni"],
+  "Master of Deception": [6, "nehezebben vesznek észre lopakodva"],
+  "Dirty Deeds": [6, "olcsóbb Cheap Shot és Garrote"],
+  "Ghostly Strike": [6, "ütés és dodge egyben"],
+  "Relentless Strikes": [6, "energia vissza a finisherekből"],
+  "Adrenaline Rush": [6, "dupla energia 15 másodpercig: burst ablak"],
+  Mutilate: [6, "nagy, gyors combo pont gyűjtő"],
+  Vigor: [5, "több energia a nyitáshoz"],
+  Ruthlessness: [5, "extra combo pont a finisher után"],
+  "Improved Poisons": [5, "megbízhatóbb mérgek (Crippling, Mind-numbing)"],
+  "Lightning Reflexes": [5, "dodge melee ellen"],
+  Deflection: [5, "parry, és a Riposte előfeltétele"],
+  Endurance: [5, "rövidebb Sprint és Evasion cooldown"],
+  "Puncturing Wounds": [5, "Backstab crit és extra combo pont"],
+  "Dirty Tricks": [5, "olcsóbb Sap és Blind"],
+  "Heightened Senses": [5, "észreveszed a lopakodókat, kevesebb varázslat talál"],
+  "Death Mark": [5, "tárolt sebzés egyben: burst"],
+  Setup: [4, "combo pont dodge után"],
+  "Vile Poisons": [4, "erősebb mérgek"],
+  "Coup de Grace": [4, "nagyobb Eviscerate"],
+  Precision: [4, "kevesebb mellé ment ütés"],
+  "Serrated Blades": [4, "páncéláttörés plate ellen"],
+  "Blade Flurry": [4, "burst cooldown"],
+  "Remorseless Attacks": [3, "crit a következő ütésre kill után"],
+  "Efficient Strikes": [3, "olcsóbb Sinister Strike és Hemorrhage"],
+  "Flawless Execution": [3, "olcsóbb Eviscerate"],
+  "Weapon Expertise": [3, "kevesebb dodge és parry ellened"],
+  Aggression: [3, "nagyobb Sinister Strike és Eviscerate"],
+  "Dual Wield Specialization": [3, "balkezes sebzés"],
+  "Hack and Slash": [3, "fegyverfüggő bónusz"],
+  Venom: [3, "méregsebzés a Shank után"],
+  "Blood Splatter": [2, "hosszabb Rupture és Garrote"],
+  "Quick Getaway": [2, "második Sap célpont"],
+  "Boot Knife": [2, "combo pont a Shankből"],
+  "Improved Expose Armor": [1, "ritkán használt"],
+  "Improved Slice and Dice": [1, "PvP-ben nincs idő fenntartani"],
+  Composure: [1, "csak harcon kívül hat"],
+  "Flash of Steel": [1, "a Shank ritka PvP-ben"],
+};
+
 // ---------------------------------------------------------------- report
 
 export interface TreeView {
   name: string;
   points: number;
   talents: { name: string; rank: number; max: number; was: number; note: string | null }[];
+}
+export interface BuildView {
+  split: string;
+  gainPct: number;
+  trees: TreeView[];
+}
+export interface RotationResult {
+  key: Rotation;
+  label: string;
+  /** What the rotation needs or assumes, shown under its name. */
+  note: string;
+  /** Why there is no result (missing weapon, level), or null. */
+  blocked: string | null;
+  now: BuildView | null;
+  final: BuildView | null;
 }
 export interface TalentStep {
   level: number;
@@ -427,37 +574,44 @@ export interface TalentStep {
 }
 export interface TalentReport {
   level: number;
-  points: number; // talent points at this level
+  points: number;
   spent: number;
   current: { dps: number; split: string };
-  /** Best build with the points you have now (needs a respec). */
-  ideal: { dps: number; gainPct: number; split: string; trees: TreeView[] };
-  /** Best build at level 60. */
-  final: { split: string; gainPct: number; trees: TreeView[] };
-  /** Next points without a respec, in the order to take them. */
   steps: TalentStep[];
-  /** Level 60 build reached by continuing without a respec, vs. the best one from scratch. */
   continued: { split: string; gainPct: number };
+  rotations: RotationResult[];
+  pvp: { now: TreeView[]; nowSplit: string; final: TreeView[]; finalSplit: string } | null;
+  /** Parts still being computed in the background. */
+  pending: string[];
   unmodelled: { name: string; why: string; tree: string }[];
   notes: string[];
 }
 
 const TREE_HU: Record<string, string> = { RogueAssassination: "Assassination", RogueCombat: "Combat", RogueSubtlety: "Subtlety" };
+const ROTATIONS: { key: Rotation; label: string; talent?: string; minLevel?: number }[] = [
+  { key: "ss", label: "Sinister Strike" },
+  { key: "hemo", label: "Hemorrhage", talent: "Hemorrhage", minLevel: 30 },
+  { key: "backstab", label: "Backstab (tőr)" },
+  { key: "mutilate", label: "Mutilate", talent: "Mutilate", minLevel: 40 },
+];
+const PARTS = ["ss", "hemo", "backstab", "mutilate", "pvp"] as const;
+type Part = (typeof PARTS)[number];
 
-function views(data: TalentData, b: Build, was: Build): TreeView[] {
+function views(data: TalentData, b: Build, was: Build, notes: (name: string) => string | null): TreeView[] {
   return data.trees.map((tree) => ({
     name: TREE_HU[tree.name] ?? tree.name,
     points: tree.talents.reduce((a, t) => a + (b.get(t.id) ?? 0), 0),
     talents: tree.talents
       .filter((t) => (b.get(t.id) ?? 0) > 0 || (was.get(t.id) ?? 0) > 0)
       .sort((x, y) => x.row - y.row || x.col - y.col)
-      .map((t) => ({ name: t.name, rank: b.get(t.id) ?? 0, max: t.max, was: was.get(t.id) ?? 0, note: UNMODELLED[t.name] ?? null })),
+      .map((t) => ({ name: t.name, rank: b.get(t.id) ?? 0, max: t.max, was: was.get(t.id) ?? 0, note: notes(t.name) })),
   }));
 }
 const split = (data: TalentData, b: Build) =>
   data.trees.map((tree) => tree.talents.reduce((a, t) => a + (b.get(t.id) ?? 0), 0)).join(" / ");
 
-export async function talentReport(env: Env): Promise<TalentReport | null> {
+/** Everything the parts share: tree data, the current build, weapons and the measured calibration. */
+async function prepare(env: Env) {
   const ctx = await gearContext(env);
   if (!ctx) return null;
   const data = await loadTalents(env, 4);
@@ -481,7 +635,10 @@ export async function talentReport(env: Env): Promise<TalentReport | null> {
     const it = ((equip?.equipped_items ?? []) as Obj[]).find((i) => i.slot?.type === slot);
     return it ? Number(it.item_subclass?.id) : null;
   };
-  const weapons: Weapons = { mh: sub("MAIN_HAND"), oh: sub("OFF_HAND") };
+  const home: Loadout = { mh: ctx.sheet.mh, oh: ctx.sheet.oh, mhSub: sub("MAIN_HAND"), ohSub: sub("OFF_HAND") };
+  // Dagger rotations need the dagger in the main hand: swap the hands if it is in the off hand.
+  const daggerLoadout: Loadout | null =
+    home.mhSub === 15 ? home : home.ohSub === 15 ? { mh: home.oh, oh: home.mh, mhSub: home.ohSub, ohSub: home.mhSub } : null;
 
   const combat = ctx.combat;
   const poisonDmg = combat ? combat.abilities.filter((a) => /poison/i.test(a.name)).reduce((s, a) => s + a.dmg, 0) : 0;
@@ -496,36 +653,88 @@ export async function talentReport(env: Env): Promise<TalentReport | null> {
     restDps: ctx.params.otherDps - poisonDps,
     ssPerFight: combat && ss ? Math.max(1, ss.n / combat.fights) : 6,
   };
-
   const now = effects(ix, current, cal.ssPerFight);
-  const cache = new Map<string, number>();
-  const score = (b: Build): number => {
-    let key = "";
-    let utility = 0;
-    for (const t of ix.all) {
-      const r = b.get(t.id) ?? 0;
-      key += r;
-      if (r) utility += r * (FILLER[t.name] ?? 0);
-    }
-    let v = cache.get(key);
-    if (v == null) {
-      // The utility term is far below any real DPS difference: it only breaks ties between fillers.
-      v = evaluate(ctx, effects(ix, b, cal.ssPerFight), now, weapons, cal) + utility * 1e-4;
-      cache.set(key, v);
-    }
-    return v;
+
+  /** A scoring function for one rotation; a build without the rotation's key talent scores nothing. */
+  const scorer = (rotation: Rotation, loadout: Loadout, must?: string) => {
+    const cache = new Map<string, number>();
+    const mustId = must ? ix.byName.get(must)?.id : undefined;
+    return (b: Build): number => {
+      let key = "";
+      let utility = 0;
+      for (const t of ix.all) {
+        const r = b.get(t.id) ?? 0;
+        key += r;
+        if (r) utility += r * (FILLER[t.name] ?? 0);
+      }
+      let v = cache.get(key);
+      if (v == null) {
+        // The utility term is far below any real DPS difference: it only breaks ties between fillers.
+        v =
+          mustId != null && !(b.get(mustId) ?? 0)
+            ? -1e6
+            : evaluate(ctx, effects(ix, b, cal.ssPerFight), now, loadout, home, cal, rotation) + utility * 1e-4;
+        cache.set(key, v);
+      }
+      return v;
+    };
   };
 
   const level = ctx.level;
-  const points = Math.max(0, level - 9);
-  const base = score(current);
+  const base = scorer("ss", home)(current);
+  return { ctx, data, ix, current, home, daggerLoadout, combat, scorer, level, points: Math.max(0, level - 9), base };
+}
+type Prepared = NonNullable<Awaited<ReturnType<typeof prepare>>>;
+
+const dpsNote = (name: string) => UNMODELLED[name] ?? null;
+
+function rotationPart(p: Prepared, key: Rotation): RotationResult {
+  const def = ROTATIONS.find((r) => r.key === key)!;
+  const { ix, data, current, base, level, points } = p;
+  const dagger = key === "backstab";
+  const loadout = dagger ? p.daggerLoadout : p.home;
+  const swapped = dagger && loadout !== p.home;
+  const note =
+    key === "ss"
+      ? "a mostani rotációd; a mért adataidból számol"
+      : key === "hemo"
+        ? "35 energiás gyűjtő; tőrrel a főkézben 145% fegyversebzés"
+        : key === "backstab"
+          ? `csak a célpont háta mögül megy, ezért csapatban reális${swapped ? "; a tőrödet a főkézbe, a mostani főkezest a balkézbe téve számol" : ""}`
+          : "mindkét fegyverrel üt, 2 combo pontot ad; 40-es szinttől";
+  if (!loadout) return { key, label: def.label, note, blocked: "Nincs tőröd: ehhez tőr kell a főkézbe.", now: null, final: null };
+
+  const score = p.scorer(key, loadout, def.talent);
   const pct = (b: Build) => ((score(b) - base) / base) * 100;
+  const build = (budget: number): Build | null => {
+    let start: Build = new Map();
+    if (def.talent) {
+      const seed = reach(start, ix, ix.byName.get(def.talent)!.id, 1, score);
+      if (!seed || spent(seed) > budget) return null;
+      start = seed;
+    }
+    return polish(grow(start, ix, budget, score).build, ix, score);
+  };
+  const view = (b: Build | null): BuildView | null =>
+    b ? { split: split(data, b), gainPct: pct(b), trees: views(data, b, current, dpsNote) } : null;
 
-  const ideal = polish(grow(new Map(), ix, Math.max(points, spent(current)), score).build, ix, score);
-  const final = polish(grow(new Map(), ix, 51, score).build, ix, score);
+  const tooLow = def.minLevel != null && level < def.minLevel;
+  const nowBuild = tooLow ? null : build(Math.max(points, spent(current)));
+  return {
+    key,
+    label: def.label,
+    note,
+    blocked: tooLow ? `${def.minLevel}-es szinttől érhető el.` : !nowBuild && def.talent ? "A mostani pontjaidból még nem érhető el." : null,
+    now: view(nowBuild),
+    final: view(build(51)),
+  };
+}
+
+/** The current rotation also yields the "what to take next" list. */
+function stepsPart(p: Prepared) {
+  const { ix, data, current, base, level } = p;
+  const score = p.scorer("ss", p.home);
   const cont = grow(current, ix, 51, score);
-
-  // Name each next point with the level it becomes available at.
   const steps: TalentStep[] = [];
   const walk = new Map(current);
   let n = spent(current);
@@ -545,45 +754,39 @@ export async function talentReport(env: Env): Promise<TalentReport | null> {
       why: after - before > base * 0.0005 ? (def.desc[walk.get(id)! - 1] ?? "") : "töltelék pont: a fa következő sorához kell",
     });
   }
+  return { steps, continued: { split: split(data, cont.build), gainPct: ((score(cont.build) - base) / base) * 100 } };
+}
 
-  const notes: string[] = [
-    "A keresés a mostani felszereléseddel, a mért találati arányaiddal és a mért rotációddal számol, Sinister Strike-ra épülő buildet feltételezve.",
-    `Hack and Slash: a főkezed ${weapons.mh === 4 ? "buzogány (páncéláttörés)" : weapons.mh === 7 || weapons.mh === 0 ? "kard vagy balta (extra támadás)" : "tőr vagy ökölfegyver (crit)"}; fegyverváltáskor az értéke változik.`,
-    "Feltevések: a mobok páncélja 35 × szint; a mérgek alap esélye 20%; Blade Flurry és Adrenaline Rush cooldownra használva.",
-  ];
-  if (!combat) notes.push("Nincs rögzített harc, ezért a rotáció és a Slice and Dice fedettség tankönyvi érték.");
-
-  const unmodelled: TalentReport["unmodelled"] = [];
-  for (const tree of data.trees) {
-    for (const t of tree.talents) {
-      if (UNMODELLED[t.name]) unmodelled.push({ name: t.name, why: UNMODELLED[t.name], tree: TREE_HU[tree.name] ?? tree.name });
+function pvpPart(p: Prepared): NonNullable<TalentReport["pvp"]> {
+  const { ix, data, current, points } = p;
+  const score = (b: Build) => {
+    let v = 0;
+    for (const t of ix.all) {
+      const r = b.get(t.id) ?? 0;
+      if (r) v += ((PVP[t.name]?.[0] ?? 0) * r) / t.max;
     }
-  }
-
+    return v;
+  };
+  const note = (name: string) => PVP[name]?.[1] ?? null;
+  const build = (budget: number) => polish(grow(new Map(), ix, budget, score).build, ix, score);
+  const now = build(Math.max(points, spent(current)));
+  const final = build(51);
   return {
-    level,
-    points,
-    spent: spent(current),
-    current: { dps: base, split: split(data, current) },
-    ideal: { dps: score(ideal), gainPct: pct(ideal), split: split(data, ideal), trees: views(data, ideal, current) },
-    final: { split: split(data, final), gainPct: pct(final), trees: views(data, final, current) },
-    steps,
-    continued: { split: split(data, cont.build), gainPct: pct(cont.build) },
-    unmodelled,
-    notes,
+    now: views(data, now, current, note),
+    nowSplit: split(data, now),
+    final: views(data, final, current, note),
+    finalSplit: split(data, final),
   };
 }
 
-// The search is too heavy to repeat on every page view: reuse the result until the inputs change.
-const TALENT_VERSION = 3;
-/**
- * With `defer`, an out-of-date result is returned at once and the fresh one is computed after the
- * response (a page view should never have to wait for, or pay for, the search).
- */
-export async function cachedTalentReport(
-  env: Env,
-  defer?: (work: Promise<unknown>) => void,
-): Promise<TalentReport | null> {
+// ---------------------------------------------------------------- cache, built one part at a time
+
+// The searches are too heavy to run together inside one request. Each call computes at most
+// one missing part and stores it; the page shows what is ready and the rest fills in over the
+// next page views and scheduled runs.
+const TALENT_VERSION = 5;
+
+async function talentStamp(env: Env): Promise<string> {
   const row = await env.DB.prepare(
     "SELECT (SELECT MAX(id) FROM snapshots WHERE slug = ?1) || '|' || " +
       "(SELECT COUNT(*) || ':' || COALESCE(MAX(start), 0) FROM fights WHERE slug = ?1) || '|' || " +
@@ -592,25 +795,103 @@ export async function cachedTalentReport(
   )
     .bind(env.CHARACTER_SLUG)
     .first<{ stamp: string }>();
-  const stamp = `${TALENT_VERSION}|${row?.stamp ?? ""}`;
+  return `${TALENT_VERSION}|${row?.stamp ?? ""}`;
+}
+
+interface TalentCache {
+  stamp: string;
+  parts: Partial<Record<Part, unknown>>;
+  head?: Pick<TalentReport, "level" | "points" | "spent" | "current" | "unmodelled" | "notes">;
+}
+
+async function readCache(env: Env): Promise<TalentCache | null> {
   const hit = await stateGet(env, "talent_cache");
-  if (hit) {
-    try {
-      const cached = JSON.parse(hit.value) as { stamp: string; report: TalentReport | null };
-      if (cached.stamp === stamp) return cached.report;
-      if (defer && cached.report) {
-        defer(
-          talentReport(env)
-            .then((fresh) => statePut(env, "talent_cache", JSON.stringify({ stamp, report: fresh })))
-            .catch(() => null),
-        );
-        return cached.report;
-      }
-    } catch {
-      // rebuild
-    }
+  if (!hit) return null;
+  try {
+    const c = JSON.parse(hit.value) as TalentCache;
+    return c && typeof c === "object" && c.parts ? c : null;
+  } catch {
+    return null;
   }
-  const report = await talentReport(env);
-  await statePut(env, "talent_cache", JSON.stringify({ stamp, report }));
+}
+
+function assemble(c: TalentCache): TalentReport | null {
+  if (!c.head || !c.parts.ss) return null;
+  const ss = c.parts.ss as { rotation: RotationResult; steps: TalentStep[]; continued: TalentReport["continued"] };
+  const rotations = [ss.rotation];
+  for (const key of ["hemo", "backstab", "mutilate"] as const) if (c.parts[key]) rotations.push(c.parts[key] as RotationResult);
+  return {
+    ...c.head,
+    steps: ss.steps,
+    continued: ss.continued,
+    rotations,
+    pvp: (c.parts.pvp as TalentReport["pvp"]) ?? null,
+    pending: PARTS.filter((part) => !c.parts[part]),
+  };
+}
+
+/** Compute the next missing part. Returns true when there was something to do. */
+export async function advanceTalents(env: Env): Promise<boolean> {
+  const stamp = await talentStamp(env);
+  let cache = await readCache(env);
+  if (!cache || cache.stamp !== stamp) cache = { stamp, parts: {} };
+  const next = PARTS.find((part) => !cache!.parts[part]);
+  if (!next) return false;
+  const p = await prepare(env);
+  if (!p) return false;
+
+  if (next === "ss") {
+    const unmodelled: TalentReport["unmodelled"] = [];
+    for (const tree of p.data.trees) {
+      for (const t of tree.talents) {
+        if (UNMODELLED[t.name]) unmodelled.push({ name: t.name, why: UNMODELLED[t.name], tree: TREE_HU[tree.name] ?? tree.name });
+      }
+    }
+    const mh = p.home.mhSub;
+    const notes = [
+      "Minden rotáció a mostani felszereléseddel, a mért találati arányaiddal és a mostani szinted képességeivel számol.",
+      "A Sinister Strike a mért rotációdból indul; a többi rotációnál azt feltételezi, hogy az energiádat ugyanolyan arányban váltod támadásra.",
+      `Hack and Slash: a főkezed ${mh === 4 ? "buzogány (páncéláttörés)" : mh === 7 || mh === 0 ? "kard vagy balta (extra támadás)" : "tőr vagy ökölfegyver (crit)"}; fegyverváltáskor az értéke változik.`,
+      "Feltevések: a mobok páncélja 35 × szint; a mérgek alap esélye 20%; a célpont mérgezett; a cooldownokat használod.",
+    ];
+    if (!p.combat) notes.push("Nincs rögzített harc, ezért a rotáció és a Slice and Dice fedettség tankönyvi érték.");
+    cache.head = {
+      level: p.level,
+      points: p.points,
+      spent: spent(p.current),
+      current: { dps: p.base, split: split(p.data, p.current) },
+      unmodelled,
+      notes,
+    };
+    cache.parts.ss = { rotation: rotationPart(p, "ss"), ...stepsPart(p) };
+  } else if (next === "pvp") {
+    cache.parts.pvp = pvpPart(p);
+  } else {
+    cache.parts[next] = rotationPart(p, next);
+  }
+  await statePut(env, "talent_cache", JSON.stringify(cache));
+  return true;
+}
+
+/**
+ * What is ready of the talent report. With `defer`, one more missing part is computed after
+ * the response, so a page view never pays for more than the first part.
+ */
+export async function cachedTalentReport(env: Env, defer?: (work: Promise<unknown>) => void): Promise<TalentReport | null> {
+  const stamp = await talentStamp(env);
+  let cache = await readCache(env);
+  const fresh = !!cache && cache.stamp === stamp;
+  if (!fresh && cache && assemble(cache) && defer) {
+    // Out of date: show the previous result now and start over in the background.
+    defer(advanceTalents(env).catch(() => null));
+    return assemble(cache);
+  }
+  if (!fresh || !cache?.parts.ss) {
+    await advanceTalents(env);
+    cache = await readCache(env);
+  }
+  if (!cache) return null;
+  const report = assemble(cache);
+  if (report?.pending.length && defer) defer(advanceTalents(env).catch(() => null));
   return report;
 }
