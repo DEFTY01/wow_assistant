@@ -1,11 +1,11 @@
 import { html } from "hono/html";
-import { page } from "./layout";
+import { type Html, page } from "./layout";
 import type { CombatReport } from "./combat";
 
 const f1 = (n: number) => n.toFixed(1);
 const LEVEL_LABEL = { fix: "Javítandó", tip: "Tipp", info: "Adat" } as const;
 
-export function combatPage(r: CombatReport | null) {
+export function combatPage(r: CombatReport | null, extra?: Html) {
   return page({
     title: "Harc",
     active: "combat",
@@ -69,6 +69,7 @@ ${r
   </section>`
   : html`<section class="wide"><p class="muted">Még nincs rögzített harc. A játékban kapcsold be a harcnaplót
       (<code>/wa log</code>), harcolj; a feltöltő script a játék naplófájljából olvassa ki a harcokat.</p></section>`}
+${extra ?? ""}
 `,
   });
 }

@@ -1,6 +1,7 @@
 import { storeFights } from "./combat";
 import type { Env } from "./env";
 import { queueUnknownItems } from "./market";
+import { storeScan, storeXp } from "./scan";
 import { stateGet, statePutStmt } from "./state";
 
 type Obj = Record<string, any>;
@@ -33,6 +34,11 @@ export async function importAddon(env: Env, db: Obj) {
   // Fights go to their own table; keep them out of the state blob.
   const fights = await storeFights(env, (c as Obj).fights);
   delete (c as Obj).fights;
+  // The auction house scan and the XP samples have their own tables too.
+  const scanned = await storeScan(env, (c as Obj).ah);
+  delete (c as Obj).ah;
+  const xpSamples = await storeXp(env, (c as Obj).xp);
+  delete (c as Obj).xp;
 
   // A scan taken while logging out reports zero gold and empty bags. Never let that replace
   // real data: keep what the previous upload had.
@@ -79,6 +85,8 @@ export async function importAddon(env: Env, db: Obj) {
     bagItems: Object.keys(c.bags ?? {}).length,
     bankItems: Object.keys(c.bank ?? {}).length,
     trainerSkills: trainer.length,
+    scanned,
+    xpSamples,
     fights,
     spells: Array.isArray(c.spells) ? c.spells.length : 0,
     skills: Object.keys(c.skills ?? {}).length,

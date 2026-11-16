@@ -21,6 +21,9 @@ export function parseCombatLog(text, character, opts = {}) {
   const MAX_CASTS = 150;
   const FINISHERS = new Set(["Eviscerate", "Slice and Dice", "Rupture", "Kidney Shot", "Expose Armor"]);
   const COMBO_POINTS = "4";
+  const ENERGY = "3";
+  // Things done between fights: they must neither start a fight nor glue two fights together.
+  const NOT_COMBAT = /^(Skinning|Stealth|Mining|Herb Gathering|Fishing|Pick Pocket|Pick Lock|Disarm Trap|Detect Traps|Find \w+|.*Bandage.*|.*Poison.*)$/;
 
   function splitCsv(line) {
     const out = [];
@@ -181,15 +184,18 @@ export function parseCombatLog(text, character, opts = {}) {
       if (f[33] === COMBO_POINTS) cp = Math.min(Number(f[34]) || 5, cp + (Number(f[31]) || 0));
     } else if (ev === "SPELL_CAST_SUCCESS") {
       const name = f[10];
+      if (NOT_COMBAT.test(name)) continue;
       // Only casts on enemies (or finishers/buffs used mid-fight) belong to a fight.
       if (hostile || (fight && t - fight.last <= FIGHT_GAP)) {
         if (hostile) touch(t);
         else fight.last = Math.max(fight.last, t);
-        const energy = Number(f[23]);
+        // Finishers report combo points in the power fields, not energy: -1 marks "unknown".
+        const isEnergy = f[22] === ENERGY;
+        const energy = isEnergy ? Number(f[23]) : -1;
         if (fight.casts.length < MAX_CASTS) {
-          fight.casts.push([Math.round((t - fight.t0) * 10), name, Number.isFinite(energy) ? energy : 0, cp]);
+          fight.casts.push([Math.round((t - fight.t0) * 10), name, Number.isFinite(energy) ? energy : -1, cp]);
         }
-        if (f[12] === f[1]) sampleEnergy(t, energy, Number(f[24]));
+        if (isEnergy && f[12] === f[1]) sampleEnergy(t, energy, Number(f[24]));
       }
       if (FINISHERS.has(name)) cp = 0;
     }

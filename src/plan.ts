@@ -2,7 +2,9 @@ import { loadAddon, ownedItems } from "./addon";
 import { consumablesFor } from "./buffs";
 import type { Env } from "./env";
 import { type GearContext, type GearReport, gearContext, gearReport } from "./gear";
-import { INV_SLOTS, type GearItem, loadAuctionGear, loadGear } from "./market";
+import { INV_SLOTS, type GearItem, loadAuctionGear, loadGear, rogueUsable } from "./market";
+import { logModel } from "./model";
+import { loadScannedGear } from "./scan";
 import { loadPriceBook, planRoutes } from "./professions";
 import { stateGet, statePut } from "./state";
 import { latestSnapshots } from "./sync";
@@ -40,6 +42,8 @@ export interface Plan {
   level: number;
   gold: number | null;
   baseline: number;
+  /** Model DPS without the selected buffs. */
+  unbuffed: number;
   measuredDps: number | null;
   projected: number;
   buy: Option[];
@@ -196,7 +200,7 @@ const SLOT_HU: Record<string, string> = {
 // Building the plan is the most expensive thing the app does, and a Worker request has a
 // small CPU budget. So the result is stored and reused until one of its inputs changes; the
 // scheduled sync and the uploads rebuild it in the background, so a page view rarely has to.
-const PLAN_VERSION = 2; // bump when the plan's shape or logic changes
+const PLAN_VERSION = 3; // bump when the plan's shape or logic changes
 
 async function planStamp(env: Env): Promise<string> {
   const slug = env.CHARACTER_SLUG;
@@ -206,6 +210,7 @@ async function planStamp(env: Env): Promise<string> {
       "(SELECT updated_at FROM manual_state WHERE key = ?1 || ':gold_copper') AS gold, " +
       "(SELECT updated_at FROM manual_state WHERE key = ?1 || ':buffs') AS buffs, " +
       "(SELECT MAX(updated_at) FROM prices) AS prices, (SELECT MAX(updated_at) FROM ah_gear) AS gear, " +
+      "(SELECT MAX(scanned_at) FROM ah_scan) AS scan, " +
       "(SELECT COUNT(*) || ':' || MAX(start) FROM fights WHERE slug = ?1) AS fights, " +
       "(SELECT MAX(updated_at) FROM trainer_skills WHERE slug = ?1) AS trainer",
   )
@@ -227,6 +232,7 @@ export async function cachedPlan(env: Env): Promise<Plan | null> {
     }
   }
   const plan = await buildPlan(env);
+  if (plan) await logModel(env, plan.unbuffed, plan.level).catch(() => null);
   // The plan's own inputs include settings rows, but not this one: writing it does not change the stamp.
   await statePut(env, "plan_cache", JSON.stringify({ stamp, plan }));
   return plan;
@@ -271,6 +277,16 @@ export async function buildPlan(env: Env): Promise<Plan | null> {
   const soon: (Option & { req: number })[] = [];
   for (const { item, price, listings } of await loadAuctionGear(env)) {
     const o = option(item, "ah", price, "Aukciósház", `${listings} db kint`);
+    if (!o) continue;
+    if (item.reqLevel <= level) all.push(o);
+    else if (item.reqLevel <= level + 4) soon.push({ ...o, req: item.reqLevel });
+  }
+  // Listings scanned in game: fresher than the hourly API data and with the real stats of
+  // random-suffix items. The cheaper source of the same item wins further down.
+  const scan = await loadScannedGear(env);
+  for (const { item, price, listings } of scan.items) {
+    if (!rogueUsable(item)) continue;
+    const o = option(item, "ah", price, "Aukciósház (játékban szkennelve)", `${listings} db kint`);
     if (!o) continue;
     if (item.reqLevel <= level) all.push(o);
     else if (item.reqLevel <= level + 4) soon.push({ ...o, req: item.reqLevel });
@@ -465,6 +481,13 @@ export async function buildPlan(env: Env): Promise<Plan | null> {
   if (!trainerRows.results.length) warnings.push("Nincs trainer-adat: nyisd meg a rogue trainer ablakát minden szűrővel, aztán /wa save.");
   const priceAt = await env.DB.prepare("SELECT MAX(updated_at) AS at FROM ah_gear").first<{ at: string | null }>();
   if (hours(priceAt?.at) > 6) warnings.push("Az aukciós árak több mint 6 órásak, a vásárlási javaslatok elavultak lehetnek.");
+  if (addon && !scan.fresh) {
+    warnings.push(
+      scan.at
+        ? "Az aukciósház-szkennelésed több mint 12 órás: /wa ah az aukciósháznál, hogy a random utótagos tárgyak is számítsanak."
+        : "Még nem szkennelted az aukciósházat: /wa ah az aukciósháznál. Enélkül a random utótagos tárgyak (az aukciók harmada) kimaradnak.",
+    );
+  }
   if (!ctx.combat) warnings.push("Nincs rögzített harc: a modell tankönyvi értékekkel számol. /wa log a játékban.");
   if (profile?.faction?.type && profile.faction.type !== "HORDE") {
     warnings.push("Az aukciós árak a Horde aukciósházból származnak; Alliance karakternél az árak és a kínálat eltérhet.");
@@ -479,6 +502,7 @@ export async function buildPlan(env: Env): Promise<Plan | null> {
     level,
     gold,
     baseline,
+    unbuffed: ctx.unbuffed,
     measuredDps: ctx.combat ? ctx.combat.dps : null,
     projected: baseline + buy.reduce((a, o) => a + o.gain, 0) + freeList.reduce((a, o) => a + o.gain, 0),
     buy,

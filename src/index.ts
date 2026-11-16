@@ -4,7 +4,12 @@ import { requireAccess } from "./access";
 import { importAddon, loadAddon } from "./addon";
 import { apiGet } from "./blizzard";
 import { saveSelectedBuffs } from "./buffs";
+import { coachReport } from "./coach";
 import { combatReport, storeFights } from "./combat";
+import { coachSection, modelSection, profitSection, xpSection } from "./insightsView";
+import { modelReport } from "./model";
+import { craftProfits } from "./profit";
+import { xpReport } from "./scan";
 import { combatPage } from "./combatView";
 import type { Env } from "./env";
 import { gearReport, importLoot, type LootImport } from "./gear";
@@ -119,7 +124,15 @@ app.get("/talents", async (c) => {
   return c.html(await talentsPage(rogue && hasData ? await cachedTalentReport(c.env, (work) => c.executionCtx.waitUntil(work)) : null, { rogue, hasData }));
 });
 
-app.get("/combat", async (c) => c.html(await combatPage(await combatReport(c.env))));
+app.get("/combat", async (c) => {
+  const [report, coach, xp, model] = await Promise.all([
+    combatReport(c.env),
+    coachReport(c.env),
+    xpReport(c.env),
+    modelReport(c.env),
+  ]);
+  return c.html(await combatPage(report, html`${coachSection(coach)}${xpSection(xp)}${modelSection(model)}`));
+});
 
 app.post("/gear/buffs", async (c) => {
   const form = await c.req.parseBody({ all: true });
@@ -136,7 +149,8 @@ app.get("/professions", async (c) => {
     planRoutes(c.env, target),
     c.env.DB.prepare("SELECT MAX(updated_at) AS at FROM prices").first<{ at: string | null }>(),
   ]);
-  return c.html(await professionsPage(routes, { house: c.env.AUCTION_HOUSE_ID, pricesAt: at?.at ?? null, target }));
+  const profits = profitSection(await craftProfits(c.env));
+  return c.html(await professionsPage(routes, { house: c.env.AUCTION_HOUSE_ID, pricesAt: at?.at ?? null, target }, profits));
 });
 
 app.post("/professions/refresh", async (c) => {

@@ -42,6 +42,14 @@ interface ItemRow {
   stats: string | null;
 }
 
+/** Can a rogue wear this, and does it go into a slot the model knows? */
+export function rogueUsable(item: GearItem): boolean {
+  if (!INV_SLOTS[item.slot]) return false;
+  if (item.itemClass === 4) return ARMOR_SUBS.has(item.subclass);
+  if (item.itemClass === 2) return WEAPON_SUBS.has(item.subclass) && !!item.stats.weapon;
+  return false;
+}
+
 function toGear(r: ItemRow): GearItem | null {
   if (!r.slot || !INV_SLOTS[r.slot] || !r.stats) return null;
   const parsed = JSON.parse(r.stats) as ItemStats & { classes?: number[] };

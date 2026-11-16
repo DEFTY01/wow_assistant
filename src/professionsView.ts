@@ -1,8 +1,8 @@
 import { html } from "hono/html";
-import { money, page } from "./layout";
+import { type Html, money, page } from "./layout";
 import type { Route } from "./professions";
 
-export function professionsPage(routes: Route[], meta: { house: string; pricesAt: string | null; target: number }) {
+export function professionsPage(routes: Route[], meta: { house: string; pricesAt: string | null; target: number }, extra?: Html) {
   return page({
     title: "Mesterségek",
     active: "prof",
@@ -15,6 +15,7 @@ export function professionsPage(routes: Route[], meta: { house: string; pricesAt
       <span class="muted">Aukciósház #${meta.house} · árak: ${meta.pricesAt ? new Date(meta.pricesAt).toLocaleString("hu-HU", { timeZone: "Europe/Budapest" }) : "még nincs letöltve"}</span>
     </form>
   </section>
+  ${extra ?? ""}
   ${routes.length
     ? routes.map((r) => routeSection(r))
     : html`<section class="wide"><p class="muted">Nincs számolható útvonal. Kell hozzá profession-pillanatkép és importált receptadat.</p></section>`}
