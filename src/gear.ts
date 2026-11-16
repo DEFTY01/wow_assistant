@@ -9,7 +9,7 @@ type Obj = Record<string, any>;
 // ---------------------------------------------------------------- import
 
 export interface LootImport {
-  dungeons: { id: number; name: string; min: number; max: number; req: number }[];
+  dungeons: { id: number; name: string; min: number; max: number; req: number; kind?: string }[];
   items: {
     id: number;
     name: string;
@@ -22,6 +22,10 @@ export interface LootImport {
     zone: number;
     boss: string | null;
     st: Record<string, number>;
+    pct?: number | null; // drop chance in percent
+    src?: string; // dungeon | quest
+    side?: number; // quests: 1 Alliance, 2 Horde, 0 both
+    qlvl?: number | null; // level needed to take the quest
   }[];
 }
 
@@ -33,16 +37,19 @@ export async function importLoot(env: Env, data: LootImport) {
   for (const d of data.dungeons) {
     stmts.push(
       env.DB.prepare(
-        "INSERT OR REPLACE INTO dungeons (zone_id, name, min_level, max_level, req_level) VALUES (?, ?, ?, ?, ?)",
-      ).bind(d.id, d.name, d.min || 0, d.max || 0, d.req || 0),
+        "INSERT OR REPLACE INTO dungeons (zone_id, name, min_level, max_level, req_level, kind) VALUES (?, ?, ?, ?, ?, ?)",
+      ).bind(d.id, d.name, d.min || 0, d.max || 0, d.req || 0, d.kind ?? "dungeon"),
     );
   }
   for (const i of data.items) {
     stmts.push(
       env.DB.prepare(
         "INSERT OR REPLACE INTO loot (item_id, zone_id, name, quality, item_level, req_level, slot, item_class, " +
-          "subclass, boss, stats) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-      ).bind(i.id, i.zone, i.name, i.q, i.ilvl, i.req || 0, i.slot, i.cls, i.sub, i.boss, JSON.stringify(i.st)),
+          "subclass, boss, stats, drop_pct, source, side, quest_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      ).bind(
+        i.id, i.zone, i.name, i.q, i.ilvl, i.req || 0, i.slot, i.cls, i.sub, i.boss, JSON.stringify(i.st),
+        i.pct ?? null, i.src ?? "dungeon", i.side ?? 0, i.qlvl ?? null,
+      ),
     );
   }
   for (let k = 0; k < stmts.length; k += 80) await env.DB.batch(stmts.slice(k, k + 80));
@@ -126,7 +133,7 @@ export function equippedStats(it: Obj | undefined): ItemStats {
 }
 
 /** Stats of a loot item from Wowhead's jsonequip. In the Classic-era data the "rtng" keys hold percentages. */
-function lootStats(st: Record<string, number>): ItemStats {
+export function lootStats(st: Record<string, number>): ItemStats {
   return {
     agi: st.agi ?? 0,
     str: st.str ?? 0,
@@ -178,7 +185,7 @@ function apply(sh: Sheet, remove: ItemStats, add: ItemStats, p: ModelParams): Sh
 // ---------------------------------------------------------------- recommendations
 
 // Wowhead inventory type -> Blizzard equipment slots it can go into.
-const SLOT_MAP: Record<number, string[]> = {
+export const WOWHEAD_SLOTS: Record<number, string[]> = {
   1: ["HEAD"], 2: ["NECK"], 3: ["SHOULDER"], 5: ["CHEST"], 20: ["CHEST"], 6: ["WAIST"], 7: ["LEGS"],
   8: ["FEET"], 9: ["WRIST"], 10: ["HANDS"], 11: ["FINGER_1", "FINGER_2"], 12: ["TRINKET_1", "TRINKET_2"],
   16: ["BACK"], 13: ["MAIN_HAND", "OFF_HAND"], 21: ["MAIN_HAND"], 22: ["OFF_HAND"],
@@ -199,6 +206,8 @@ export interface Upgrade {
   slot: string;
   replaces: string | null;
   boss: string | null;
+  /** Drop chance in percent, when known. */
+  dropPct: number | null;
   dungeon: string;
   zoneId: number;
   gain: number; // DPS
@@ -210,6 +219,8 @@ export interface Upgrade {
 }
 
 export interface DungeonScore {
+  /** DPS one run is expected to add: each upgrade weighted by its drop chance. */
+  perRun: number | null;
   zoneId: number;
   name: string;
   levels: string;
@@ -441,7 +452,7 @@ export async function gearReport(env: Env, lookahead = 3, given?: GearContext): 
 
   const rows = await env.DB.prepare(
     "SELECT l.*, d.name AS dungeon, d.min_level, d.max_level FROM loot l JOIN dungeons d ON d.zone_id = l.zone_id " +
-      "WHERE l.req_level <= ?",
+      "WHERE l.source = 'dungeon' AND l.req_level <= ?",
   )
     .bind(level + lookahead)
     .all<Obj>();
@@ -451,7 +462,7 @@ export async function gearReport(env: Env, lookahead = 3, given?: GearContext): 
     if (equippedIds.has(r.item_id)) continue;
     if (r.item_class === 4 && !ARMOR_SUBS.has(r.subclass)) continue;
     if (r.item_class === 2 && !WEAPON_SUBS.has(r.subclass)) continue;
-    const slots = SLOT_MAP[r.slot];
+    const slots = WOWHEAD_SLOTS[r.slot];
     if (!slots) continue;
     const add = lootStats(JSON.parse(r.stats));
     if (r.item_class === 2 && !add.weapon) continue;
@@ -468,6 +479,7 @@ export async function gearReport(env: Env, lookahead = 3, given?: GearContext): 
       slot: best.slot,
       replaces: equipped.get(best.slot)?.name ?? null,
       boss: r.boss,
+      dropPct: r.drop_pct ?? null,
       dungeon: r.dungeon,
       zoneId: r.zone_id,
       gain: best.gain,
@@ -495,17 +507,21 @@ export async function gearReport(env: Env, lookahead = 3, given?: GearContext): 
     .map(([zoneId, slots]) => {
       const ups = [...slots.values()].sort((a, b) => b.gain - a.gain);
       const gain = ups.reduce((a, u) => a + u.gain, 0);
+      const known = ups.filter((u) => u.dropPct != null);
+      const perRun = known.length ? known.reduce((a, u) => a + u.gain * (u.dropPct! / 100), 0) : null;
       const m = dMeta.get(zoneId)!;
       return {
         zoneId,
         name: String(m.dungeon),
         levels: m.min_level ? `${m.min_level}–${m.max_level}` : "?",
         gain,
+        perRun,
         gainPct: (gain / baseline) * 100,
         upgrades: ups,
       };
     })
-    .sort((a, b) => b.gain - a.gain);
+    // With drop chances known, what a run is expected to give decides; otherwise the total on offer.
+    .sort((a, b) => (b.perRun ?? b.gain * 0.15) - (a.perRun ?? a.gain * 0.15));
 
   const slotOrder = ["MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET"];
   const bySlot = slotOrder

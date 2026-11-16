@@ -265,6 +265,7 @@ pre{overflow:auto;max-height:380px;font:12px ui-monospace,Consolas,monospace;bac
 .src{justify-self:start;font:700 10px var(--display);letter-spacing:.1em;text-transform:uppercase;padding:4px 0;width:76px;text-align:center;border:1px solid var(--edge);color:var(--gold-hi);background:rgba(201,162,74,.08)}
 .src-craft{color:#9fd6a0;border-color:#2f5a35;background:rgba(111,211,111,.08)}
 .src-owned{color:#b8d6ee;border-color:#2f4a60;background:rgba(127,178,217,.09)}
+.src-quest{color:#f0d890;border-color:#6b5a20;background:rgba(240,216,144,.08)}
 .src-trainer{color:#e2b8f2;border-color:#553066;background:rgba(176,72,248,.09)}
 .act-title{font-weight:700;font-size:17px}
 .act-detail{color:var(--muted);font-size:14px;line-height:1.35}

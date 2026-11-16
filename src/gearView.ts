@@ -55,10 +55,11 @@ ${r
   </section>
 
   <section class="wide"><h2>Melyik dungeonbe érdemes menni</h2>
-    <table><thead><tr><th>Dungeon</th><th>Szint</th><th>DPS nyereség</th><th>Legjobb dropok</th></tr></thead><tbody>
+    <table><thead><tr><th>Dungeon</th><th>Szint</th><th>Összes nyereség</th><th class="num">Futásonként</th><th>Legjobb dropok</th></tr></thead><tbody>
     ${r.dungeons.map(
       (d) => html`<tr><td><b>${d.name}</b></td><td class="muted">${d.levels}</td><td>${gain(d)}</td>
-        <td>${d.upgrades.slice(0, 4).map((u, i) => html`${i ? ", " : ""}${item(u)} <span class="muted">(${u.boss ?? "trash drop"}, +${u.gain.toFixed(1)})</span>`)}</td></tr>`,
+        <td class="num">${d.perRun != null ? html`<b class="gain">+${d.perRun.toFixed(2)}</b>` : html`<span class="muted">?</span>`}</td>
+        <td>${d.upgrades.slice(0, 4).map((u, i) => html`${i ? ", " : ""}${item(u)} <span class="muted">(${u.boss ?? "trash drop"}, +${u.gain.toFixed(1)}${u.dropPct != null ? `, ${u.dropPct < 10 ? u.dropPct.toFixed(1) : Math.round(u.dropPct)}%` : ""})</span>`)}</td></tr>`,
     )}
     </tbody></table>
   </section>
@@ -69,7 +70,7 @@ ${r
       s.best.map(
         (u, i) => html`<tr><td>${i ? "" : s.slot}</td><td class="muted">${i ? "" : (s.current ?? "üres")}</td>
           <td>${item(u)}</td><td class="muted">${u.detail}</td>
-          <td>${u.dungeon} <span class="muted">· ${u.boss ?? "trash drop"}</span></td><td>${gain(u)}</td></tr>`,
+          <td>${u.dungeon} <span class="muted">· ${u.boss ?? "trash drop"}${u.dropPct != null ? ` · ${u.dropPct < 10 ? u.dropPct.toFixed(1) : Math.round(u.dropPct)}%, kb. ${Math.max(1, Math.round(100 / u.dropPct))} futás` : ""}</span></td><td>${gain(u)}</td></tr>`,
       ),
     )}
     </tbody></table>

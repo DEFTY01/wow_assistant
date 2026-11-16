@@ -6,6 +6,7 @@ const SOURCE: Record<Option["source"], [string, string]> = {
   ah: ["Aukció", "src-ah"],
   craft: ["Craft", "src-craft"],
   owned: ["Megvan", "src-owned"],
+  quest: ["Quest", "src-quest"],
   trainer: ["Trainer", "src-trainer"],
 };
 const TIER: Record<SkillAdvice["tier"], [string, string]> = {
@@ -102,6 +103,18 @@ export function planPage(p: Plan | null, info: { hasProfile: boolean; rogue: boo
       : html`<p class="muted">Minden megvehető fejlesztés belefért a keretbe.</p>`}
   </section>
 
+  <section class="wide"><h2>Quest-jutalmak <span class="muted">ingyen cserék a frakciódnak és a szintednek</span></h2>
+    ${p.quests.length
+      ? html`<ul class="acts">${p.quests.map(
+          (o) => html`<li class="act"><span class="src src-quest">Quest</span>
+            <div class="act-main"><div class="act-title" style="${o.quality ? `color:${QUALITY[o.quality] ?? "inherit"}` : ""}">${o.title}</div>
+              <div class="act-detail">${o.detail}</div><div class="act-detail">${o.where}</div></div>
+            <div class="act-num"><b class="gain">+${o.gain.toFixed(2)} DPS</b></div></li>`,
+        )}</ul>
+        <p class="muted" style="margin:10px 0 0">Azt nem látom, melyik questet csináltad már meg, ezért lehet köztük olyan, amit már leadtál.</p>`
+      : html`<p class="muted">Nincs olyan quest-jutalom, ami javítana, vagy még nincs importálva a quest-adat.</p>`}
+  </section>
+
   <section><h2>Trainer <span class="muted">mit tanulj meg most</span></h2>
     ${p.skills.length
       ? html`<table><tbody>${p.skills.map((s) => {
@@ -116,8 +129,8 @@ export function planPage(p: Plan | null, info: { hasProfile: boolean; rogue: boo
     ${p.farm.length
       ? html`<table><tbody>${p.farm.map(
           (d) => html`<tr><td><b>${d.name}</b><div class="act-detail">${d.levels} szint</div></td>
-            <td>${d.upgrades.slice(0, 3).map((u) => html`<div>${u.name} <span class="muted">${u.boss ?? "trash"}</span></div>`)}</td>
-            <td class="num"><b class="gain">+${f1(d.gain)}</b></td></tr>`,
+            <td>${d.upgrades.slice(0, 3).map((u) => html`<div>${u.name} <span class="muted">${u.boss ?? "trash"}${u.dropPct != null ? ` · ${u.dropPct < 10 ? u.dropPct.toFixed(1) : Math.round(u.dropPct)}%` : ""}</span></div>`)}</td>
+            <td class="num"><b class="gain">+${f1(d.gain)}</b>${d.perRun != null ? html`<div class="act-detail">futásonként +${d.perRun.toFixed(2)}</div>` : ""}</td></tr>`,
         )}</tbody></table>
         <p style="margin:12px 0 0"><a href="/gear">Minden slot és dungeon →</a></p>`
       : html`<p class="muted">Nincs dungeon-drop, ami javítana.</p>`}

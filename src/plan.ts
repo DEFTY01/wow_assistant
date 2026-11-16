@@ -1,7 +1,7 @@
 import { loadAddon, ownedItems } from "./addon";
 import { consumablesFor } from "./buffs";
 import type { Env } from "./env";
-import { type GearContext, type GearReport, gearContext, gearReport } from "./gear";
+import { type GearContext, type GearReport, WOWHEAD_SLOTS, gearContext, gearReport, lootStats } from "./gear";
 import { INV_SLOTS, type GearItem, loadAuctionGear, loadGear, rogueUsable } from "./market";
 import { logModel } from "./model";
 import { loadScannedGear } from "./scan";
@@ -11,7 +11,7 @@ import { latestSnapshots } from "./sync";
 
 type Obj = Record<string, any>;
 
-export type Source = "ah" | "craft" | "owned" | "trainer";
+export type Source = "ah" | "craft" | "owned" | "trainer" | "quest";
 
 export interface Option {
   source: Source;
@@ -51,6 +51,8 @@ export interface Plan {
   left: number | null;
   wishlist: Option[];
   free: Option[];
+  /** Upgrades that are quest rewards for your faction and level. */
+  quests: Option[];
   combat: { level: string; title: string; text: string }[];
   skills: SkillAdvice[];
   farm: GearReport["dungeons"];
@@ -200,7 +202,7 @@ const SLOT_HU: Record<string, string> = {
 // Building the plan is the most expensive thing the app does, and a Worker request has a
 // small CPU budget. So the result is stored and reused until one of its inputs changes; the
 // scheduled sync and the uploads rebuild it in the background, so a page view rarely has to.
-const PLAN_VERSION = 3; // bump when the plan's shape or logic changes
+const PLAN_VERSION = 4; // bump when the plan's shape or logic changes
 
 async function planStamp(env: Env): Promise<string> {
   const slug = env.CHARACTER_SLUG;
@@ -370,6 +372,43 @@ export async function buildPlan(env: Env): Promise<Plan | null> {
     });
   }
 
+  // --- quest rewards: free, but the app cannot see which quests you have already done
+  const side = profile?.faction?.type === "ALLIANCE" ? 1 : 2;
+  const questRows = await env.DB.prepare(
+    "SELECT l.*, d.name AS zone FROM loot l JOIN dungeons d ON d.zone_id = l.zone_id " +
+      "WHERE l.source = 'quest' AND l.req_level <= ?1 AND COALESCE(l.quest_level, 0) <= ?1 AND l.side IN (0, ?2)",
+  )
+    .bind(level, side)
+    .all<Obj>();
+  const questBest = new Map<string, Option>();
+  for (const r of questRows.results) {
+    const slots = WOWHEAD_SLOTS[r.slot as number];
+    if (!slots || ctx.equippedIds.has(r.item_id)) continue;
+    if (r.item_class === 4 && ![0, 1, 2].includes(r.subclass)) continue;
+    if (r.item_class === 2 && ![4, 7, 13, 15].includes(r.subclass)) continue;
+    const stats = lootStats(JSON.parse(r.stats));
+    if (r.item_class === 2 && !stats.weapon) continue;
+    const s = ctx.score(stats, slots);
+    if (!s) continue;
+    const replaces = ctx.equipped.get(s.slot)?.name;
+    const o: Option = {
+      source: "quest",
+      group: s.slot,
+      title: String(r.name),
+      quality: ["POOR", "COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY"][r.quality as number] ?? null,
+      detail: [ctx.describe(stats, r.subclass), `${SLOT_HU[s.slot] ?? s.slot}${replaces ? `, a ${replaces} helyére` : ""}`].filter(Boolean).join(" · "),
+      where: `${r.boss ?? "quest"} · ${r.zone}${r.quest_level ? `, ${r.quest_level}-es szinttől` : ""}`,
+      cost: 0,
+      gain: s.gain,
+      gainPct: (s.gain / baseline) * 100,
+      estimated: false,
+      warning: ctx.weaponWarning(r.item_class, r.subclass),
+    };
+    const cur = questBest.get(o.title);
+    if (!cur || o.gain > cur.gain) questBest.set(o.title, o);
+  }
+  const quests = [...questBest.values()].sort((a, b) => b.gain - a.gain).slice(0, 8);
+
   // The same item can be both on the AH and craftable: keep the cheaper way.
   const cheapest = new Map<string, Option>();
   for (const o of all) {
@@ -510,6 +549,7 @@ export async function buildPlan(env: Env): Promise<Plan | null> {
     left: gold != null ? gold - spent : null,
     wishlist,
     free: freeList,
+    quests,
     combat: (ctx.combat?.advice ?? []).filter((a) => a.level !== "info").map((a) => ({ level: a.level, title: a.title, text: a.text })),
     skills,
     farm: (report?.dungeons ?? []).slice(0, 3),
