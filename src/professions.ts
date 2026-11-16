@@ -167,15 +167,37 @@ export async function syncPrices(env: Env): Promise<{ items: number; house: numb
   const gearListings = new Map<number, { min: number; n: number }>();
   const listings = await fetchListings(env, house, wanted, gearListings);
   const now = new Date().toISOString();
-  const stmts = [env.DB.prepare("DELETE FROM prices")];
+  // Write only the prices that moved, and drop the items that are no longer listed.
+  const before = await env.DB.prepare("SELECT item_id, min_price, depth_price, quantity FROM prices").all<{
+    item_id: number;
+    min_price: number;
+    depth_price: number;
+    quantity: number;
+  }>();
+  const old = new Map(before.results.map((r) => [r.item_id, r]));
+  const stmts: D1PreparedStatement[] = [];
   for (const [id, list] of listings) {
     const s = summarize(list);
+    const o = old.get(id);
+    old.delete(id);
+    const sameAmount = o && Math.abs(o.quantity - s.quantity) <= Math.max(5, o.quantity * 0.25);
+    if (o && o.min_price === s.min && o.depth_price === s.depth && sameAmount) continue;
     stmts.push(
       env.DB.prepare(
-        "INSERT INTO prices (item_id, house_id, min_price, depth_price, quantity, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO prices (item_id, house_id, min_price, depth_price, quantity, updated_at) VALUES (?, ?, ?, ?, ?, ?) " +
+          "ON CONFLICT(item_id) DO UPDATE SET house_id = excluded.house_id, min_price = excluded.min_price, " +
+          "depth_price = excluded.depth_price, quantity = excluded.quantity, updated_at = excluded.updated_at",
       ).bind(id, house, s.min, s.depth, s.quantity, now),
     );
   }
+  for (const id of old.keys()) stmts.push(env.DB.prepare("DELETE FROM prices WHERE item_id = ?").bind(id));
+  // When the sync last ran, whether or not any price changed.
+  stmts.push(
+    env.DB.prepare(
+      "INSERT INTO manual_state (key, value, updated_at) VALUES ('prices_synced', ?, ?) " +
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+    ).bind(now, now),
+  );
   for (let i = 0; i < stmts.length; i += 80) await env.DB.batch(stmts.slice(i, i + 80));
   const level = Number(((await latestSnapshots(env)).profile?.json as Obj | undefined)?.level) || 60;
   const gear = await storeAuctionGear(env, gearListings, level);

@@ -36,8 +36,19 @@ export async function storeFights(env: Env, fights: unknown): Promise<number> {
   // The combat log does not contain the player's level; take it from the latest profile.
   const level = Number(((await latestSnapshots(env)).profile?.json as Obj | undefined)?.level) || undefined;
   for (const f of list) if (f && !f.level) f.level = level;
-  const stmts = list
-    .filter((f) => f && Number(f.start) > 0 && Number(f.dur) > 0)
+  const valid = list.filter((f) => f && Number(f.start) > 0 && Number(f.dur) > 0);
+  if (!valid.length) return 0;
+  // The uploader re-sends the whole log every time: skip the fights that are already stored as they are.
+  const oldest = Math.min(...valid.map((f) => f.start));
+  const have = await env.DB.prepare("SELECT start, duration, damage FROM fights WHERE slug = ? AND start >= ?")
+    .bind(env.CHARACTER_SLUG, oldest)
+    .all<{ start: number; duration: number; damage: number }>();
+  const stored = new Map(have.results.map((r) => [r.start, r]));
+  const stmts = valid
+    .filter((f) => {
+      const s = stored.get(f.start);
+      return !s || s.duration !== f.dur || s.damage !== Math.round(f.dmg);
+    })
     .map((f) =>
       env.DB.prepare("INSERT OR REPLACE INTO fights (slug, start, duration, damage, json) VALUES (?, ?, ?, ?, ?)").bind(
         env.CHARACTER_SLUG,

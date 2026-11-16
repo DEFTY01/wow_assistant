@@ -212,20 +212,30 @@ export async function storeAuctionGear(
   const ids = [...listings.keys()];
   const gear = await loadGear(env, ids);
   const now = new Date().toISOString();
-  const stmts = [env.DB.prepare("DELETE FROM ah_gear")];
+  const before = await env.DB.prepare("SELECT item_id, min_buyout, listings FROM ah_gear").all<{
+    item_id: number;
+    min_buyout: number;
+    listings: number;
+  }>();
+  const old = new Map(before.results.map((r) => [r.item_id, r]));
+  const stmts: D1PreparedStatement[] = [];
+  let count = 0;
   for (const g of gear.values()) {
     if (g.reqLevel > level + 5) continue;
+    count++;
     const l = listings.get(g.itemId)!;
+    const o = old.get(g.itemId);
+    old.delete(g.itemId);
+    if (o && o.min_buyout === Math.round(l.min) && Math.abs(o.listings - l.n) <= Math.max(2, o.listings * 0.25)) continue;
     stmts.push(
-      env.DB.prepare("INSERT INTO ah_gear (item_id, min_buyout, listings, updated_at) VALUES (?, ?, ?, ?)").bind(
-        g.itemId,
-        Math.round(l.min),
-        l.n,
-        now,
-      ),
+      env.DB.prepare(
+        "INSERT INTO ah_gear (item_id, min_buyout, listings, updated_at) VALUES (?, ?, ?, ?) " +
+          "ON CONFLICT(item_id) DO UPDATE SET min_buyout = excluded.min_buyout, listings = excluded.listings, updated_at = excluded.updated_at",
+      ).bind(g.itemId, Math.round(l.min), l.n, now),
     );
   }
+  for (const id of old.keys()) stmts.push(env.DB.prepare("DELETE FROM ah_gear WHERE item_id = ?").bind(id));
   for (let i = 0; i < stmts.length; i += 80) await env.DB.batch(stmts.slice(i, i + 80));
   const queued = await queueUnknownItems(env, ids);
-  return { gear: stmts.length - 1, queued };
+  return { gear: count, queued };
 }

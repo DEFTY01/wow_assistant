@@ -212,6 +212,7 @@ async function planStamp(env: Env): Promise<string> {
       "(SELECT updated_at FROM manual_state WHERE key = ?1 || ':gold_copper') AS gold, " +
       "(SELECT updated_at FROM manual_state WHERE key = ?1 || ':buffs') AS buffs, " +
       "(SELECT MAX(updated_at) FROM prices) AS prices, (SELECT MAX(updated_at) FROM ah_gear) AS gear, " +
+      "(SELECT value FROM manual_state WHERE key = 'prices_synced') AS synced, " +
       "(SELECT MAX(scanned_at) FROM ah_scan) AS scan, " +
       "(SELECT COUNT(*) || ':' || MAX(start) FROM fights WHERE slug = ?1) AS fights, " +
       "(SELECT MAX(updated_at) FROM trainer_skills WHERE slug = ?1) AS trainer",
@@ -518,7 +519,7 @@ export async function buildPlan(env: Env): Promise<Plan | null> {
   else if (hours(addon.updatedAt) > 24) warnings.push("Az addon adata több mint egy napos: /wa save a játékban.");
   if (addon && !addon.state.bankAt) warnings.push("A bank tartalma ismeretlen: nyisd meg egyszer a bankot, aztán /wa save.");
   if (!trainerRows.results.length) warnings.push("Nincs trainer-adat: nyisd meg a rogue trainer ablakát minden szűrővel, aztán /wa save.");
-  const priceAt = await env.DB.prepare("SELECT MAX(updated_at) AS at FROM ah_gear").first<{ at: string | null }>();
+  const priceAt = await env.DB.prepare("SELECT value AS at FROM manual_state WHERE key = 'prices_synced'").first<{ at: string | null }>();
   if (hours(priceAt?.at) > 6) warnings.push("Az aukciós árak több mint 6 órásak, a vásárlási javaslatok elavultak lehetnek.");
   if (addon && !scan.fresh) {
     warnings.push(

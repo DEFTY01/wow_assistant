@@ -109,8 +109,10 @@ export async function loadScannedGear(
 
 export async function storeXp(env: Env, samples: unknown): Promise<number> {
   const list = (Array.isArray(samples) ? samples : []) as unknown[][];
+  // The addon re-sends its whole sample list: store only what is newer than the last stored one.
+  const last = await env.DB.prepare("SELECT MAX(t) AS t FROM xp_samples WHERE slug = ?").bind(env.CHARACTER_SLUG).first<{ t: number | null }>();
   const stmts = list
-    .filter((s) => Array.isArray(s) && Number(s[0]) > 0)
+    .filter((s) => Array.isArray(s) && Number(s[0]) > (last?.t ?? 0))
     .map((s) =>
       env.DB.prepare("INSERT OR REPLACE INTO xp_samples (slug, t, xp, level, xp_max, zone) VALUES (?, ?, ?, ?, ?, ?)").bind(
         env.CHARACTER_SLUG,

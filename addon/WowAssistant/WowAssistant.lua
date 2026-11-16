@@ -12,6 +12,12 @@ local function Print(msg)
   DEFAULT_CHAT_FRAME:AddMessage("|cfff0c040WoW Assistant:|r " .. msg)
 end
 
+-- Important progress also goes to the middle of the screen, where it cannot be missed.
+local function Announce(msg)
+  Print(msg)
+  if UIErrorsFrame and UIErrorsFrame.AddMessage then UIErrorsFrame:AddMessage("WoW Assistant: " .. msg, 1, 0.82, 0.25) end
+end
+
 -- Run one scan; a failure is stored for the web app instead of breaking the others.
 local function Safe(name, fn, ...)
   local ok, err = pcall(fn, ...)
@@ -248,8 +254,8 @@ end
 
 local function FinishScan(reason)
   if not ah then return end
-  char.ah = { at = time(), items = ah.items, note = reason }
-  Print(string.format("AH-szkenneles kesz: %d targy%s. Mentes: /wa save", #ah.items, reason and (" (" .. reason .. ")") or ""))
+  char.ah = { at = time(), items = ah.items, note = reason, dbg = ah.dbg }
+  Announce(string.format("AH-szkenneles kesz: %d targy%s. Mentes: /wa save", #ah.items, reason and (" (" .. reason .. ")") or ""))
   ah = nil
 end
 
@@ -263,21 +269,26 @@ local function NextSearch()
   ah.index = ah.index + 1
   local entry = ah.queue[ah.index]
   if not entry then return FinishScan() end
-  if ah.index % 50 == 0 then Print(string.format("AH-szkenneles: %d / %d", ah.index, #ah.queue)) end
+  if ah.index % 25 == 0 then Print(string.format("AH-szkenneles: %d / %d, eddig %d targy", ah.index, #ah.queue, #ah.items)) end
   ah.current = entry
   local order = Enum and Enum.AuctionHouseSortOrder and (Enum.AuctionHouseSortOrder.Buyout or Enum.AuctionHouseSortOrder.Price)
   local ok = pcall(C_AuctionHouse.SendSearchQuery, entry.key, Sorts(order), false)
   if not ok then C_Timer.After(0.15, NextSearch) end
   -- A query that never answers must not stall the scan.
   local index = ah.index
-  C_Timer.After(4, function()
-    if ah and ah.phase == "search" and ah.index == index then NextSearch() end
+  C_Timer.After(3, function()
+    if ah and ah.phase == "search" and ah.index == index and ah.current then
+      ah.dbg.stalled = ah.dbg.stalled + 1
+      ah.current.retried = true
+      Safe("ah", ah.harvest)
+    end
   end)
 end
 
 local function OnItemResults(itemKey)
   if not ah or ah.phase ~= "search" or not ah.current then return end
   local entry = ah.current
+  ah.dbg.events = ah.dbg.events + 1
   if type(itemKey) == "table" and itemKey.itemID ~= entry.key.itemID then return end
   local best
   local n = C_AuctionHouse.GetNumItemSearchResults(entry.key) or 0
@@ -295,6 +306,7 @@ local function OnItemResults(itemKey)
     end
   end
   ah.current = nil
+  if not best then ah.dbg.empty = ah.dbg.empty + 1 end
   if best then
     local name, _, quality, _, minLevel = GetItemInfo(best.link)
     local getStats = (C_Item and C_Item.GetItemStats) or GetItemStats
@@ -340,9 +352,12 @@ local function OnBrowseResults()
   -- Cheapest first, and a cap so one scan stays within a few minutes.
   table.sort(ah.queue, function(a, b) return (a.price or 0) < (b.price or 0) end)
   while #ah.queue > 500 do table.remove(ah.queue) end
-  Print(string.format("AH-szkenneles: %d targy lekerdezese indul (kb. %d perc). Hagyd nyitva az aukcioshazat.", #ah.queue, math.ceil(#ah.queue * 0.4 / 60)))
+  ah.dbg.browse = #(C_AuctionHouse.GetBrowseResults() or {})
+  ah.dbg.queued = #ah.queue
+  Announce(string.format("AH-szkenneles: %d targy lekerdezese indul (kb. %d perc). Hagyd nyitva az aukcioshazat.", #ah.queue, math.ceil(#ah.queue * 0.4 / 60)))
   ah.phase = "search"
   ah.index = 0
+  ah.harvest = OnItemResults
   NextSearch()
 end
 
@@ -356,7 +371,7 @@ local function StartScan()
     return
   end
   local level = UnitLevel("player")
-  ah = { phase = "browse", queue = {}, items = {}, index = 0 }
+  ah = { phase = "browse", queue = {}, items = {}, index = 0, dbg = { browse = 0, queued = 0, events = 0, empty = 0, stalled = 0 } }
   local order = Enum and Enum.AuctionHouseSortOrder and Enum.AuctionHouseSortOrder.Price
   C_AuctionHouse.SendBrowseQuery({
     searchString = "",
@@ -366,7 +381,7 @@ local function StartScan()
     filters = {},
     itemClassFilters = { { classID = 2 }, { classID = 4 } },
   })
-  Print("AH-szkenneles: a kinalat lekerese...")
+  Announce("AH-szkenneles elindult: a kinalat lekerese...")
   -- If the browse never completes, say so instead of hanging silently.
   C_Timer.After(20, function()
     if ah and ah.phase == "browse" then
@@ -381,7 +396,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
   if event == "PLAYER_LOGIN" then
     local name = UnitName("player")
     local oldVersion = WowAssistantDB.version or 0
-    WowAssistantDB.version = 5
+    WowAssistantDB.version = 6
     WowAssistantDB.chars = WowAssistantDB.chars or {}
     WowAssistantDB.chars[name] = WowAssistantDB.chars[name] or {}
     char = WowAssistantDB.chars[name]
@@ -419,7 +434,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
     Safe("xp", SampleXp)
   elseif event == "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED" or event == "AUCTION_HOUSE_BROWSE_RESULTS_ADDED" then
     Safe("ah", OnBrowseResults)
-  elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
+  elseif event == "ITEM_SEARCH_RESULTS_UPDATED" or event == "ITEM_SEARCH_RESULTS_ADDED" then
     Safe("ah", OnItemResults, ...)
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
     if ah and ah.waiting then Safe("ah", NextSearch) end
@@ -434,7 +449,7 @@ for _, event in ipairs({
   "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_MONEY", "BAG_UPDATE_DELAYED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
   "PLAYERBANKSLOTS_CHANGED", "SKILL_LINES_CHANGED", "PLAYER_LEVEL_UP", "SPELLS_CHANGED",
   "TRAINER_SHOW", "TRAINER_UPDATE", "PLAYER_XP_UPDATE", "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED",
-  "AUCTION_HOUSE_BROWSE_RESULTS_ADDED", "ITEM_SEARCH_RESULTS_UPDATED", "AUCTION_HOUSE_THROTTLED_SYSTEM_READY",
+  "AUCTION_HOUSE_BROWSE_RESULTS_ADDED", "ITEM_SEARCH_RESULTS_UPDATED", "ITEM_SEARCH_RESULTS_ADDED", "AUCTION_HOUSE_THROTTLED_SYSTEM_READY",
   "AUCTION_HOUSE_CLOSED",
 }) do
   pcall(frame.RegisterEvent, frame, event) -- an event unknown to this client must not break the rest

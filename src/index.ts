@@ -147,7 +147,9 @@ app.get("/professions", async (c) => {
   const target = Math.min(300, Math.max(1, Number(c.req.query("target")) || 225));
   const [routes, at] = await Promise.all([
     planRoutes(c.env, target),
-    c.env.DB.prepare("SELECT MAX(updated_at) AS at FROM prices").first<{ at: string | null }>(),
+    c.env.DB.prepare(
+      "SELECT COALESCE((SELECT value FROM manual_state WHERE key = 'prices_synced'), (SELECT MAX(updated_at) FROM prices)) AS at",
+    ).first<{ at: string | null }>(),
   ]);
   const profits = profitSection(await craftProfits(c.env));
   return c.html(await professionsPage(routes, { house: c.env.AUCTION_HOUSE_ID, pricesAt: at?.at ?? null, target }, profits));
@@ -235,6 +237,11 @@ ownerOnly.post("/share/remove", async (c) => {
 // ====================================================================================
 const root = new Hono<{ Bindings: Env }>();
 root.use("*", requireAccess);
+root.onError((err, c) => {
+  console.error(err);
+  const quota = /row write limit/i.test(String(err.message));
+  return c.text(quota ? "Az adatbázis elérte a napi írási keretét; éjfél (UTC) után újra megy." : `Hiba: ${String(err.message).slice(0, 200)}`, quota ? 503 : 500);
+});
 
 /** Which character an upload token belongs to: the owner's secret, or a shared character's key. */
 async function uploadTarget(env: Env, header: string | undefined): Promise<Env | null> {

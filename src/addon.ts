@@ -57,12 +57,25 @@ export async function importAddon(env: Env, db: Obj) {
   const now = new Date().toISOString();
   const put = (k: string, v: string) => statePutStmt(env, k, v, now);
 
-  const stmts = [put("addon", JSON.stringify(c))];
-  if (typeof c.money === "number") stmts.push(put("gold_copper", String(c.money)));
+  // Most uploads repeat what is already stored: only write what changed.
+  const stmts: D1PreparedStatement[] = [];
+  const blob = JSON.stringify(c);
+  if ((await stateGet(env, "addon"))?.value !== blob) stmts.push(put("addon", blob));
+  if (typeof c.money === "number" && (await stateGet(env, "gold_copper"))?.value !== String(c.money)) {
+    stmts.push(put("gold_copper", String(c.money)));
+  }
 
   const trainer = Object.values(c.trainer ?? {});
-  if (trainer.length) stmts.push(env.DB.prepare("DELETE FROM trainer_skills WHERE slug = ?").bind(env.CHARACTER_SLUG));
-  for (const t of trainer) {
+  // The trainer list only changes when you visit a trainer or learn something.
+  const trainerSig = JSON.stringify(
+    trainer.map((t) => [t.name, t.rank, t.state, t.cost, t.level]).sort((a, b) => String(a).localeCompare(String(b))),
+  );
+  const trainerChanged = trainer.length > 0 && (await stateGet(env, "trainer_sig"))?.value !== trainerSig;
+  if (trainerChanged) {
+    stmts.push(put("trainer_sig", trainerSig));
+    stmts.push(env.DB.prepare("DELETE FROM trainer_skills WHERE slug = ?").bind(env.CHARACTER_SLUG));
+  }
+  for (const t of trainerChanged ? trainer : []) {
     // Older addon versions stored the Forever client's (name, category, icon) as (name, rank, state).
     const STATES = ["available", "unavailable", "used"];
     const state = STATES.includes(String(t.rank)) ? String(t.rank) : STATES.includes(String(t.state)) ? String(t.state) : "unavailable";
