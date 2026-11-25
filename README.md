@@ -97,9 +97,12 @@ lehet a saját szakmáidra, a jelenlegi skilledre, illetve csak a már ismert re
 **Játékon belül is:** az aukciósháznál a „Vendorra gyártás” gomb (vagy `/wa vendor`) ugyanezt
 számolja, a játék saját adataival:
 - a vendorárat a kliens adja meg, így az pontos;
-- az alapanyagok árai a teljes AH-szkenből (`/wa ah`) jönnek;
-- élőben frissülnek, amikor egy alapanyagra rákeresel az AH-ban, vagy megnyomod az „Árak frissítése”
-  gombot;
+- az alapanyagok árai a webapp óránkénti AH-adatából jönnek: a feltöltő beírja őket az addon
+  mappájába (`Market.lua`, a játék belépéskor vagy `/reload` után látja); ha frissebb, a játékbeli
+  teljes AH-szken (`/wa ah`) számít;
+- élőben frissülnek, amikor egy alapanyagra rákeresel az AH-ban, megnyomod az „Árak frissítése”
+  gombot, vagy megnyitod az ablakot az aukciósháznál: ilyenkor a legjobb 10 gyártás alapanyagait
+  magától lekérdezi („Legjobb 10 élő ára” gomb);
 - az ismert recepteket a szakmaablakból olvassa ki: szakmánként egyszer nyisd meg.
 
 A receptadatot az addon egy generált fájlból kapja, amely nincs a gitben. Az elkészítése és
