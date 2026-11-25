@@ -1,7 +1,8 @@
 ## Interface: 16001, 120100
 ## Title: Azeroth Chronicle
 ## Notes: Progress timeline for all your characters and weekly guild competitions. /azc
-## Version: 0.1.0
+## Version: 0.2.0
 ## SavedVariables: AzerothChronicleDB
+## SavedVariablesPerCharacter: AzerothChronicleCharDB
 
 AzerothChronicle.lua

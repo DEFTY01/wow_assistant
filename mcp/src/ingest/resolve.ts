@@ -81,7 +81,7 @@ export function resolveCharacters(db: DatabaseSync): { resolved: number; unresol
   return { resolved, unresolved };
 }
 
-function dropIfEmpty(db: DatabaseSync, key: string): void {
+export function dropIfEmpty(db: DatabaseSync, key: string): void {
   db.prepare(
     `DELETE FROM characters WHERE key = ?
        AND NOT EXISTS (SELECT 1 FROM xp_samples WHERE char_key = ?)

@@ -332,3 +332,40 @@ describe("ingest + MCP tools", () => {
     assert.ok(prompts.prompts.some((p) => p.name === "guild_chronicle"));
   });
 });
+
+describe("AzerothChronicle without a realm name (regression: alts shared one record)", () => {
+  const acc = join(wow, "WTF", "Account", "ACC");
+  const cfg2: Config = { ...cfg, dbPath: join(root, "data", "chronicle.sqlite") };
+  const snap = (ts: number, level: number) => ({ ts, level, xp: 10, xpMax: 1000, money: 100, cxp: 0, deaths: 0, quests: 0, skills: 0 });
+  const writeChronicle = (chars: Record<string, unknown>) =>
+    writeFileSync(join(acc, "SavedVariables", "AzerothChronicle.lua"), "AzerothChronicleDB = " + toLua({ version: 1, share: false, guild: {}, chars }) + "\n");
+  const keys = (db: ReturnType<typeof openDb>) =>
+    (db.prepare("SELECT char_key AS k, COUNT(*) AS n FROM snapshots GROUP BY char_key ORDER BY char_key").all() as { k: string; n: number }[])
+      .map((r) => [r.k, r.n]);
+
+  it("moves the 0.1.0 \"Name-\" record to the character that took it over", () => {
+    const db = openDb(cfg2.dbPath);
+    openDbs.push(db);
+    writeChronicle({ "Testy-": { class: "ROGUE", snapshots: [snap(now - 900, 1), snap(now - 600, 2)] } });
+    ingestAll(db, cfg2, { final: true });
+    assert.deepEqual(keys(db), [["Testy-", 2]]);
+
+    // 0.2.0: the alt's own file holds its id; the account file keys it "Name#id" and remembers the old key.
+    writeFileSync(join(acc, "93", "Testy-Alt", "SavedVariables", "AzerothChronicle.lua"), 'AzerothChronicleCharDB = {\n["id"] = "a1b2",\n}\n');
+    writeChronicle({ "Testy#a1b2": { class: "ROGUE", formerKeys: ["Testy-"], snapshots: [snap(now - 900, 1), snap(now - 600, 2), snap(now, 2)] } });
+    const r = ingestAll(db, cfg2, { final: true });
+    assert.equal(r.savedVariables.errors.length, 0, r.savedVariables.errors.join("\n"));
+    assert.deepEqual(keys(db), [["Testy-Alt", 3]]);
+    const odd = db.prepare("SELECT key FROM characters WHERE key IN ('Testy-', 'Testy#a1b2')").all();
+    assert.equal(odd.length, 0);
+  });
+
+  it("keeps an unknown id under its own key", () => {
+    const db = openDb(cfg2.dbPath);
+    openDbs.push(db);
+    writeChronicle({ "Lonely#ffff": { class: "MAGE", snapshots: [snap(now, 5)] } });
+    ingestAll(db, cfg2, { final: true });
+    const c = db.prepare("SELECT name, realm FROM characters WHERE key = 'Lonely#ffff'").get() as { name: string; realm: string | null };
+    assert.deepEqual({ ...c }, { name: "Lonely", realm: null });
+  });
+});

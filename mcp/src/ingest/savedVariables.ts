@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { Config } from "../config.ts";
 import { tx } from "../db.ts";
+import { dropIfEmpty } from "./resolve.ts";
 import { readSavedVariables, type LuaValue } from "../lua.ts";
 import { accountSavedVariables, characterDirs, type CharacterDir } from "../paths.ts";
 
@@ -105,7 +106,45 @@ function ingestSessionBar(db: DatabaseSync, c: CharacterDir, data: Obj, r: SvIng
   if (charDb.current) add(obj(charDb.current), true);
 }
 
-function ingestChronicle(db: DatabaseSync, account: string, data: Obj, r: SvIngestResult): void {
+/**
+ * AzerothChronicle keys: "Name-Realm"; "Name#id" when the client reported no realm (the id lives in
+ * that character's own AzerothChronicle.lua, so its folder gives the realm); "Name-" from 0.1.0.
+ */
+function chronicleKey(key: string, ids: Map<string, CharacterDir>): { key: string; name: string; realm: string | null } {
+  const hash = key.indexOf("#");
+  if (hash > 0) {
+    const c = ids.get(key.slice(hash + 1));
+    return c ? { key: c.key, name: c.name, realm: c.realm } : { key, name: key.slice(0, hash), realm: null };
+  }
+  const dash = key.lastIndexOf("-");
+  if (dash <= 0) return { key, name: key, realm: null };
+  return { key, name: key.slice(0, dash), realm: key.slice(dash + 1) || null };
+}
+
+/** Character id (AzerothChronicleCharDB.id) -> its folder, read from the per-character files. */
+function chronicleIds(chars: CharacterDir[], r: SvIngestResult): Map<string, CharacterDir> {
+  const ids = new Map<string, CharacterDir>();
+  for (const c of chars) {
+    const file = join(c.svDir, "AzerothChronicle.lua");
+    if (!existsSync(file)) continue;
+    try {
+      const id = text(obj(readSavedVariables(file).AzerothChronicleCharDB as LuaValue).id);
+      if (id) ids.set(id, c);
+    } catch (e) {
+      r.errors.push(`${file}: ${(e as Error).message}`);
+    }
+  }
+  return ids;
+}
+
+/** Moves a character's snapshots to another key and drops the old character once it is empty. */
+function moveSnapshots(db: DatabaseSync, from: string, to: string): void {
+  if (from === to) return;
+  db.prepare("UPDATE OR REPLACE snapshots SET char_key = ? WHERE char_key = ?").run(to, from);
+  dropIfEmpty(db, from);
+}
+
+function ingestChronicle(db: DatabaseSync, account: string, data: Obj, ids: Map<string, CharacterDir>, r: SvIngestResult): void {
   const putSnap = db.prepare(
     `INSERT INTO snapshots (char_key, ts, level, xp, xp_max, money, cxp, deaths, quests, skills, zone)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -113,14 +152,17 @@ function ingestChronicle(db: DatabaseSync, account: string, data: Obj, r: SvInge
        money = excluded.money, cxp = excluded.cxp, deaths = excluded.deaths, quests = excluded.quests,
        skills = excluded.skills, zone = excluded.zone`,
   );
-  for (const [key, raw] of Object.entries(obj(data.chars))) {
+  for (const [rawKey, raw] of Object.entries(obj(data.chars))) {
     const c = obj(raw);
-    const dash = key.lastIndexOf("-");
+    const { key, name, realm } = chronicleKey(rawKey, ids);
     upsertCharacter(db, {
-      key, account, name: dash > 0 ? key.slice(0, dash) : key, realm: dash > 0 ? key.slice(dash + 1) : null,
+      key, account, name, realm,
       class: text(c.class), race: text(c.race), faction: text(c.faction), guild: text(c.guild),
     });
     r.characters++;
+    // History stored earlier under an unresolved "Name#id" or the shared 0.1.0 "Name-" key.
+    moveSnapshots(db, rawKey, key);
+    for (const old of arr(c.formerKeys)) if (typeof old === "string") moveSnapshots(db, old, key);
     for (const s of arr(c.snapshots)) {
       const o = obj(s);
       if (num(o.ts) == null) continue;
@@ -172,8 +214,9 @@ export function ingestSavedVariables(db: DatabaseSync, cfg: Config, force = fals
   for (const { account, file } of accountSavedVariables(cfg.wowDir, "WowAssistant")) {
     run(file, (d) => ingestWowAssistant(db, account, obj(d.WowAssistantDB), chars, r));
   }
+  const ids = chronicleIds(chars, r);
   for (const { account, file } of accountSavedVariables(cfg.wowDir, "AzerothChronicle")) {
-    run(file, (d) => ingestChronicle(db, account, obj(d.AzerothChronicleDB), r));
+    run(file, (d) => ingestChronicle(db, account, obj(d.AzerothChronicleDB), ids, r));
   }
   for (const c of chars) {
     const file = join(c.svDir, "SessionBar.lua");

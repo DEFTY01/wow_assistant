@@ -25,7 +25,7 @@ local CATEGORIES = {
   { id = "survivor", label = "Túlélő" },
 }
 
-local db, me, myKey
+local db, me, myKey, charDb
 local lastXP, lastXPMax
 local lastBroadcast, lastReply = 0, 0
 local ready = false
@@ -40,10 +40,37 @@ local function Now() return (GetServerTime and GetServerTime()) or time() end
 local function WeekKey(ts) return math.floor(((ts or Now()) - WEEK_OFFSET) / WEEK) end
 local function WeekStart(k) return k * WEEK + WEEK_OFFSET end
 
+-- The Forever client can report an empty realm name. Characters are then told apart by an id
+-- kept in the per-character SavedVariables, and their key becomes "Name#id".
 local function RealmName()
   local r = GetNormalizedRealmName and GetNormalizedRealmName()
   if not r or r == "" then r = (GetRealmName() or ""):gsub("%s", "") end
+  if r == "" and UnitFullName then r = select(2, UnitFullName("player")) or "" end
   return r
+end
+
+local function CharKey()
+  local realm = RealmName()
+  if realm ~= "" then return UnitName("player") .. "-" .. realm end
+  return UnitName("player") .. "#" .. charDb.id
+end
+
+local function DisplayName(key)
+  return (key:gsub("#.*$", ""):gsub("%-" .. RealmName() .. "$", ""))
+end
+
+-- Is this addon message sender the current character?
+local function IsMe(sender)
+  local name, realm = strsplit("-", sender, 2)
+  if name ~= UnitName("player") then return false end
+  local mine = RealmName()
+  return not realm or mine == "" or realm == mine
+end
+
+-- Name the guild sees: "Name-Realm" when the realm is known, else just "Name".
+local function GuildName()
+  local realm = RealmName()
+  return realm ~= "" and (UnitName("player") .. "-" .. realm) or UnitName("player")
 end
 
 local COIN = {
@@ -178,7 +205,7 @@ local function Broadcast(force)
   local e = MyStanding(wk)
   if not e then return end
   local guild = GetGuildInfo("player")
-  StoreStanding(guild, wk, myKey, e)
+  StoreStanding(guild, wk, GuildName(), e)
   local msg = table.concat({ "S1", wk, e.class or "", e.level or 0, e.xp, e.money, e.levels, e.skills, e.quests, e.deaths }, ";")
   if Send(msg) then lastBroadcast = Now() end
 end
@@ -190,19 +217,21 @@ end
 
 local function OnAddonMessage(prefix, text, channel, sender)
   if prefix ~= PREFIX or channel ~= "GUILD" or not db then return end
-  if sender and not sender:find("-") then sender = sender .. "-" .. RealmName() end
+  if not sender or sender == "" then return end
+  local me_ = IsMe(sender)
+  if not sender:find("-") and RealmName() ~= "" then sender = sender .. "-" .. RealmName() end
   local parts = { strsplit(";", text) }
   local kind, wk = parts[1], tonumber(parts[2])
   if not wk or math.abs(wk - WeekKey()) > 1 then return end
   if kind == "S1" then
-    if sender == myKey then return end
+    if me_ then return end
     StoreStanding(GetGuildInfo("player"), wk, sender, {
       ts = Now(), class = parts[3] ~= "" and parts[3] or nil, level = tonumber(parts[4]),
       xp = tonumber(parts[5]) or 0, money = tonumber(parts[6]) or 0, levels = tonumber(parts[7]) or 0,
       skills = tonumber(parts[8]) or 0, quests = tonumber(parts[9]) or 0, deaths = tonumber(parts[10]) or 0,
     })
     if panel and panel:IsShown() then panel:Refresh() end
-  elseif kind == "R1" and sender ~= myKey then
+  elseif kind == "R1" and not me_ then
     if Now() - lastReply < 60 then return end
     lastReply = Now()
     C_Timer.After(2 + math.random() * 8, function() Broadcast(true) end)
@@ -329,7 +358,7 @@ local function BuildPanel()
       table.sort(list, function(a, b) return a.g.xp > b.g.xp end)
       for i, e in ipairs(list) do
         if i > ROWS then break end
-        self:SetRow(i, "", ClassColor(e.c.class) .. e.key .. "|r", "Lv " .. (e.g.level or "?"),
+        self:SetRow(i, "", ClassColor(e.c.class) .. DisplayName(e.key) .. "|r", "Lv " .. (e.g.level or "?"),
           ("+%s XP  %s  +%d q"):format(Abbrev(e.g.xp), Money(e.g.money), e.g.quests))
       end
       self.footer:SetText(#list == 0 and "Még nincs heti adat." or "")
@@ -356,8 +385,8 @@ local function BuildPanel()
     table.sort(list, function(a, b) return Value(a.e, cat) > Value(b.e, cat) end)
     for i, x in ipairs(list) do
       if i > ROWS then break end
-      local name = ClassColor(x.e.class) .. x.member:gsub("%-" .. RealmName() .. "$", "") .. "|r"
-      if x.member == myKey then name = name .. " |cff00ff00(te)|r" end
+      local name = ClassColor(x.e.class) .. DisplayName(x.member) .. "|r"
+      if x.member == GuildName() then name = name .. " |cff00ff00(te)|r" end
       self:SetRow(i, i .. ".", name, x.e.level and ("Lv " .. x.e.level) or "", FormatValue(cat, Value(x.e, cat)))
     end
     if #list == 0 then self:SetRow(1, "", "Még nincs adat ebben a kategóriában.") end
@@ -379,6 +408,25 @@ end
 ---------------------------------------------------------------------------
 -- events
 ---------------------------------------------------------------------------
+-- Version 0.1.0 saved every character as "Name-" when the realm came back empty, so alts with
+-- the same name shared one record. The first character that plausibly continues it takes it over
+-- (same class, level not lower and at most one higher); the old key is kept in formerKeys so
+-- the Azeroth MCP bridge can move its history too.
+local function AdoptLegacy(key)
+  local old = UnitName("player") .. "-"
+  local c = db.chars[old]
+  if key == old or not c or db.chars[key] then return end
+  local last = c.snapshots and c.snapshots[#c.snapshots]
+  local level = UnitLevel("player")
+  if c.class ~= select(2, UnitClass("player")) or not last or not last.level then return end
+  if level < last.level or level > last.level + 1 then return end
+  c.formerKeys = c.formerKeys or {}
+  table.insert(c.formerKeys, old)
+  db.chars[key] = c
+  db.chars[old] = nil
+  Print("a korábbi közös \"" .. UnitName("player") .. "\" adatok ehhez a karakterhez kerültek.")
+end
+
 local ev = CreateFrame("Frame")
 local H = {}
 
@@ -390,12 +438,18 @@ function H.ADDON_LOADED(name)
   db.chars = db.chars or {}
   db.guild = db.guild or {}
   if db.share == nil then db.share = false end
+  AzerothChronicleCharDB = AzerothChronicleCharDB or {}
+  charDb = AzerothChronicleCharDB
+  if not charDb.id then
+    charDb.id = ("%08x%04x"):format(time() % 0x100000000, math.random(0, 0xffff))
+  end
   if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then C_ChatInfo.RegisterAddonMessagePrefix(PREFIX) end
 end
 
 function H.PLAYER_ENTERING_WORLD()
   if ready then return end
-  myKey = UnitName("player") .. "-" .. RealmName()
+  myKey = CharKey()
+  AdoptLegacy(myKey)
   db.chars[myKey] = db.chars[myKey] or {}
   me = db.chars[myKey]
   me.counters = me.counters or { xp = 0, deaths = 0, quests = 0 }
