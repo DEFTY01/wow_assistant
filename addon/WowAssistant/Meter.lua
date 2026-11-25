@@ -32,11 +32,11 @@ local NO_HIT = { ["Slice and Dice"] = true, Stealth = true, Vanish = true, Sprin
 
 local function Secret(v) return issecretvalue and issecretvalue(v) or false end
 local function Num(v)
-  if v == nil or Secret(v) then return nil end
+  if Secret(v) or v == nil then return nil end
   return tonumber(v)
 end
 local function Str(v)
-  if v == nil or Secret(v) then return nil end
+  if Secret(v) or v == nil then return nil end
   return type(v) == "string" and v or nil
 end
 
@@ -94,13 +94,29 @@ local function Ability(name)
   return a
 end
 
+local function InGroup()
+  if not IsInGroup then return false end
+  local g = IsInGroup()
+  if Secret(g) then return nil end
+  return g and true or false
+end
+
+-- The target's name when it is an enemy. Any secret answer (in combat) counts as "no".
+local function EnemyTarget()
+  local e = UnitExists("target")
+  if Secret(e) or not e then return nil end
+  local c = UnitCanAttack("player", "target")
+  if Secret(c) or not c then return nil end
+  return Str(UnitName("target"))
+end
+
 local function Begin()
-  local name = UnitExists("target") and UnitCanAttack("player", "target") and UnitName("target") or nil
+  local name = EnemyTarget()
   fight = {
     start = time(), t0 = GetTime(), target = Str(name), targetLevel = name and Num(UnitLevel("target")) or 0,
-    level = UnitLevel("player"), casts = {}, ab = {}, order = {}, samples = 0, capped = 0, auras = {}, auraOrder = {},
+    level = Num(UnitLevel("player")) or 0, casts = {}, ab = {}, order = {}, samples = 0, capped = 0, auras = {}, auraOrder = {},
     cp = Power(POWER_CP) or 0, spent = 0, spentAt = 0, pending = nil, events = 0, secret = 0,
-    solo = not (IsInGroup and IsInGroup()),
+    solo = InGroup() == false,
   }
 end
 
@@ -115,7 +131,7 @@ local function OnCast(spellID)
     fight.casts[#fight.casts + 1] = { math.floor((now - fight.t0) * 10 + 0.5), name, Power(POWER_ENERGY) or -1, cp }
   end
   if not fight.target then
-    local t = UnitExists("target") and UnitCanAttack("player", "target") and UnitName("target") or nil
+    local t = EnemyTarget()
     fight.target, fight.targetLevel = Str(t), t and Num(UnitLevel("target")) or 0
   end
   if not NO_HIT[name] then
@@ -178,11 +194,11 @@ local function Sample()
     local name
     if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
       local ok, d = pcall(C_UnitAuras.GetAuraDataByIndex, "player", i, "HELPFUL")
-      if not ok or not d then break end
+      if not ok or Secret(d) or not d then break end
       name = Str(d.name)
     elseif UnitBuff then
       local n = UnitBuff("player", i)
-      if not n then break end
+      if Secret(n) or not n then break end
       name = Str(n)
     else
       break

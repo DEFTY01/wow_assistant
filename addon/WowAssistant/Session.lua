@@ -261,8 +261,14 @@ end
 
 local function Touch() lastActivity = time() end
 
+-- In combat some answers (UnitIsAFK, IsResting...) are secret values: testing them is an error. Secret = unknown.
+local function Known(v)
+  if issecretvalue and issecretvalue(v) then return nil end
+  return v
+end
+
 local function IsActive(now)
-  if UnitIsAFK and UnitIsAFK("player") then return false end
+  if UnitIsAFK and Known(UnitIsAFK("player")) then return false end
   return (now or time()) - lastActivity < IDLE_LIMIT
 end
 
@@ -765,7 +771,7 @@ local function BuildRows(full)
     else
       add("Pihent XP", "|cff888888elfogyott|r")
     end
-    if IsResting and IsResting() then
+    if IsResting and Known(IsResting()) then
       add("Pihenőhelyen vagy", ("|cff3cff3c+%s / 8 óra|r"):format(Abbrev(math.min(per8, math.max(0, cap - rested)))))
       if full and cap > rested then add("   Tele lesz (150%)", "~" .. FmtTime((cap - rested) / per8 * 8 * 3600) .. " múlva") end
     else
@@ -1377,7 +1383,7 @@ function H.PLAYER_CAMPING()
   campingShown = true
   C_Timer.After(30, function() campingShown = false end)
   PrintSummary(session, "Session összefoglaló")
-  if not IsMaxed() and not (IsResting and IsResting()) then
+  if not IsMaxed() and not (IsResting and Known(IsResting())) then
     Print("|cffffd100Nem pihenőhelyen lépsz ki:|r fogadóban vagy városban négyszer gyorsabban gyűlik a pihent XP.")
   end
 end
