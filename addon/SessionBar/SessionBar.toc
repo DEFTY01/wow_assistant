@@ -1,7 +1,7 @@
 ## Interface: 16001, 120100
 ## Title: SessionBar
 ## Notes: Kompakt session sáv: idő, XP, arany. XP-források, zónák, célok arany-tanáccsal, pihent XP, táska, grafikon. /sbar
-## Version: 0.2.0
+## Version: 0.2.1
 ## SavedVariables: SessionBarDB
 ## SavedVariablesPerCharacter: SessionBarCharDB
 

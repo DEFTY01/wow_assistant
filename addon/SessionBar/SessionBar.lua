@@ -28,9 +28,19 @@ local MIN_RATE_ACTIVE = 300   -- ennyi aktív mp kell az összevetéshez
 local MIN_ZONE_ACTIVE = 600   -- ennyi aktív mp kell egy zóna rangsorolásához
 local BAG_WARN        = 8     -- ennyi szabad hely alatt látszik a táska a sávon
 local WARN_EVERY      = 900   -- cél-tempó figyelmeztetés gyakorisága (mp)
-local LEVEL_GROWTH    = 1.06  -- becslés: ennyivel nő szintenként a szükséges XP
+local LEVEL_GROWTH    = 1.06  -- becslés a táblán túli szintekre
 local REST_PER_8H     = 0.05  -- fogadóban 8 óra alatt a szint 5%-a gyűlik (kb.)
 local REST_CAP        = 1.5   -- pihent XP felső korlátja: 1,5 szint
+
+-- Szintlépéshez szükséges XP szintenként (a WoW Forever mentéseiből ellenőrizve).
+local XP_TABLE = {
+  400, 900, 1400, 2100, 2800, 3600, 4500, 5400, 6500, 7600,
+  8800, 10100, 11400, 12900, 14400, 16000, 17700, 19400, 21300, 23200,
+  25200, 27300, 29400, 31700, 34000, 36400, 38900, 41400, 44300, 47400,
+  50800, 54500, 58600, 62800, 67100, 71600, 76100, 80800, 85700, 90700,
+  95800, 101000, 106300, 111800, 117500, 123200, 129100, 135100, 141200, 147500,
+  153900, 160400, 167100, 173900, 180800, 187900, 195000, 202300, 209800,
+}
 
 local SPARK_N, SPARK_W, SPARK_H = 48, 4, 16
 local SPARK_BLOCK = SPARK_H + 12
@@ -78,6 +88,8 @@ local bags = { free = 0, total = 0, junk = 0, junkCount = 0 }
 local hist = { n = 0, zones = {}, income = {}, expense = {}, src = { xp = 0, kill = 0, quest = 0 } }
 local killPatterns = {}
 local campingShown = false
+local wasActive = true
+local lootSlots = {}
 
 ---------------------------------------------------------------------------
 -- Segédfüggvények
@@ -183,6 +195,14 @@ end
 local function ActiveOf(s) return s.active or s.duration or 0 end
 local function Net(s) return Sum(s.income) - Sum(s.expense) end
 
+-- Farm érték: lootolt érme + küldetéspénz + a lootolt tárgyak vendor-ára.
+-- A vendor/AH/posta bevétel ide nem számít, mert az a városban keletkezik, nem a farmzónában.
+local function Farm(s)
+  local inc = s.income or {}
+  return (inc.loot or 0) + (inc.quest or 0) + (s.lootItems or 0)
+end
+local function ZoneFarm(z) return (z.inc or 0) + (z.items or 0) end
+
 local function ZoneName()
   local z = GetRealZoneText and GetRealZoneText() or ""
   if not z or z == "" then z = GetZoneText and GetZoneText() or "" end
@@ -193,7 +213,7 @@ end
 local function Zone(s, name)
   local z = s.zones[name]
   if not z then
-    z = { xp = 0, inc = 0, exp = 0, active = 0 }
+    z = { xp = 0, inc = 0, items = 0, exp = 0, active = 0 }
     s.zones[name] = z
   end
   return z
@@ -270,7 +290,7 @@ local function NewSession()
     start = now, last = now, active = 0,
     startLevel = UnitLevel("player"), startMoney = GetMoney(),
     xp = 0, levels = 0, xpSrc = { kill = 0, quest = 0 },
-    restedUsed = 0,
+    restedUsed = 0, lootItems = 0,
     income = {}, expense = {}, zones = {},
     samples = { { t = now, xp = 0, net = 0 } },
   }
@@ -281,6 +301,7 @@ local function Migrate(s)
   s.active = s.active or math.max(0, (s.last or time()) - s.start)
   s.xpSrc = s.xpSrc or { kill = 0, quest = 0 }
   s.restedUsed = s.restedUsed or 0
+  s.lootItems = s.lootItems or 0
   s.zones = s.zones or {}
   s.income = s.income or {}
   s.expense = s.expense or {}
@@ -308,8 +329,8 @@ local function RebuildHist()
     for c, v in pairs(e.income or {}) do h.income[c] = (h.income[c] or 0) + v end
     for c, v in pairs(e.expense or {}) do h.expense[c] = (h.expense[c] or 0) + v end
     for name, z in pairs(e.zones or {}) do
-      local t = h.zones[name] or { xp = 0, inc = 0, exp = 0, active = 0 }
-      t.xp, t.inc = t.xp + (z.xp or 0), t.inc + (z.inc or 0)
+      local t = h.zones[name] or { xp = 0, inc = 0, items = 0, exp = 0, active = 0 }
+      t.xp, t.inc, t.items = t.xp + (z.xp or 0), t.inc + (z.inc or 0), t.items + (z.items or 0)
       t.exp, t.active = t.exp + (z.exp or 0), t.active + (z.active or 0)
       h.zones[name] = t
     end
@@ -331,7 +352,7 @@ local function ArchiveSession(s)
   local e = {
     start = s.start, duration = dur, active = s.active,
     startLevel = s.startLevel, levels = s.levels, xp = s.xp,
-    xpSrc = s.xpSrc, restedUsed = s.restedUsed,
+    xpSrc = s.xpSrc, restedUsed = s.restedUsed, lootItems = s.lootItems,
     income = s.income, expense = s.expense, zones = s.zones,
   }
   table.insert(charDB.history, 1, e)
@@ -394,6 +415,12 @@ local function SellPrice(id)
   return (select(11, fn(id)))
 end
 
+local function ItemQuality(id)
+  local fn = (C_Item and C_Item.GetItemInfo) or GetItemInfo
+  if not fn then return nil end
+  return (select(3, fn(id)))
+end
+
 local function ScanBags()
   local free, total, junk, cnt, missing = 0, 0, 0, 0, false
   local last = NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4
@@ -438,8 +465,8 @@ end
 local function AllZones()
   local out = {}
   local function add(name, z)
-    local t = out[name] or { xp = 0, inc = 0, exp = 0, active = 0 }
-    t.xp, t.inc = t.xp + (z.xp or 0), t.inc + (z.inc or 0)
+    local t = out[name] or { xp = 0, inc = 0, items = 0, exp = 0, active = 0 }
+    t.xp, t.inc, t.items = t.xp + (z.xp or 0), t.inc + (z.inc or 0), t.items + (z.items or 0)
     t.exp, t.active = t.exp + (z.exp or 0), t.active + (z.active or 0)
     out[name] = t
   end
@@ -453,7 +480,7 @@ local function RankZones(field)
   local list = {}
   for name, z in pairs(AllZones()) do
     if z.active >= MIN_ZONE_ACTIVE then
-      local v = field == "xp" and z.xp or (z.inc - z.exp)
+      local v = field == "xp" and z.xp or ZoneFarm(z)
       list[#list + 1] = { name = name, rate = v * 3600 / z.active, active = z.active }
     end
   end
@@ -474,8 +501,8 @@ local function XPToLevel(target)
   if target <= lvl then return 0 end
   local max = UnitXPMax("player") or 0
   local need, m = max - (UnitXP("player") or 0), max
-  for _ = lvl + 1, target - 1 do
-    m = m * LEVEL_GROWTH
+  for l = lvl + 1, target - 1 do
+    m = XP_TABLE[l] or (m * LEVEL_GROWTH)
     need = need + m
   end
   return need
@@ -528,7 +555,7 @@ local function GoldAdvice()
   local here = ZoneName()
   local best = zones[1]
   if best and best.rate > 0 then
-    add(("Legjobb arany-zónád: |cffffd100%s|r – %s/óra (%d perc adat)."):format(
+    add(("Legjobb farm-zónád: |cffffd100%s|r – %s/óra (érme, küldetés és loot vendor-ára; %d perc adat)."):format(
       best.name, Money(best.rate), math.floor(best.active / 60)))
     if best.name ~= here then
       local hereRate
@@ -628,11 +655,12 @@ local function SummaryLines(s, title)
       Abbrev(s.xp), Abbrev(Rate(s.xp, a, 60) or 0), Abbrev(kill), Abbrev(quest), Abbrev(other),
       (s.levels or 0) > 0 and (", +%d szint"):format(s.levels) or "")
   end
-  L[#L + 1] = ("Arany: %s (%s/óra)"):format(Money(net, true), Money(Rate(net, a, 60) or 0, true))
+  L[#L + 1] = ("Arany: %s (%s/óra) · farm érték %s/óra"):format(Money(net, true), Money(Rate(net, a, 60) or 0, true),
+    Money(Rate(Farm(s), a, 60) or 0))
   local bestName, bestRate
   for name, z in pairs(s.zones or {}) do
     if (z.active or 0) >= 300 then
-      local r = ((z.inc or 0) - (z.exp or 0)) * 3600 / z.active
+      local r = ZoneFarm(z) * 3600 / z.active
       if not bestRate or r > bestRate then bestName, bestRate = name, r end
     end
   end
@@ -726,6 +754,8 @@ local function BuildRows(full)
   end
   add("Nettó", Money(inc - exp, true))
   add("Nettó / óra", Money(Rate(inc - exp, a, 60) or 0, true) .. Trend(Rate(inc - exp, a, MIN_RATE_ACTIVE), hist.avgGph))
+  add("Farm érték / óra", Money(Rate(Farm(session), a, 60) or 0))
+  if full and session.lootItems > 0 then add("   lootolt tárgyak vendor-ára", Money(session.lootItems)) end
   add("Egyenleg", Money(GetMoney()))
 
   -- Zónák
@@ -739,7 +769,7 @@ local function BuildRows(full)
       local z = list[i].z
       local label = (list[i].name == here and "|cffffffff" or "") .. list[i].name .. (list[i].name == here and "|r" or "")
       if z.active >= 60 then
-        add(label, ("%s XP/óra · %s/óra"):format(Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(z.inc - z.exp, z.active, 60), true)))
+        add(label, ("%s XP/óra · %s/óra"):format(Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(ZoneFarm(z), z.active, 60))))
       else
         add(label, "|cff888888kevés adat|r")
       end
@@ -748,7 +778,7 @@ local function BuildRows(full)
     local z = session.zones[here]
     if z and z.active >= 60 then
       add(Icon(ICONS.zone) .. " " .. here, ("%s XP/óra · %s/óra"):format(
-        Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(z.inc - z.exp, z.active, 60), true)))
+        Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(ZoneFarm(z), z.active, 60))))
     end
   end
 
@@ -1161,11 +1191,19 @@ local function Tick()
   session.last = now
   local ok, speed = pcall(GetUnitSpeed, "player")
   if (ok and type(speed) == "number" and speed > 0) or InCombatLockdown() then Touch() end
-  if dt > 0 and IsActive(now) then
+  local active = IsActive(now)
+  if dt > 0 and active then
     session.active = session.active + dt
     local z = Zone(session, ZoneName())
     z.active = z.active + dt
+  elseif wasActive and not active then
+    -- Most lett tétlen: az utolsó mozdulat óta eltelt időt (max. 5 perc) visszamenőleg levonjuk.
+    local retro = math.min(IDLE_LIMIT, math.max(0, now - lastActivity), session.active)
+    session.active = session.active - retro
+    local z = session.zones[ZoneName()]
+    if z then z.active = math.max(0, z.active - retro) end
   end
+  wasActive = active
   if now - lastSample >= SAMPLE_EVERY then TakeSample(now) end
   Safe("goals", CheckGoals, now)
   Safe("bar", UpdateBar)
@@ -1312,8 +1350,11 @@ function H.PLAYER_MONEY()
   end
   local t = d > 0 and session.income or session.expense
   t[cat] = (t[cat] or 0) + math.abs(d)
-  local z = Zone(session, ZoneName())
-  if d > 0 then z.inc = z.inc + d else z.exp = z.exp - d end
+  -- A zónához csak a farmból jövő pénz kerül; a városi eladás/javítás torzítaná a zóna-rangsort.
+  if d > 0 and (cat == "loot" or cat == "quest") then
+    local z = Zone(session, ZoneName())
+    z.inc = z.inc + d
+  end
   Tick()
 end
 
@@ -1379,6 +1420,43 @@ end
 
 H.PLAYER_REGEN_DISABLED = Touch
 
+-- Lootolt tárgyak vendor-ára (a farm értékhez). Csoportban a dobásra menő tárgyakat kihagyjuk.
+local LOOT_ITEM = (Enum and Enum.LootSlotType and Enum.LootSlotType.Item) or 1
+local function SnapshotLoot()
+  wipe(lootSlots)
+  if not GetNumLootItems or not GetLootSlotLink then return end
+  local threshold = IsInGroup and IsInGroup() and GetLootThreshold and GetLootThreshold() or nil
+  for i = 1, GetNumLootItems() do
+    if not GetLootSlotType or GetLootSlotType(i) == LOOT_ITEM then
+      local link = GetLootSlotLink(i)
+      if link then
+        local _, _, qty = GetLootSlotInfo(i)
+        local q = ItemQuality(link)
+        if not (threshold and q and q >= threshold) then
+          lootSlots[i] = { link = link, qty = tonumber(qty) or 1 }
+        end
+      end
+    end
+  end
+end
+H.LOOT_READY = SnapshotLoot
+H.LOOT_OPENED = SnapshotLoot
+
+function H.LOOT_SLOT_CLEARED(slot)
+  local s = ready and slot and lootSlots[slot]
+  if not s then return end
+  lootSlots[slot] = nil
+  local p = SellPrice(s.link)
+  if p and p > 0 then
+    local v = p * s.qty
+    session.lootItems = session.lootItems + v
+    local z = Zone(session, ZoneName())
+    z.items = (z.items or 0) + v
+  end
+end
+
+function H.LOOT_CLOSED() wipe(lootSlots) end
+
 local UNIT_EVENTS = { UNIT_SPELLCAST_SUCCEEDED = Touch } -- pl. horgászat, gyűjtés, craft
 
 ev:SetScript("OnEvent", function(_, event, ...)
@@ -1387,7 +1465,6 @@ ev:SetScript("OnEvent", function(_, event, ...)
     if ctx[2] then SetCtx(ctx[1]) else ClearCtx(ctx[1]) end
     if event == "MERCHANT_CLOSED" then repairPending = false end
     Touch()
-    return
   end
   local h = H[event] or UNIT_EVENTS[event]
   if h then Safe(event, h, ...) end
