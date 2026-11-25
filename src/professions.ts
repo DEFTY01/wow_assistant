@@ -1,6 +1,7 @@
 import { loadAddon, ownedItems } from "./addon";
 import { apiGet } from "./blizzard";
 import { CONSUMABLE_ITEM_IDS } from "./buffs";
+import { VENDOR_REAGENTS } from "./craftData";
 import { discoverItems, queueUnknownItems, storeAuctionGear } from "./market";
 import type { Env } from "./env";
 import { latestSnapshots } from "./sync";
@@ -9,15 +10,6 @@ type Obj = Record<string, any>;
 
 /** Units used for the "depth" price: average cost of the cheapest N units on the AH. */
 const DEPTH = 40;
-
-// Reagents sold by trade-goods vendors in unlimited supply (Classic item IDs).
-// Assumption carried over from Classic; for these the vendor price beats the AH.
-const VENDOR_REAGENTS = new Set([
-  2320, 2321, 4291, 8343, 14341, // threads
-  4289, // salt
-  2604, 2605, 2325, 4340, 4341, 4342, 6260, 6261, 10290, // dyes
-  159, 2678, 2692, 3713, 2894, 2596, 30817, // common cooking vendor goods
-]);
 
 // Profession rank caps and where the next rank is trained (Wowhead Forever data).
 export const RANKS = [

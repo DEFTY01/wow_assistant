@@ -33,3 +33,12 @@ export const COOLDOWN: Record<number, number> = {
   25146: 600, // Transmute: Elemental Fire
   18560: 341971, // Mooncloth (3.958 days)
 };
+
+// Reagents sold by trade-goods vendors in unlimited supply (Classic item IDs).
+// Assumption carried over from Classic; for these the vendor price beats the AH.
+export const VENDOR_REAGENTS = new Set([
+  2320, 2321, 4291, 8343, 14341, // threads
+  4289, // salt
+  2604, 2605, 2325, 4340, 4341, 4342, 6260, 6261, 10290, // dyes
+  159, 2678, 2692, 3713, 2894, 2596, 30817, // common cooking vendor goods
+]);

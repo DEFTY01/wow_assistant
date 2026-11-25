@@ -9,7 +9,12 @@
 
 Core.lua
 Recipes.lua
+GameData.lua
 Exporter.lua
+Model.lua
+Combat.lua
+Routes.lua
+Plan.lua
 VendorCraft.lua
 Session.lua
 Chronicle.lua
