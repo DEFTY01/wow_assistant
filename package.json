@@ -9,7 +9,12 @@
     "addon:install": "node scripts/uploader.mjs --install",
     "addon:upload": "node scripts/uploader.mjs",
     "db:migrate:local": "wrangler d1 migrations apply wow-assistant --local",
-    "db:migrate:remote": "wrangler d1 migrations apply wow-assistant --remote"
+    "db:migrate:remote": "wrangler d1 migrations apply wow-assistant --remote",
+    "mcp:install-deps": "npm --prefix mcp install",
+    "mcp:serve": "npm --prefix mcp run -s serve",
+    "mcp:ingest": "npm --prefix mcp run -s ingest",
+    "mcp:doctor": "npm --prefix mcp run -s doctor",
+    "mcp:test": "npm --prefix mcp test"
   },
   "dependencies": {
     "hono": "^4.6.0"

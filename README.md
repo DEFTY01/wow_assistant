@@ -63,3 +63,32 @@ npm run dev
 
 Az oldalt Cloudflare Access védi. A `/api/addon`, `/api/fights` és `/u` útvonalakhoz Bypass
 szabály kell: az elsőket a feltöltő token, a megosztott oldalakat a linkben lévő kulcs védi.
+
+## Lokális AI-híd (Azeroth MCP) és Chronicle
+
+Teljesen a saját gépeden futó [MCP](https://modelcontextprotocol.io) szerver: a játék fájljaiból
+(SavedVariables, harcnapló) helyi SQLite adatbázist épít, és ezt Claude (vagy más MCP-kliens)
+eszközökként kérdezheti le. Felhő és havidíj nincs. Részletek: [docs/AZEROTH_MCP_SPEC.md](docs/AZEROTH_MCP_SPEC.md),
+[docs/CHRONICLE_SPEC.md](docs/CHRONICLE_SPEC.md).
+
+Node.js 22.18 vagy újabb kell (a TypeScriptet build nélkül futtatja).
+
+```bash
+npm run mcp:install-deps
+npm run mcp:doctor
+```
+
+A `doctor` megmutatja, mit talál a `WOW_DIR` mappában (a `.uploader.env`-ből vagy egy `.mcp.env`
+fájlból olvassa), és első alkalommal beolvas mindent. Claude Code a repó `.mcp.json` fájljából
+magától felismeri az `azeroth` szervert (első indításkor jóvá kell hagyni).
+
+Addonok a játékhoz (a játék legyen bezárva, mert új addont csak induláskor lát):
+
+- **AzerothChronicle** – minden karaktered fejlődését menti, és heti guild-versenyt rendez.
+  `/azc` panel, `/azc share on` megosztás a guilddel, `/azc week` heti összesítő.
+- **AzerothMCP_Data** – ide írhat az AI jegyzeteket és célokat; `/reload` után `/amcp`.
+- **SessionBar** – kompakt session-sáv (idő, XP, arany).
+
+Az adatok csak `/reload` vagy kilépés után kerülnek lemezre, utána frissül az adatbázis.
+Példa kérdések Claude-nak: „Mennyi XP-t szereztem ezen a héten az előzőhöz képest?",
+„Miből haltam meg legtöbbször?", „Írj guild-krónikát a heti versenyről."

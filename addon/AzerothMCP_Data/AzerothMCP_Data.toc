@@ -1,0 +1,8 @@
+## Interface: 16001, 120100
+## Title: Azeroth MCP Inbox
+## Notes: Notes and goals sent from the local Azeroth MCP bridge. /amcp to open.
+## Version: 0.1.0
+## SavedVariablesPerCharacter: AzerothMCP_InboxSeen
+
+Data.lua
+Display.lua

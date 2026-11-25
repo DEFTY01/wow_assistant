@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "azeroth": {
+      "command": "node",
+      "args": ["--no-warnings=ExperimentalWarning", "mcp/src/cli.ts", "serve"]
+    }
+  }
+}
