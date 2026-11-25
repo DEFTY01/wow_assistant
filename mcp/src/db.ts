@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS segment_units (
   PRIMARY KEY (segment_id, guid)
 );
 CREATE TABLE IF NOT EXISTS deaths (
-  id INTEGER PRIMARY KEY, segment_id INTEGER NOT NULL, ts REAL, guid TEXT, name TEXT, killer TEXT, recap TEXT
+  id INTEGER PRIMARY KEY, segment_id INTEGER NOT NULL, ts REAL, guid TEXT, name TEXT, killer TEXT, recap TEXT,
+  affiliation TEXT                -- self | party | raid | other (from the unit flags of UNIT_DIED)
 );
 CREATE TABLE IF NOT EXISTS interrupts (
   segment_id INTEGER NOT NULL, ts REAL, source TEXT, spell TEXT, target TEXT, interrupted TEXT
@@ -65,7 +66,21 @@ export function openDb(path: string): DatabaseSync {
   const db = new DatabaseSync(path);
   db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
   db.exec(SCHEMA);
+  migrate(db);
   return db;
+}
+
+/** Brings a database made by an older version up to date. */
+function migrate(db: DatabaseSync): void {
+  const cols = (db.prepare("PRAGMA table_info(deaths)").all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes("affiliation")) {
+    // Older rows lack the unit flags, so parse the combat logs again from the start.
+    tx(db, () => {
+      db.exec("ALTER TABLE deaths ADD COLUMN affiliation TEXT");
+      db.exec("DELETE FROM deaths; DELETE FROM interrupts; DELETE FROM segment_units; DELETE FROM segments; DELETE FROM combat_logs;");
+      db.exec("DELETE FROM ingest_state WHERE path LIKE '%WoWCombatLog%'");
+    });
+  }
 }
 
 /** A second connection that cannot write: used for model-written SQL. */

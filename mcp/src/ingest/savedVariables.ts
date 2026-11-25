@@ -65,10 +65,17 @@ function ingestWowAssistant(db: DatabaseSync, account: string, data: Obj, chars:
     const { key, realm } = resolveKey(chars, account, name);
     upsertCharacter(db, { key, account, name, realm, class: text(c.class) });
     r.characters++;
+    // Samples of a shared name may already have been moved to their Name-Realm (see resolve.ts).
+    const siblings = chars.filter((d) => d.account === account && d.name === name).map((d) => d.key);
+    const moved = new Set<number>();
+    if (realm == null && siblings.length) {
+      const ph = siblings.map(() => "?").join(",");
+      for (const row of db.prepare(`SELECT ts FROM xp_samples WHERE char_key IN (${ph})`).all(...siblings) as { ts: number }[]) moved.add(row.ts);
+    }
     for (const s of arr(c.xp)) {
       if (!Array.isArray(s)) continue;
       const [ts, xp, level, xpMax, zone] = s;
-      if (num(ts) == null) continue;
+      if (num(ts) == null || moved.has(num(ts)!)) continue;
       r.xpSamples += Number(insXp.run(key, num(ts), num(xp), num(level), num(xpMax), text(zone)).changes);
     }
   }

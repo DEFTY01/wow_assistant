@@ -54,6 +54,11 @@ const KNOWN = new Set([
 ]);
 
 const isPlayer = (guid: string | undefined) => !!guid && guid.startsWith("Player-");
+// COMBATLOG_OBJECT_AFFILIATION_* bits of a unit flag: mine 0x1, party 0x2, raid 0x4, outsider 0x8.
+export function affiliation(flags: string | undefined): string {
+  const a = (Number.parseInt(flags ?? "", 16) || 0) & 0xf;
+  return a & 1 ? "self" : a & 2 ? "party" : a & 4 ? "raid" : "other";
+}
 const isPet = (guid: string | undefined) => !!guid && guid.startsWith("Pet-");
 // Forever writes player names as "Name-Realm-Ruleset-Region" (e.g. "Defty-Graveshade-Normal-EU");
 // keep "Name-Realm" so they match the character keys.
@@ -69,7 +74,7 @@ interface Segment {
   kind: "world" | "encounter"; name: string | null; encounterId: number | null; difficulty: number | null;
   groupSize: number | null; success: number | null; start: number; last: number; byteStart: number; byteEnd: number;
   zone: string | null; units: Map<string, UnitAgg>; targets: Map<string, number>;
-  deaths: { t: number; guid: string; name: string; killer: string | null; recap: Recap[] }[];
+  deaths: { t: number; guid: string; name: string; killer: string | null; recap: Recap[]; affiliation: string }[];
   interrupts: { t: number; source: string; spell: string; target: string; interrupted: string }[];
 }
 
@@ -237,7 +242,7 @@ function ingestFile(db: DatabaseSync, cfg: Config, file: string, res: LogIngestR
           if (u) u.deaths++;
           const recap = (recaps.get(f[5]) ?? []).filter((x) => t - x.t <= 15).map((x) => ({ ...x, t: Math.round((x.t - t) * 10) / 10 }));
           const killer = [...recap].reverse().find((x) => x.kind === "damage");
-          s.deaths.push({ t, guid: f[5], name: unq(f[6]) ?? f[5], killer: killer ? (killer.src ? `${killer.src}: ${killer.spell}` : killer.spell) : null, recap });
+          s.deaths.push({ t, guid: f[5], name: unq(f[6]) ?? f[5], killer: killer ? (killer.src ? `${killer.src}: ${killer.spell}` : killer.spell) : null, recap, affiliation: affiliation(f[7]) });
           recaps.delete(f[5]);
         } else if (ev === "SPELL_INTERRUPT" && seg) {
           const u = unit(f[1], f[2]);
@@ -276,7 +281,7 @@ function ingestFile(db: DatabaseSync, cfg: Config, file: string, res: LogIngestR
       `INSERT OR REPLACE INTO segment_units (segment_id, guid, name, kind, damage_done, healing_done, overhealing, damage_taken, deaths, interrupts, dispels, abilities)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
-    const insDeath = db.prepare("INSERT INTO deaths (segment_id, ts, guid, name, killer, recap) VALUES (?, ?, ?, ?, ?, ?)");
+    const insDeath = db.prepare("INSERT INTO deaths (segment_id, ts, guid, name, killer, recap, affiliation) VALUES (?, ?, ?, ?, ?, ?, ?)");
     const insInt = db.prepare("INSERT INTO interrupts (segment_id, ts, source, spell, target, interrupted) VALUES (?, ?, ?, ?, ?, ?)");
     for (const s of done) {
       const targets = [...s.targets.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([name, damage]) => ({ name, damage }));
@@ -287,7 +292,7 @@ function ingestFile(db: DatabaseSync, cfg: Config, file: string, res: LogIngestR
       for (const u of s.units.values()) {
         insUnit.run(id, u.guid, u.name, u.kind, u.damage_done, u.healing_done, u.overhealing, u.damage_taken, u.deaths, u.interrupts, u.dispels, JSON.stringify(u.abilities));
       }
-      for (const d of s.deaths) insDeath.run(id, d.t, d.guid, d.name, d.killer, JSON.stringify(d.recap));
+      for (const d of s.deaths) insDeath.run(id, d.t, d.guid, d.name, d.killer, JSON.stringify(d.recap), d.affiliation);
       for (const i of s.interrupts) insInt.run(id, i.t, i.source, i.spell, i.target, i.interrupted);
       res.segments++;
       res.deaths += s.deaths.length;

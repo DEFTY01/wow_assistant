@@ -28,12 +28,70 @@ function toTs(v: string | number | undefined, fallback: number): number {
   return Math.floor(t / 1000);
 }
 
-function reply(data: unknown) {
-  let text = JSON.stringify(data, null, 1);
-  if (text.length > MAX_TEXT) {
-    text = text.slice(0, MAX_TEXT) + `\n… truncated (${text.length} characters). Narrow the query or lower the limit.`;
+const HINT = "Reply was too long: lower the limit or narrow the query.";
+const ser = (v: unknown) => JSON.stringify(v, null, 1) ?? "null";
+
+/** Largest non-empty array inside holder.v (by serialized length), with a setter to replace it. */
+function largestArray(holder: { v: unknown }): { arr: unknown[]; set: (a: unknown[]) => void; path: string } | null {
+  let best: { arr: unknown[]; set: (a: unknown[]) => void; path: string; size: number } | null = null;
+  const walk = (node: unknown, set: (a: unknown[]) => void, path: string) => {
+    if (Array.isArray(node)) {
+      const size = ser(node).length;
+      if (node.length && (!best || size > best.size)) best = { arr: node, set, path, size };
+      node.forEach((x, i) => walk(x, (a) => (node[i] = a), `${path}[${i}]`));
+    } else if (node && typeof node === "object") {
+      const o = node as Record<string, unknown>;
+      for (const k of Object.keys(o)) walk(o[k], (a) => (o[k] = a), path === "(result)" ? k : `${path}.${k}`);
+    }
+  };
+  walk(holder.v, (a) => (holder.v = a), "(result)");
+  return best;
+}
+
+/**
+ * Serializes a tool result within `max` characters, always as valid JSON. Trailing items of the largest
+ * arrays are dropped until it fits; an array result keeps its shape and the truncation note goes in a
+ * second content block, an object result gets a `_truncated` field. Anything else becomes a preview
+ * string inside a small envelope.
+ */
+export function fitJson(data: unknown, max = MAX_TEXT): { text: string; note?: string } {
+  const full = ser(data);
+  if (full.length <= max) return { text: full };
+  const holder = { v: structuredClone(data) as unknown };
+  const budget = Math.max(0, max - 600); // room for the _truncated field
+  const cuts: { path: string; returned: number; total: number }[] = [];
+  for (let guard = 0; guard < 50 && ser(holder.v).length > budget; guard++) {
+    const big = largestArray(holder);
+    if (!big) break;
+    const all = big.arr;
+    let lo = 0;
+    let hi = all.length - 1;
+    while (lo < hi) {
+      const mid = Math.ceil((lo + hi) / 2);
+      big.set(all.slice(0, mid));
+      if (ser(holder.v).length <= budget) lo = mid;
+      else hi = mid - 1;
+    }
+    big.set(all.slice(0, lo));
+    const prev = cuts.find((c) => c.path === big.path);
+    if (prev) prev.returned = lo;
+    else cuts.push({ path: big.path, returned: lo, total: all.length });
   }
-  return { content: [{ type: "text" as const, text }] };
+  const text = ser(holder.v);
+  if (text.length > max) {
+    return { text: ser({ truncated: true, characters: full.length, hint: HINT, preview: full.slice(0, Math.max(0, max - 500)) }) };
+  }
+  const info = { truncated: true, cuts, characters: full.length, hint: HINT };
+  if (Array.isArray(holder.v) || !holder.v || typeof holder.v !== "object") return { text, note: ser(info) };
+  const withInfo = ser({ ...(holder.v as Record<string, unknown>), _truncated: info });
+  return withInfo.length <= max ? { text: withInfo } : { text, note: ser(info) };
+}
+
+function reply(data: unknown) {
+  const { text, note } = fitJson(data);
+  const content = [{ type: "text" as const, text }];
+  if (note) content.push({ type: "text" as const, text: note });
+  return { content };
 }
 
 function fail(msg: string) {
@@ -291,20 +349,31 @@ export function createServer(db: DatabaseSync, cfg: Config): McpServer {
 
   server.registerTool("get_deaths", {
     title: "Deaths with recap",
-    description: "Player deaths with the last incoming damage and heals (seconds before death). Filter by segment_id, a time range or player name.",
+    description:
+      "Player deaths with the last incoming damage and heals (seconds before death). By default only your own characters and the " +
+      "members of your party or raid; scope \"all\" adds strangers who died nearby. Filter by segment_id, a time range or player name.",
     inputSchema: {
       segment_id: z.number().int().optional(),
       from: z.union([z.string(), z.number()]).optional(),
       to: z.union([z.string(), z.number()]).optional(),
       player: z.string().optional(),
+      scope: z.enum(["mine", "group", "all"]).default("group").describe("mine: your characters only; group: plus party/raid members; all: everyone"),
       limit: z.number().int().min(1).max(100).default(20),
     },
     annotations: { readOnlyHint: true },
-  }, async ({ segment_id, from, to, player, limit }) => {
+  }, async ({ segment_id, from, to, player, scope, limit }) => {
     const mask = masker();
+    const own = (db.prepare("SELECT key FROM characters WHERE realm IS NOT NULL").all() as { key: string }[]).map((r) => r.key);
+    const ownPh = own.length ? own.map(() => "?").join(",") : "NULL";
+    const scopeSql =
+      scope === "all" ? "1 = 1"
+      : scope === "mine" ? `(d.affiliation = 'self' OR d.name IN (${ownPh}))`
+      : `(d.affiliation IN ('self', 'party', 'raid') OR d.name IN (${ownPh}))`;
+    const ownArgs = scope === "all" ? [] : own;
     const rows = db.prepare(`SELECT d.*, s.name AS fight, s.zone FROM deaths d JOIN segments s ON s.id = d.segment_id
-      WHERE (? IS NULL OR d.segment_id = ?) AND d.ts >= ? AND d.ts <= ? AND (? IS NULL OR d.name LIKE ?) ORDER BY d.ts DESC LIMIT ?`)
-      .all(segment_id ?? null, segment_id ?? null, toTs(from, 0), toTs(to, 4102444800), player ?? null, `${player ?? ""}%`, limit) as Record<string, unknown>[];
+      WHERE (? IS NULL OR d.segment_id = ?) AND d.ts >= ? AND d.ts <= ? AND (? IS NULL OR d.name LIKE ?) AND ${scopeSql}
+      ORDER BY d.ts DESC LIMIT ?`)
+      .all(segment_id ?? null, segment_id ?? null, toTs(from, 0), toTs(to, 4102444800), player ?? null, `${player ?? ""}%`, ...ownArgs, limit) as Record<string, unknown>[];
     return reply(rows.map((r) => ({ ...r, guid: undefined, name: mask(r.name as string), time: iso(r.ts as number), recap: JSON.parse((r.recap as string) ?? "[]") })));
   });
 

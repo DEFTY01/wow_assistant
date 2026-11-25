@@ -13,7 +13,7 @@ import { openDb } from "../src/db.ts";
 import { ingestAll } from "../src/ingest/index.ts";
 import { splitCsv } from "../src/ingest/combatLog.ts";
 import { parseSavedVariables, toLua } from "../src/lua.ts";
-import { createServer, weekKey, weekStart } from "../src/server.ts";
+import { createServer, fitJson, weekKey, weekStart } from "../src/server.ts";
 
 const root = mkdtempSync(join(tmpdir(), "azeroth-test-"));
 const wow = join(root, "_forever_");
@@ -27,6 +27,12 @@ const stamp = (d: Date) =>
   `${d.getMonth() + 1}/${d.getDate()}/${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}.0001`;
 const ME = ["Player-1-0001", '"Testy-Realm-Normal-EU"', "0x511", "0x0"];
 const MOB = ["Creature-0-1-2-3-4-5", '"Angry Boar"', "0xa48", "0x0"];
+// Same first name on another realm of the same account (WowAssistant mixes them under "Testy").
+const ALT = ["Player-1-0002", '"Testy-Alt-Normal-EU"', "0x511", "0x0"];
+const KOBOLD = ["Creature-0-1-2-3-9-9", '"Kobold"', "0xa48", "0x0"];
+const died = (who: string[]) => ["UNIT_DIED", "0000000000000000", "nil", "0x80000000", "0x80000000", ...who, "0"];
+const PARTY = ["Player-2-0003", '"Buddy-Realm-Normal-EU"', "0x512", "0x0"];
+const STRANGER = ["Player-3-0004", '"Stranger-Faraway-Normal-EU"', "0x548", "0x0"];
 const adv = Array(19).fill("0");
 const line = (t: Date, fields: string[]) => `${stamp(t)}  ${fields.join(",")}`;
 function spellDamage(t: Date, src: string[], dst: string[], spell: string, amount: number) {
@@ -37,6 +43,7 @@ before(() => {
   const acc = join(wow, "WTF", "Account", "ACC");
   mkdirSync(join(acc, "SavedVariables"), { recursive: true });
   mkdirSync(join(acc, "93", "Testy-Realm", "SavedVariables"), { recursive: true });
+  mkdirSync(join(acc, "93", "Testy-Alt", "SavedVariables"), { recursive: true });
   mkdirSync(join(wow, "Logs"), { recursive: true });
   mkdirSync(join(wow, "Interface", "AddOns", "AzerothMCP_Data"), { recursive: true });
   writeFileSync(join(wow, "Interface", "AddOns", "AzerothMCP_Data", "AzerothMCP_Data.toc"), "## Interface: 16001\n## Title: Inbox\n");
@@ -58,6 +65,30 @@ before(() => {
     current: { start: now - 600, last: now, xp: 300, levels: 0, income: { quest: 50 }, expense: {} },
   }) + "\n");
 
+  // WowAssistant XP samples: main (level 12) and alt (level 1-2) interleaved under the first name only.
+  const main = now - 3600;
+  const alt = now - 7 * 3600;
+  writeFileSync(join(acc, "SavedVariables", "WowAssistant.lua"), "WowAssistantDB = " + toLua({
+    last: "Testy",
+    chars: { Testy: { class: "ROGUE", xp: [
+      [alt + 5, 10, 1, 400, "Durotar"],          // next to the alt's fight
+      [alt + 600, 5, 2, 900, "Durotar"],         // next to the alt's fight
+      [alt + 5000, 50, 2, 900, "Durotar"],       // no fight nearby: follows the alt by continuity
+      [main - 4000, 50, 12, 1000, "Elwynn"],     // no fight nearby: precedes the main by continuity
+      [main + 10, 100, 12, 1000, "Elwynn"],      // next to the main's fights
+      [main + 100, 200, 12, 1000, "Elwynn"],
+    ] } },
+  }) + "\n");
+  const tAlt = new Date(alt * 1000);
+  writeFileSync(join(wow, "Logs", "WoWCombatLog-112526_090000.txt"), [
+    line(tAlt, ["COMBAT_LOG_VERSION", "22", "ADVANCED_LOG_ENABLED", "1", "BUILD_VERSION", "1.60.1", "PROJECT_ID", "18"]),
+    // two short fights (a world fight must last 2 s or more)
+    spellDamage(new Date(tAlt.getTime() + 1000), ALT, KOBOLD, "Sinister Strike", 30),
+    spellDamage(new Date(tAlt.getTime() + 4000), KOBOLD, ALT, "Bite", 10),
+    spellDamage(new Date(tAlt.getTime() + 600_000), ALT, KOBOLD, "Sinister Strike", 30),
+    spellDamage(new Date(tAlt.getTime() + 603_000), KOBOLD, ALT, "Bite", 10),
+  ].join("\n") + "\n");
+
   const t0 = new Date(Date.now() - 3600_000);
   const at = (s: number) => new Date(t0.getTime() + s * 1000);
   const lines = [
@@ -69,7 +100,11 @@ before(() => {
     // 30 s later: a new fight that kills the player
     spellDamage(at(40), MOB, ME, "Gore", 500),
     spellDamage(at(42), MOB, ME, "Gore", 600),
-    line(at(43), ["UNIT_DIED", "0000000000000000", "nil", "0x80000000", "0x80000000", ...ME, "0"]),
+    spellDamage(at(42), MOB, PARTY, "Gore", 50),
+    spellDamage(at(42), MOB, STRANGER, "Gore", 50),
+    line(at(43), died(ME)),
+    line(at(43), died(PARTY)),
+    line(at(43), died(STRANGER)),
     line(at(60), ["ENCOUNTER_START", "2748", '"Rethilgore"', "1", "5", "33"]),
     spellDamage(at(61), ME, MOB, "Backstab", 900),
     line(at(70), ["ENCOUNTER_END", "2748", '"Rethilgore"', "1", "5", "1", "9000"]),
@@ -94,6 +129,41 @@ describe("lua", () => {
 describe("combat log", () => {
   it("keeps quoted commas and bracket groups in one field", () => {
     assert.deepEqual(splitCsv('A,"b,c",[1,(2,3)],d'), ["A", "b,c", "[1,(2,3)]", "d"]);
+  });
+});
+
+describe("reply size limit (regression: truncated replies were invalid JSON)", () => {
+  const big = (n: number) => Array.from({ length: n }, (_, i) => ({ i, name: `Player-${i}`, recap: Array.from({ length: 10 }, () => ({ spell: "Gore", amount: i })) }));
+
+  it("keeps an array result a valid, shorter array and adds a note", () => {
+    const r = fitJson(big(500), 20_000);
+    assert.ok(r.text.length <= 20_000);
+    const arr = JSON.parse(r.text) as { i: number }[];
+    assert.ok(arr.length > 0 && arr.length < 500);
+    assert.deepEqual(arr.map((x) => x.i), [...Array(arr.length).keys()]); // a prefix, in order
+    const note = JSON.parse(r.note!);
+    assert.equal(note.truncated, true);
+    assert.deepEqual(note.cuts[0], { path: "(result)", returned: arr.length, total: 500 });
+  });
+
+  it("trims the largest nested array of an object result", () => {
+    const r = fitJson({ week: 1, rows: big(500), small: [1, 2] }, 20_000);
+    const o = JSON.parse(r.text);
+    assert.ok(r.text.length <= 20_000);
+    assert.deepEqual(o.small, [1, 2]);
+    assert.ok(o.rows.length < 500);
+    assert.equal(o._truncated.cuts[0].path, "rows");
+  });
+
+  it("falls back to a preview envelope for one huge value", () => {
+    const r = fitJson({ value: "x".repeat(50_000) }, 10_000);
+    const o = JSON.parse(r.text);
+    assert.equal(o.truncated, true);
+    assert.ok(r.text.length <= 10_000);
+  });
+
+  it("leaves small results untouched", () => {
+    assert.deepEqual(fitJson([1, 2, 3]), { text: JSON.stringify([1, 2, 3], null, 1) });
   });
 });
 
@@ -147,7 +217,7 @@ describe("ingest + MCP tools", () => {
   });
 
   it("builds a timeline with total gain", async () => {
-    const r = (await call("get_progress_timeline", { metric: "level", character: "Testy", from: ws - 2 * 86400 })).json();
+    const r = (await call("get_progress_timeline", { metric: "level", character: "Testy-Realm", from: ws - 2 * 86400 })).json();
     assert.equal(r.totalGain, 2);
     assert.ok(r.series.length >= 2);
   });
@@ -162,7 +232,7 @@ describe("ingest + MCP tools", () => {
 
   it("splits fights and records the death recap", async () => {
     const segs = (await call("list_combat_segments")).json();
-    assert.equal(segs.length, 3);
+    assert.equal(segs.length, 5); // 3 fights of the main + 2 of the alt
     const boss = segs.find((s: { kind: string }) => s.kind === "encounter");
     assert.equal(boss.name, "Rethilgore");
     assert.equal(boss.success, 1);
@@ -170,9 +240,46 @@ describe("ingest + MCP tools", () => {
     assert.equal(deaths.length, 1);
     assert.equal(deaths[0].killer, "Angry Boar: Gore");
     assert.equal(deaths[0].recap.length, 2);
-    const sum = (await call("get_segment_summary", { segment_id: segs[segs.length - 1].id })).json();
+    const first = segs.filter((s: { top_targets: { name: string }[] }) => s.top_targets[0]?.name === "Angry Boar").at(-1);
+    const sum = (await call("get_segment_summary", { segment_id: first.id })).json();
     assert.equal(sum.units[0].name, "Testy-Realm");
     assert.equal(sum.units[0].damage_done, 520);
+  });
+
+  it("assigns name-only addon data to the right Name-Realm (regression: duplicate Defty)", async () => {
+    const chars = (await call("list_characters")).json() as { key: string; level: number | null; class: string | null }[];
+    assert.deepEqual(chars.map((c) => c.key).sort(), ["Testy-Alt", "Testy-Realm"]);
+    assert.equal(chars.find((c) => c.key === "Testy-Alt")!.level, 2);
+    const per = (await call("query_sql", { sql: "SELECT char_key, COUNT(*) AS n, MIN(level) AS lo, MAX(level) AS hi FROM xp_samples GROUP BY char_key ORDER BY char_key" })).json().rows;
+    assert.deepEqual(per, [
+      { char_key: "Testy-Alt", n: 3, lo: 1, hi: 2 },
+      { char_key: "Testy-Realm", n: 3, lo: 12, hi: 12 },
+    ]);
+  });
+
+  it("keeps each character's level series separate (regression: week summary level 32 vs 39)", async () => {
+    const r = (await call("get_progress_timeline", { metric: "level", character: "Testy-Alt", from: now - 86400 })).json();
+    assert.equal(r.totalGain, 1);
+    const w = (await call("get_week_summary", { weeks_ago: 0 })).json();
+    assert.ok(!w.characters.some((c: { character: string }) => c.character === "Testy"));
+  });
+
+  it("stays resolved after a forced re-ingest", () => {
+    const db = openDb(cfg.dbPath);
+    ingestAll(db, cfg, { force: true, final: true });
+    const rows = db.prepare("SELECT char_key, COUNT(*) AS n FROM xp_samples GROUP BY char_key ORDER BY char_key").all() as { char_key: string; n: number }[];
+    const bare = db.prepare("SELECT COUNT(*) AS n FROM characters WHERE key = 'Testy'").get() as { n: number };
+    db.close();
+    assert.deepEqual(rows.map((r) => [r.char_key, r.n]), [["Testy-Alt", 3], ["Testy-Realm", 3]]);
+    assert.equal(bare.n, 0);
+  });
+
+  it("lists only own and group deaths by default (regression: strangers in get_deaths)", async () => {
+    const names = async (args: Record<string, unknown>) =>
+      ((await call("get_deaths", args)).json() as { name: string }[]).map((d) => d.name).sort();
+    assert.deepEqual(await names({}), ["Buddy-Realm", "Testy-Realm"]);
+    assert.deepEqual(await names({ scope: "mine" }), ["Testy-Realm"]);
+    assert.deepEqual(await names({ scope: "all" }), ["Buddy-Realm", "Stranger-Faraway", "Testy-Realm"]);
   });
 
   it("ranks the guild leaderboard", async () => {
@@ -183,10 +290,19 @@ describe("ingest + MCP tools", () => {
   });
 
   it("only allows read-only SQL", async () => {
-    assert.equal((await call("query_sql", { sql: "SELECT COUNT(*) AS n FROM segments" })).json().rows[0].n, 3);
+    assert.equal((await call("query_sql", { sql: "SELECT COUNT(*) AS n FROM segments" })).json().rows[0].n, 5);
     assert.ok((await call("query_sql", { sql: "DELETE FROM segments" })).error);
     assert.ok((await call("query_sql", { sql: "SELECT 1; DROP TABLE segments" })).error);
     assert.ok((await call("query_sql", { sql: "WITH x AS (SELECT 1) INSERT INTO deaths(segment_id) SELECT 1" })).error);
+  });
+
+  it("returns valid JSON from a tool whose reply is over the limit", async () => {
+    const sql = "WITH RECURSIVE r(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM r WHERE i < 1000) SELECT i, substr(hex(zeroblob(200)), 1, 300) AS pad FROM r";
+    const r = await call("query_sql", { sql, limit: 1000 });
+    assert.ok(!r.error, r.text);
+    const o = r.json();
+    assert.ok(o.rows.length > 0 && o.rows.length < 1000);
+    assert.equal(o._truncated.truncated, true);
   });
 
   it("reads SavedVariables subtrees", async () => {

@@ -3,15 +3,18 @@ import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import type { Config } from "../config.ts";
 import { ingestCombatLogs, type LogIngestResult } from "./combatLog.ts";
+import { resolveCharacters } from "./resolve.ts";
 import { ingestSavedVariables, type SvIngestResult } from "./savedVariables.ts";
 
-export interface IngestResult { savedVariables: SvIngestResult; combatLogs: LogIngestResult; ms: number }
+export interface IngestResult { savedVariables: SvIngestResult; combatLogs: LogIngestResult; characters: { resolved: number; unresolved: number }; ms: number }
 
 export function ingestAll(db: DatabaseSync, cfg: Config, opts: { force?: boolean; final?: boolean } = {}): IngestResult {
   const t0 = Date.now();
   const savedVariables = ingestSavedVariables(db, cfg, opts.force);
   const combatLogs = ingestCombatLogs(db, cfg, { final: opts.final });
-  return { savedVariables, combatLogs, ms: Date.now() - t0 };
+  // Needs both: the addon's name-only samples and the fights that show which realm played.
+  const characters = resolveCharacters(db);
+  return { savedVariables, combatLogs, characters, ms: Date.now() - t0 };
 }
 
 /** Re-ingests 2 s after the game writes WTF or Logs, and every 2 minutes as a fallback. */
