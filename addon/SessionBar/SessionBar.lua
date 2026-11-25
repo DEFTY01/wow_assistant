@@ -26,6 +26,9 @@ local SAMPLE_EVERY    = 60    -- grafikon mintavétel (mp)
 local SAMPLES_MAX     = 240
 local MIN_RATE_ACTIVE = 300   -- ennyi aktív mp kell az összevetéshez
 local MIN_ZONE_ACTIVE = 600   -- ennyi aktív mp kell egy zóna rangsorolásához
+local SURE_ACTIVE     = 1800  -- e fölött (vagy SURE_KILLS ölés fölött) megbízható egy zóna adata
+local SURE_KILLS      = 60
+local LUCK_QUALITY    = 2     -- ettől a minőségtől (zöld) ritka drop, ami nem számít a stabil értékbe
 local BAG_WARN        = 8     -- ennyi szabad hely alatt látszik a táska a sávon
 local WARN_EVERY      = 900   -- cél-tempó figyelmeztetés gyakorisága (mp)
 local LEVEL_GROWTH    = 1.06  -- becslés a táblán túli szintekre
@@ -195,13 +198,26 @@ end
 local function ActiveOf(s) return s.active or s.duration or 0 end
 local function Net(s) return Sum(s.income) - Sum(s.expense) end
 
--- Farm érték: lootolt érme + küldetéspénz + a lootolt tárgyak vendor-ára.
--- A vendor/AH/posta bevétel ide nem számít, mert az a városban keletkezik, nem a farmzónában.
+-- Stabil farm érték: lootolt érme + küldetéspénz + a leesett szürke/fehér tárgyak vendor-ára,
+-- annak a zónának jóváírva, ahol leestek. A városi eladás (vendor/AH/posta) ide nem számít.
+-- A zöld és jobb tárgyak (ritka drop) külön mennek, mert egy-egy szerencsés drop eltorzítaná.
 local function Farm(s)
   local inc = s.income or {}
   return (inc.loot or 0) + (inc.quest or 0) + (s.lootItems or 0)
 end
 local function ZoneFarm(z) return (z.inc or 0) + (z.items or 0) end
+
+local ZONE_FIELDS = { "xp", "inc", "items", "luck", "luckN", "kills", "exp", "active" }
+local function NewZone()
+  local z = {}
+  for _, f in ipairs(ZONE_FIELDS) do z[f] = 0 end
+  return z
+end
+local function MergeZone(dst, name, z)
+  local t = dst[name] or NewZone()
+  for _, f in ipairs(ZONE_FIELDS) do t[f] = (t[f] or 0) + (z[f] or 0) end
+  dst[name] = t
+end
 
 local function ZoneName()
   local z = GetRealZoneText and GetRealZoneText() or ""
@@ -213,7 +229,7 @@ end
 local function Zone(s, name)
   local z = s.zones[name]
   if not z then
-    z = { xp = 0, inc = 0, items = 0, exp = 0, active = 0 }
+    z = NewZone()
     s.zones[name] = z
   end
   return z
@@ -290,7 +306,7 @@ local function NewSession()
     start = now, last = now, active = 0,
     startLevel = UnitLevel("player"), startMoney = GetMoney(),
     xp = 0, levels = 0, xpSrc = { kill = 0, quest = 0 },
-    restedUsed = 0, lootItems = 0,
+    restedUsed = 0, lootItems = 0, lootLuck = 0, lootLuckN = 0, kills = 0,
     income = {}, expense = {}, zones = {},
     samples = { { t = now, xp = 0, net = 0 } },
   }
@@ -302,6 +318,7 @@ local function Migrate(s)
   s.xpSrc = s.xpSrc or { kill = 0, quest = 0 }
   s.restedUsed = s.restedUsed or 0
   s.lootItems = s.lootItems or 0
+  s.lootLuck, s.lootLuckN, s.kills = s.lootLuck or 0, s.lootLuckN or 0, s.kills or 0
   s.zones = s.zones or {}
   s.income = s.income or {}
   s.expense = s.expense or {}
@@ -328,12 +345,7 @@ local function RebuildHist()
     end
     for c, v in pairs(e.income or {}) do h.income[c] = (h.income[c] or 0) + v end
     for c, v in pairs(e.expense or {}) do h.expense[c] = (h.expense[c] or 0) + v end
-    for name, z in pairs(e.zones or {}) do
-      local t = h.zones[name] or { xp = 0, inc = 0, items = 0, exp = 0, active = 0 }
-      t.xp, t.inc, t.items = t.xp + (z.xp or 0), t.inc + (z.inc or 0), t.items + (z.items or 0)
-      t.exp, t.active = t.exp + (z.exp or 0), t.active + (z.active or 0)
-      h.zones[name] = t
-    end
+    for name, z in pairs(e.zones or {}) do MergeZone(h.zones, name, z) end
     if e.xpSrc then
       local kill, quest = Sources(e)
       h.src.xp = h.src.xp + (e.xp or 0)
@@ -353,6 +365,7 @@ local function ArchiveSession(s)
     start = s.start, duration = dur, active = s.active,
     startLevel = s.startLevel, levels = s.levels, xp = s.xp,
     xpSrc = s.xpSrc, restedUsed = s.restedUsed, lootItems = s.lootItems,
+    lootLuck = s.lootLuck, lootLuckN = s.lootLuckN, kills = s.kills,
     income = s.income, expense = s.expense, zones = s.zones,
   }
   table.insert(charDB.history, 1, e)
@@ -464,28 +477,40 @@ end
 ---------------------------------------------------------------------------
 local function AllZones()
   local out = {}
-  local function add(name, z)
-    local t = out[name] or { xp = 0, inc = 0, items = 0, exp = 0, active = 0 }
-    t.xp, t.inc, t.items = t.xp + (z.xp or 0), t.inc + (z.inc or 0), t.items + (z.items or 0)
-    t.exp, t.active = t.exp + (z.exp or 0), t.active + (z.active or 0)
-    out[name] = t
-  end
-  for n, z in pairs(hist.zones) do add(n, z) end
-  for n, z in pairs(session.zones) do add(n, z) end
+  for n, z in pairs(hist.zones) do MergeZone(out, n, z) end
+  for n, z in pairs(session.zones) do MergeZone(out, n, z) end
   return out
 end
 
--- Zónák rangsora arany/óra ("gold") vagy XP/óra ("xp") szerint, az összes mentett adatból.
+-- Zónák rangsora stabil farm érték/óra ("gold") vagy XP/óra ("xp") szerint, az összes mentett adatból.
+-- Aranynál a megbízható (elég idő vagy ölés) zónák kerülnek előre, a ritka dropok nem számítanak bele.
 local function RankZones(field)
   local list = {}
   for name, z in pairs(AllZones()) do
     if z.active >= MIN_ZONE_ACTIVE then
       local v = field == "xp" and z.xp or ZoneFarm(z)
-      list[#list + 1] = { name = name, rate = v * 3600 / z.active, active = z.active }
+      list[#list + 1] = {
+        name = name, rate = v * 3600 / z.active, active = z.active,
+        kills = z.kills, perKill = z.kills > 0 and ZoneFarm(z) / z.kills or nil,
+        luck = z.luck, luckN = z.luckN,
+        sure = z.active >= SURE_ACTIVE or z.kills >= SURE_KILLS,
+      }
     end
   end
-  table.sort(list, function(a, b) return a.rate > b.rate end)
+  table.sort(list, function(a, b)
+    if field ~= "xp" and a.sure ~= b.sure then return a.sure end
+    return a.rate > b.rate
+  end)
   return list
+end
+
+-- Mennyi adat áll egy zóna mögött (és mennyi ritka drop esett ott, ami nincs benne az értékben).
+local function Evidence(z)
+  local s = ("%d perc, %d ölés"):format(math.floor(z.active / 60), z.kills or 0)
+  if (z.luckN or 0) > 0 then
+    s = s .. (", ritka drop: %d db %s"):format(z.luckN, Money(z.luck))
+  end
+  return s
 end
 
 -- A tervezéshez használt tempó: a mostani session, ha van elég adat, különben a korábbi átlag.
@@ -554,20 +579,28 @@ local function GoldAdvice()
   local zones = RankZones("gold")
   local here = ZoneName()
   local best = zones[1]
-  if best and best.rate > 0 then
-    add(("Legjobb farm-zónád: |cffffd100%s|r – %s/óra (érme, küldetés és loot vendor-ára; %d perc adat)."):format(
-      best.name, Money(best.rate), math.floor(best.active / 60)))
+  if best and best.sure and best.rate > 0 then
+    add(("Legjobb farm-zónád: |cffffd100%s|r – %s/óra stabil bevétel (%s)."):format(
+      best.name, Money(best.rate), Evidence(best)))
     if best.name ~= here then
-      local hereRate
-      for _, z in ipairs(zones) do if z.name == here then hereRate = z.rate end end
-      if hereRate and best.rate > hereRate * 1.2 then
-        add(("Itt (%s) csak %s/óra: a(z) %s %d%%-kal jobban fizet."):format(
-          here, Money(hereRate, true), best.name,
-          hereRate > 0 and math.floor((best.rate / hereRate - 1) * 100) or 100))
+      local hereZ
+      for _, z in ipairs(zones) do if z.name == here then hereZ = z end end
+      if hereZ and best.rate > hereZ.rate * 1.2 then
+        add(("Itt (%s) %s/óra%s: a(z) %s %d%%-kal jobban fizet."):format(
+          here, Money(hereZ.rate), hereZ.sure and "" or " (még kevés adat)", best.name,
+          hereZ.rate > 0 and math.floor((best.rate / hereZ.rate - 1) * 100) or 100))
       end
     end
+  elseif best and best.rate > 0 then
+    add(("Még bizonytalan, de eddig |cffffd100%s|r a legjobb: %s/óra (%s). Fél óra vagy %d ölés után lesz megbízható."):format(
+      best.name, Money(best.rate), Evidence(best), SURE_KILLS))
+    best = nil -- bizonytalan zónára nem építünk célbecslést
   else
     add("Még kevés az adat a zónák összevetéséhez (zónánként 10 aktív perc kell).")
+  end
+  if session.lootLuckN > 0 then
+    add(("Ebben a sessionben %d ritka drop esett (%s vendor-áron). Ez szerencse, ezért nincs benne a zóna-értékben; AH-n általában többet ér."):format(
+      session.lootLuckN, Money(session.lootLuck)))
   end
 
   local inc = MergedCats("income")
@@ -657,6 +690,9 @@ local function SummaryLines(s, title)
   end
   L[#L + 1] = ("Arany: %s (%s/óra) · farm érték %s/óra"):format(Money(net, true), Money(Rate(net, a, 60) or 0, true),
     Money(Rate(Farm(s), a, 60) or 0))
+  if (s.lootLuckN or 0) > 0 then
+    L[#L + 1] = ("Ritka drop (szerencse, nincs a farm értékben): %d db, %s vendor-áron"):format(s.lootLuckN, Money(s.lootLuck))
+  end
   local bestName, bestRate
   for name, z in pairs(s.zones or {}) do
     if (z.active or 0) >= 300 then
@@ -754,8 +790,12 @@ local function BuildRows(full)
   end
   add("Nettó", Money(inc - exp, true))
   add("Nettó / óra", Money(Rate(inc - exp, a, 60) or 0, true) .. Trend(Rate(inc - exp, a, MIN_RATE_ACTIVE), hist.avgGph))
-  add("Farm érték / óra", Money(Rate(Farm(session), a, 60) or 0))
-  if full and session.lootItems > 0 then add("   lootolt tárgyak vendor-ára", Money(session.lootItems)) end
+  add("Farm érték / óra (stabil)", Money(Rate(Farm(session), a, 60) or 0))
+  if full and session.lootItems > 0 then add("   szürke/fehér loot vendor-ára", Money(session.lootItems)) end
+  if session.lootLuckN > 0 then
+    add(("   ritka drop: %d db (külön)"):format(session.lootLuckN), "|cff1eff00" .. Money(session.lootLuck) .. "|r")
+  end
+  if full and session.kills > 0 then add("   érték / ölés", Money(Farm(session) / session.kills)) end
   add("Egyenleg", Money(GetMoney()))
 
   -- Zónák
@@ -769,7 +809,8 @@ local function BuildRows(full)
       local z = list[i].z
       local label = (list[i].name == here and "|cffffffff" or "") .. list[i].name .. (list[i].name == here and "|r" or "")
       if z.active >= 60 then
-        add(label, ("%s XP/óra · %s/óra"):format(Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(ZoneFarm(z), z.active, 60))))
+        add(label, ("%s XP/óra · %s/óra%s"):format(Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(ZoneFarm(z), z.active, 60)),
+          (z.luckN or 0) > 0 and (" |cff1eff00+%d ritka|r"):format(z.luckN) or ""))
       else
         add(label, "|cff888888kevés adat|r")
       end
@@ -1393,6 +1434,9 @@ function H.CHAT_MSG_COMBAT_XP_GAIN(msg)
       local n = tonumber(({ a, b, c })[kp.d])
       if n then
         session.xpSrc.kill = session.xpSrc.kill + n
+        session.kills = session.kills + 1
+        local z = Zone(session, ZoneName())
+        z.kills = (z.kills or 0) + 1
         Touch()
         return
       end
@@ -1433,7 +1477,7 @@ local function SnapshotLoot()
         local _, _, qty = GetLootSlotInfo(i)
         local q = ItemQuality(link)
         if not (threshold and q and q >= threshold) then
-          lootSlots[i] = { link = link, qty = tonumber(qty) or 1 }
+          lootSlots[i] = { link = link, qty = tonumber(qty) or 1, q = q }
         end
       end
     end
@@ -1449,9 +1493,15 @@ function H.LOOT_SLOT_CLEARED(slot)
   local p = SellPrice(s.link)
   if p and p > 0 then
     local v = p * s.qty
-    session.lootItems = session.lootItems + v
     local z = Zone(session, ZoneName())
-    z.items = (z.items or 0) + v
+    if s.q and s.q >= LUCK_QUALITY then
+      -- Ritka drop: külön tartjuk, hogy egy szerencsés zöld/kék ne torzítsa a zóna értékét.
+      session.lootLuck, session.lootLuckN = session.lootLuck + v, session.lootLuckN + 1
+      z.luck, z.luckN = (z.luck or 0) + v, (z.luckN or 0) + 1
+    else
+      session.lootItems = session.lootItems + v
+      z.items = (z.items or 0) + v
+    end
   end
 end
 
@@ -1580,8 +1630,13 @@ SlashCmdList.SESSIONBAR = function(msg)
   elseif cmd == "zones" or cmd == "zonak" then
     local g, x = RankZones("gold"), RankZones("xp")
     if #g == 0 then Print("még nincs zóna legalább 10 aktív perccel.") return end
-    Print("|cffffd100Arany / óra zónánként|r")
-    for i = 1, math.min(5, #g) do Print(("%d. %s – %s (%d perc)"):format(i, g[i].name, Money(g[i].rate, true), math.floor(g[i].active / 60))) end
+    Print("|cffffd100Stabil farm érték / óra zónánként|r (érme, küldetés, szürke/fehér loot – a ritka drop külön)")
+    for i = 1, math.min(5, #g) do
+      local z = g[i]
+      Print(("%d. %s – %s/óra%s%s  |cff888888(%s)|r"):format(i, z.name, Money(z.rate),
+        z.sure and "" or " |cffff9933bizonytalan|r",
+        z.perKill and (", %s/ölés"):format(Money(z.perKill)) or "", Evidence(z)))
+    end
     if not IsMaxed() then
       Print("|cffffd100XP / óra zónánként|r")
       for i = 1, math.min(5, #x) do Print(("%d. %s – %s"):format(i, x[i].name, Abbrev(x[i].rate))) end
