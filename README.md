@@ -49,6 +49,25 @@ A játékban:
 - Az aukciós árak az EU Normal ruleset Horde aukciósházából származnak.
 - A random utótagos tárgyak („of the Tiger") kimaradnak az aukciós ajánlásból.
 
+## Vendorra gyártás
+
+A **Vendorra gyártás** fül azokat a recepteket mutatja, amelyeknél a vendor többet fizet a kész
+tárgyért, mint amennyibe az alapanyag kerül. Az alapanyagot az aukciósházból veszi (vagy
+kereskedőtől, ha ott olcsóbb). Minden szakma minden receptjét végignézi 300-as skillig, és szűrni
+lehet a saját szakmáidra, a jelenlegi skilledre, illetve csak a már ismert receptekre.
+
+- **Pontos költség:** az óránkénti árletöltés minden hirdetést megőriz. A számítás a legolcsóbbtól
+  felfelé veszi meg az alapanyagot, és ott áll meg, ahol a következő gyártás már veszteséges. A nem
+  osztható köteget egészben számolja.
+- **Átlagár is:** mellette látod, mennyit hoz egy gyártás a piaci átlagárral.
+- **Vendorár ellenőrzése:** a Blizzard tárgyadatbázisát összeveti a Wowhead Forever adatával, és
+  jelzi, ha eltérnek.
+- **Cooldown:** a cooldownos recepteknél (transmute, Mooncloth) az adag egyetlen gyártás.
+
+A receptlisták a Wowhead Forever szakmaoldalairól származnak. Ezeket a `data/wowhead/<szakma
+azonosító>.json` fájlokba kell lementeni (nincsenek a gitben), és a futó appba ezzel tölthetők be:
+`npm run import:recipes`.
+
 ## Csak a saját gépeden (Cloudflare nélkül)
 
 Egy parancs elindítja az appot helyi adatbázissal, a feltöltőt és a 30 percenkénti

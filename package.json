@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "wrangler dev --test-scheduled --var LOCAL_DEV:1",
     "local": "node scripts/local.mjs",
+    "import:recipes": "node scripts/import-recipes.mjs",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "addon:install": "node scripts/uploader.mjs --install",

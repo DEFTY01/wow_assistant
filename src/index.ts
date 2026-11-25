@@ -9,6 +9,8 @@ import { combatReport, storeFights } from "./combat";
 import { coachSection, modelSection, profitSection, xpSection } from "./insightsView";
 import { modelReport } from "./model";
 import { craftProfits } from "./profit";
+import { vendorCraftReport, type VendorCraftFilter } from "./vendorCraft";
+import { vendorCraftPage } from "./vendorCraftView";
 import { xpReport } from "./scan";
 import { combatPage } from "./combatView";
 import type { Env } from "./env";
@@ -155,6 +157,15 @@ app.get("/professions", async (c) => {
   return c.html(await professionsPage(routes, { house: c.env.AUCTION_HOUSE_ID, pricesAt: at?.at ?? null, target }, profits));
 });
 
+app.get("/vendor", async (c) => {
+  const prof = c.req.query("prof") ?? "mine";
+  const f: VendorCraftFilter = {
+    profession: prof === "all" || prof === "mine" ? prof : Number(prof) || "mine",
+    skill: c.req.query("skill") === "max" ? "max" : "current",
+    knownOnly: c.req.query("known") === "1",
+  };
+  return c.html(await vendorCraftPage(await vendorCraftReport(c.env, f), f));
+});
 app.post("/professions/refresh", async (c) => {
   if (!shared(c.env)) {
     await syncPrices(c.env);
@@ -218,6 +229,9 @@ ownerOnly.post("/api/items/sync", async (c) =>
   c.json(await syncItems(c.env, Math.min(400, Number(c.req.query("limit")) || 40))),
 );
 ownerOnly.post("/api/prices/sync", async (c) => c.json(await syncPrices(c.env)));
+ownerOnly.get("/api/vendor-craft", async (c) =>
+  c.json(await vendorCraftReport(c.env, { profession: "all", skill: "max", knownOnly: false })),
+);
 
 // Which auction house is yours? Compare one item's price across houses with the in-game price.
 ownerOnly.get("/api/ah/compare", async (c) => {

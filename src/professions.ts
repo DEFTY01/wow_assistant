@@ -41,6 +41,8 @@ export interface RecipeImport {
     source?: number[];
   }[];
   items?: Record<string, string>;
+  /** Vendor sell price per item id (Wowhead Forever), copper. */
+  sell?: Record<string, number>;
 }
 
 export async function importRecipes(env: Env, data: RecipeImport): Promise<number> {
@@ -52,8 +54,8 @@ export async function importRecipes(env: Env, data: RecipeImport): Promise<numbe
     stmts.push(
       env.DB.prepare(
         "INSERT OR REPLACE INTO recipe_meta (spell_id, profession_id, name, orange, yellow, green, grey, " +
-          "creates_item, creates_qty, reagents, training_cost, from_trainer, updated_at) " +
-          "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "creates_item, creates_qty, reagents, training_cost, from_trainer, updated_at, creates_min, creates_max, sources) " +
+          "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
       ).bind(
         r.id,
         data.professionId,
@@ -68,15 +70,20 @@ export async function importRecipes(env: Env, data: RecipeImport): Promise<numbe
         r.trainingcost ?? null,
         r.source?.includes(6) ? 1 : 0,
         now,
+        r.creates ? Number(r.creates[1]) || 1 : null,
+        r.creates ? Number(r.creates[2] ?? r.creates[1]) || 1 : null,
+        JSON.stringify(r.source ?? []),
       ),
     );
   }
   for (const [id, name] of Object.entries(data.items ?? {})) {
+    if (!name) continue;
+    const sell = data.sell?.[id];
     stmts.push(
       env.DB.prepare(
-        "INSERT INTO items (item_id, name, updated_at) VALUES (?, ?, ?) " +
-          "ON CONFLICT(item_id) DO UPDATE SET name = excluded.name",
-      ).bind(Number(id), name, now),
+        "INSERT INTO items (item_id, name, wh_sell, updated_at) VALUES (?, ?, ?, ?) " +
+          "ON CONFLICT(item_id) DO UPDATE SET name = excluded.name, wh_sell = COALESCE(excluded.wh_sell, wh_sell)",
+      ).bind(Number(id), name, Number.isFinite(sell) ? sell : null, now),
     );
   }
   for (let i = 0; i < stmts.length; i += 80) await env.DB.batch(stmts.slice(i, i + 80));
@@ -88,7 +95,12 @@ export async function importRecipes(env: Env, data: RecipeImport): Promise<numbe
 interface Listing {
   price: number;
   qty: number;
+  /** Not a commodity: the stack can only be bought whole. */
+  whole: boolean;
 }
+
+/** Units kept in the stored order book: enough for any batch you would craft. */
+const BOOK_UNITS = 5000;
 
 /** `gear` collects the cheapest buyout of every fixed-stat (no random suffix) non-commodity item. */
 async function fetchListings(
@@ -122,7 +134,7 @@ async function fetchListings(
       if (!(price > 0)) continue; // bid-only auctions have no buyout
       let list = byItem.get(id);
       if (!list) byItem.set(id, (list = []));
-      list.push({ price, qty });
+      list.push({ price, qty, whole: suffix === "" && qty > 1 });
     }
   }
   return byItem;
@@ -144,7 +156,46 @@ function summarize(list: Listing[]) {
     min: Math.round(list[0].price),
     depth: Math.round(cost / bought),
     quantity: total,
+    avg: averagePrice(list),
+    book: orderBook(list),
   };
+}
+
+/** Quantity-weighted average unit price, ignoring listings over 3x the median (sorted input). */
+function averagePrice(list: Listing[]): number {
+  const total = list.reduce((s, l) => s + l.qty, 0);
+  let seen = 0;
+  let median = list[0].price;
+  for (const l of list) {
+    seen += l.qty;
+    if (seen * 2 >= total) {
+      median = l.price;
+      break;
+    }
+  }
+  let units = 0;
+  let sum = 0;
+  for (const l of list) {
+    if (l.price > median * 3) break;
+    units += l.qty;
+    sum += l.qty * l.price;
+  }
+  return Math.round(sum / units);
+}
+
+/** Cheapest listings first, same-price commodity listings merged: [[unitPrice, qty, whole], ...]. */
+function orderBook(list: Listing[]): string {
+  const out: [number, number, number][] = [];
+  let units = 0;
+  for (const l of list) {
+    const price = Math.round(l.price * 100) / 100;
+    const last = out[out.length - 1];
+    if (last && !l.whole && !last[2] && last[0] === price) last[1] += l.qty;
+    else out.push([price, l.qty, l.whole ? 1 : 0]);
+    units += l.qty;
+    if (units >= BOOK_UNITS) break;
+  }
+  return JSON.stringify(out);
 }
 
 async function reagentIds(env: Env): Promise<Set<number>> {
@@ -168,11 +219,12 @@ export async function syncPrices(env: Env): Promise<{ items: number; house: numb
   const listings = await fetchListings(env, house, wanted, gearListings);
   const now = new Date().toISOString();
   // Write only the prices that moved, and drop the items that are no longer listed.
-  const before = await env.DB.prepare("SELECT item_id, min_price, depth_price, quantity FROM prices").all<{
+  const before = await env.DB.prepare("SELECT item_id, min_price, depth_price, quantity, book FROM prices").all<{
     item_id: number;
     min_price: number;
     depth_price: number;
     quantity: number;
+    book: string | null;
   }>();
   const old = new Map(before.results.map((r) => [r.item_id, r]));
   const stmts: D1PreparedStatement[] = [];
@@ -180,14 +232,15 @@ export async function syncPrices(env: Env): Promise<{ items: number; house: numb
     const s = summarize(list);
     const o = old.get(id);
     old.delete(id);
-    const sameAmount = o && Math.abs(o.quantity - s.quantity) <= Math.max(5, o.quantity * 0.25);
-    if (o && o.min_price === s.min && o.depth_price === s.depth && sameAmount) continue;
+    // The order book decides exact crafting costs, so any change in it is written.
+    if (o && o.book === s.book) continue;
     stmts.push(
       env.DB.prepare(
-        "INSERT INTO prices (item_id, house_id, min_price, depth_price, quantity, updated_at) VALUES (?, ?, ?, ?, ?, ?) " +
+        "INSERT INTO prices (item_id, house_id, min_price, depth_price, quantity, updated_at, book, avg_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?) " +
           "ON CONFLICT(item_id) DO UPDATE SET house_id = excluded.house_id, min_price = excluded.min_price, " +
-          "depth_price = excluded.depth_price, quantity = excluded.quantity, updated_at = excluded.updated_at",
-      ).bind(id, house, s.min, s.depth, s.quantity, now),
+          "depth_price = excluded.depth_price, quantity = excluded.quantity, updated_at = excluded.updated_at, " +
+          "book = excluded.book, avg_price = excluded.avg_price",
+      ).bind(id, house, s.min, s.depth, s.quantity, now, s.book, s.avg),
     );
   }
   for (const id of old.keys()) stmts.push(env.DB.prepare("DELETE FROM prices WHERE item_id = ?").bind(id));
@@ -210,7 +263,8 @@ export async function compareHouses(env: Env, itemId: number, houses: number[]) 
   for (const house of houses) {
     try {
       const list = (await fetchListings(env, house, new Set([itemId]))).get(itemId);
-      out.push(list ? { house, ...summarize(list) } : { house, quantity: 0 });
+      const s = list && summarize(list);
+      out.push(s ? { house, min: s.min, depth: s.depth, quantity: s.quantity } : { house, quantity: 0 });
     } catch (err) {
       out.push({ house, error: String(err) });
     }

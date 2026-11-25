@@ -6,3 +6,5 @@ dist/
 .claude/
 .mcp.env
 backups/
+# Game data saved from Wowhead for the recipe import
+data/

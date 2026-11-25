@@ -41,6 +41,7 @@ const TABS = [
   { id: "combat", href: "/combat", label: "Harc" },
   { id: "gear", href: "/gear", label: "Felszerelés" },
   { id: "prof", href: "/professions", label: "Mesterségek" },
+  { id: "vendor", href: "/vendor", label: "Vendorra gyártás" },
 ] as const;
 export type TabId = (typeof TABS)[number]["id"];
 
