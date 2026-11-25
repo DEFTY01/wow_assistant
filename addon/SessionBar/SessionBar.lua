@@ -1230,8 +1230,14 @@ local function Tick()
   if lastTick == 0 or dt < 0 or dt > 5 then dt = 0 end
   lastTick = now
   session.last = now
-  local ok, speed = pcall(GetUnitSpeed, "player")
-  if (ok and type(speed) == "number" and speed > 0) or InCombatLockdown() then Touch() end
+  -- In combat the client hands out the speed as a secret value that cannot be compared,
+  -- so combat counts as activity and the speed is only read outside it.
+  local moving = InCombatLockdown()
+  if not moving then
+    local ok, speed = pcall(GetUnitSpeed, "player")
+    moving = ok and type(speed) == "number" and not (issecretvalue and issecretvalue(speed)) and speed > 0
+  end
+  if moving then Touch() end
   local active = IsActive(now)
   if dt > 0 and active then
     session.active = session.active + dt
