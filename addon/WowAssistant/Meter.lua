@@ -64,9 +64,11 @@ local COUNTS = { n = { "hits", "count", "numHits", "casts" }, crit = { "crits", 
 
 -- One spell of the meter -> an ability row of the fight. `detailed` when counts were present.
 local function Ability(sp)
-  local id = Num(sp.spellID or sp.spellId)
+  -- Field names as the client's own meter uses them (DaylightUI_InfoPanel reads the same API):
+  -- spellID (none for melee swings), totalAmount, amountPerSecond, combatSpellDetails.
+  local id = Num(sp.spellID)
   local name = Str(sp.spellName or sp.name) or (id and C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id))
-    or (id and GetSpellInfo and GetSpellInfo(id)) or (id and ("Spell #" .. id)) or "?"
+    or (id and GetSpellInfo and GetSpellInfo(id)) or (id and ("Spell #" .. id)) or Str(sp.creatureName) or "Melee"
   if id == 6603 or name == "Auto Attack" then name = "Melee" end
   local a = { name = name, dmg = Num(sp.totalAmount or sp.amount) or 0, n = 0, hit = 0, crit = 0, glance = 0, miss = 0,
     dodge = 0, parry = 0, block = 0, other = 0, max = Num(sp.maxAmount or sp.biggestHit) or 0 }
@@ -96,13 +98,13 @@ local function Read()
   if not me then return end
   local total = Num(me.totalAmount or me.amount)
   if not total or total <= 0 then return end
-  local dur = Num(session.durationSeconds or session.duration) or (time() - f.start)
+  local dur = Num(session.durationSeconds) or Num((Call("GetSessionDurationSeconds", current))) or (time() - f.start)
   if dur <= 0 then return end
   local ab, detailed = {}, false
-  local guid = Str(me.sourceGUID or me.guid)
+  local guid = Str(me.sourceGUID) or (UnitGUID and UnitGUID("player"))
   local spells = me.combatSpells
   if not spells and guid then
-    local src = Call("GetCombatSessionSourceFromType", current, damage, guid)
+    local src = Call("GetCombatSessionSourceFromType", current, damage, guid, nil)
     MT.last.source = src
     spells = type(src) == "table" and (src.combatSpells or src.spells) or nil
   end
