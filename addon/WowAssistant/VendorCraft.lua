@@ -35,11 +35,13 @@ local recipes = {} -- parsed rows
 if R then
   for _, r in ipairs(R.recipes) do
     local reag = r[10]
+    if r[4] ~= 0 then -- recipes without a product (enchants) are only for skill routes
     recipes[#recipes + 1] = {
       spell = r[1], prof = r[2], orange = r[3], product = r[4], min = r[5], max = r[6],
       trainer = r[7], cd = r[8], name = r[9], reagents = reag, sources = r[11],
     }
     for i = 1, #reag, 2 do VC.reagents[reag[i]] = true end
+    end
   end
 end
 
@@ -239,17 +241,10 @@ local function Simulate(reag, incomeEach, crafts, stopWhenLosing)
   return bestN, bestProfit, bestCost, first, buyers
 end
 
--- Your professions (by the English names the client uses) and skill.
+-- Your professions and skill (Game.lua: skill lines or the profession API, whichever the client has).
 local function MyProfessions()
-  local byName = {}
-  for id, name in pairs(R.professions) do byName[name] = id end
   local mine = {}
-  if GetNumSkillLines then
-    for i = 1, GetNumSkillLines() do
-      local name, isHeader, _, rank = GetSkillLineInfo(i)
-      if name and not isHeader and byName[name] then mine[byName[name]] = rank end
-    end
-  end
+  for _, p in ipairs(WA.Game.Professions()) do mine[p.id] = p.skill end
   return mine
 end
 

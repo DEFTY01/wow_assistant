@@ -250,6 +250,7 @@ local function WeaponNumbers(link)
   if min and speed then return { min, max, speed } end
   return nil
 end
+WA.WeaponNumbers = WeaponNumbers
 
 local function FinishScan(reason)
   if not ah then return end

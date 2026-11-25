@@ -11,7 +11,7 @@
 //   WOW_CHARACTER character first name in the combat log, default "Defty"
 //   (the same keys can be put in a .uploader.env file in the project folder)
 //   UPLOAD_TOKEN  must match the worker's UPLOAD_TOKEN secret when that is set
-import { cpSync, existsSync, readFileSync, readdirSync, statSync, watchFile } from "node:fs";
+import { cpSync, existsSync, readFileSync, readdirSync, renameSync, statSync, watchFile, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseCombatLog } from "./combat-log.mjs";
@@ -107,6 +107,66 @@ function findCombatLog() {
   return files[0] ?? null;
 }
 
+// ------------------------------------------------------------------ fights for the game
+// Addons cannot read the combat log in this client, so the fights parsed here are also written
+// into the addon folder (WowAssistant/Fights.lua). The game reads that file at login or /reload,
+// and the in-game Combat and Plan windows then work from the same fights as the web app.
+const FIGHTS_KEEP = 200;
+const luaStr = (s) => '"' + String(s).replace(/[\\"]/g, (c) => "\\" + c).replace(/\r?\n/g, "\\n") + '"';
+const luaVal = (v) =>
+  v == null ? "nil"
+    : typeof v === "number" ? (Number.isFinite(v) ? String(v) : "nil")
+    : typeof v === "boolean" ? String(v)
+    : typeof v === "string" ? luaStr(v)
+    : Array.isArray(v) ? "{" + v.map(luaVal).join(",") + "}"
+    : "{" + Object.entries(v).filter(([, x]) => x != null).map(([k, x]) => `[${luaStr(k)}]=${luaVal(x)}`).join(",") + "}";
+// The web app's Fight -> the addon's shape (ordered lists instead of name-keyed objects).
+const forGame = (f, level) => ({
+  start: f.start, dur: f.dur, dmg: f.dmg, target: f.target, targetLevel: f.targetLevel, level: f.level ?? level,
+  capped: f.capped, samples: f.samples, source: "log",
+  ab: Object.entries(f.ab ?? {}).map(([name, a]) => ({ name, ...a })),
+  casts: f.casts ?? [],
+  auras: Object.entries(f.auras ?? {}).map(([name, secs]) => [name, secs]),
+});
+
+function writeGameFights(text, includeOpen) {
+  const dir = join(WOW_DIR, "Interface", "AddOns", ADDON);
+  const sv = findSavedVariables()[0];
+  if (!existsSync(dir) || !sv) return;
+  const chars = parseSavedVariables(readFileSync(sv, "utf8")).WowAssistantDB?.chars ?? {};
+  const target = join(dir, "Fights.lua");
+  let old = {};
+  try {
+    if (existsSync(target)) old = parseSavedVariables(readFileSync(target, "utf8")).WowAssistantFights ?? {};
+  } catch {
+    old = {};
+  }
+  const out = {};
+  let added = 0;
+  // Only "Name-Realm" keys: the log names players that way, so same-name alts stay apart.
+  for (const [key, c] of Object.entries(chars)) {
+    if (!key.includes("-")) continue;
+    const byStart = new Map();
+    for (const f of Array.isArray(old[key]) ? old[key] : Object.values(old[key] ?? {})) byStart.set(f.start, f);
+    for (const f of parseCombatLog(text, key, { includeOpen })) {
+      if (!byStart.has(f.start)) added++;
+      byStart.set(f.start, forGame(f, c.level));
+    }
+    if (byStart.size) out[key] = [...byStart.values()].sort((a, b) => b.start - a.start).slice(0, FIGHTS_KEEP);
+  }
+  if (!Object.keys(out).length) return;
+  const body = [
+    "-- Written by scripts/uploader.mjs from the game's combat log; read by the addon at login or /reload.",
+    "WowAssistantFights = {",
+    ...Object.entries(out).map(([k, list]) => [`  [${luaStr(k)}] = {`, ...list.map((f) => `    ${luaVal(f)},`), "  },"].join("\n")),
+    "}",
+    "",
+  ].join("\n");
+  writeFileSync(target + ".tmp", body);
+  renameSync(target + ".tmp", target);
+  if (added) console.log(`${new Date().toLocaleTimeString()} harcnapló a játéknak: ${added} új harc (${target})`);
+}
+
 let lastLogKey = "";
 async function uploadFights(final = false) {
   const file = findCombatLog();
@@ -116,7 +176,13 @@ async function uploadFights(final = false) {
   if (key === lastLogKey) return;
   // A file that has not grown for a while cannot contain a fight still in progress.
   const idle = Date.now() - st.mtimeMs > 15000;
-  const fights = parseCombatLog(readFileSync(file, "utf8"), CHARACTER, { includeOpen: final || idle });
+  const text = readFileSync(file, "utf8");
+  try {
+    writeGameFights(text, final || idle);
+  } catch (e) {
+    console.error("Harcnapló a játéknak sikertelen:", e.message);
+  }
+  const fights = parseCombatLog(text, CHARACTER, { includeOpen: final || idle });
   if (!fights.length) return;
   const r = await post("/api/fights", fights);
   lastLogKey = key;

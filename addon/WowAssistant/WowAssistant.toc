@@ -15,6 +15,10 @@ Model.lua
 Combat.lua
 Routes.lua
 Plan.lua
+Fights.lua
+Game.lua
+Meter.lua
 VendorCraft.lua
 Session.lua
 Chronicle.lua
+UI.lua

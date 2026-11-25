@@ -1,0 +1,348 @@
+-- WoW Assistant: what the game client knows, in the shape the engines (Model, Routes, Plan,
+-- Combat) take. The web app gets the same facts from the Blizzard API and the uploads; here they
+-- are read live, so the windows are up to date without /reload.
+
+local _, WA = ...
+local G = {}
+WA.Game = G
+local M = WA.Model
+
+local QUALITY = { [0] = "POOR", "COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY" }
+G.QUALITY = QUALITY
+local SCAN_FRESH = 12 * 3600 -- the web app uses in-game scans younger than 12 hours
+
+local function R() return WowAssistantRecipes end
+
+---------------------------------------------------------------------------
+-- items
+---------------------------------------------------------------------------
+local requested = {}
+local function Request(id)
+  if not requested[id] and C_Item and C_Item.RequestLoadItemDataByID then
+    requested[id] = true
+    pcall(C_Item.RequestLoadItemDataByID, id)
+  end
+end
+
+function G.ItemName(id)
+  local name = (C_Item and C_Item.GetItemNameByID and C_Item.GetItemNameByID(id)) or GetItemInfo(id)
+  if not name then Request(id) end
+  return name or (R() and R().names[id]) or ("Item #" .. id)
+end
+
+-- Vendor price of one piece: the client's own value when the item is loaded.
+function G.SellPrice(id)
+  local sell = select(11, GetItemInfo(id))
+  if sell then return sell end
+  Request(id)
+  return R() and R().sell[id] or 0
+end
+
+local getStats = (C_Item and C_Item.GetItemStats) or GetItemStats
+
+-- A piece of gear as the plan sees it (GearItem), or nil when it is not loaded yet or not gear.
+local gearCache = {}
+function G.GearItem(idOrLink)
+  local cached = gearCache[idOrLink]
+  if cached ~= nil then return cached or nil end
+  local name, link, quality, ilvl, minLevel, _, _, _, equipLoc, _, _, classID, subID = GetItemInfo(idOrLink)
+  if not name then
+    if type(idOrLink) == "number" then Request(idOrLink) end
+    return nil
+  end
+  local item = false
+  if equipLoc and equipLoc ~= "" and (classID == 2 or classID == 4) then
+    local st = getStats and getStats(link) or nil
+    local dmg = classID == 2 and WA.WeaponNumbers and WA.WeaponNumbers(link) or nil
+    item = {
+      itemId = tonumber(link:match("item:(%d+)")) or idOrLink, name = name, slot = equipLoc:gsub("^INVTYPE_", ""),
+      itemClass = classID, subclass = subID, reqLevel = minLevel or 0, itemLevel = ilvl or 0,
+      quality = QUALITY[quality or 1] or "COMMON", stats = M.GameStats(st, dmg),
+    }
+    if not M.RogueUsable(item) then item = false end
+  end
+  gearCache[idOrLink] = item
+  return item or nil
+end
+
+---------------------------------------------------------------------------
+-- character
+---------------------------------------------------------------------------
+-- Blizzard slot names (as in the web app) -> inventory slot ids.
+G.SLOTS = {
+  { "HEAD", 1 }, { "NECK", 2 }, { "SHOULDER", 3 }, { "BACK", 15 }, { "CHEST", 5 }, { "WRIST", 9 }, { "HANDS", 10 },
+  { "WAIST", 6 }, { "LEGS", 7 }, { "FEET", 8 }, { "FINGER_1", 11 }, { "FINGER_2", 12 }, { "TRINKET_1", 13 },
+  { "TRINKET_2", 14 }, { "MAIN_HAND", 16 }, { "OFF_HAND", 17 },
+}
+
+function G.Equipped()
+  local equipped, order = {}, {}
+  for _, s in ipairs(G.SLOTS) do
+    local link = GetInventoryItemLink("player", s[2])
+    if link then
+      local id = tonumber(link:match("item:(%d+)"))
+      local st = getStats and getStats(link) or nil
+      local dmg = (s[1] == "MAIN_HAND" or s[1] == "OFF_HAND") and WA.WeaponNumbers and WA.WeaponNumbers(link) or nil
+      equipped[s[1]] = { id = id, name = (GetItemInfo(link)) or link:match("%[(.-)%]") or ("Item #" .. tostring(id)), stats = M.GameStats(st, dmg), link = link }
+      order[#order + 1] = s[1]
+    end
+  end
+  return equipped, order
+end
+
+-- Talent values the model uses. The ranks come from the talent API; the numbers from the
+-- talent's tooltip with the same patterns the web app applies to the Blizzard text.
+local scanTip
+local function TalentText(tab, index)
+  if not scanTip then
+    scanTip = CreateFrame("GameTooltip", "WowAssistantScanTip", UIParent, "GameTooltipTemplate")
+    scanTip:SetOwner(UIParent, "ANCHOR_NONE")
+  end
+  scanTip:ClearLines()
+  if not pcall(scanTip.SetTalent, scanTip, tab, index) then return "" end
+  local parts = {}
+  for i = 1, scanTip:NumLines() do
+    local line = _G["WowAssistantScanTipTextLeft" .. i]
+    local t = line and line:GetText()
+    if t then parts[#parts + 1] = t end
+  end
+  return table.concat(parts, " ")
+end
+
+function G.Talents()
+  local out = { malice = 0, efficient = 0, coup = 0 }
+  if not GetNumTalentTabs then return out end
+  for tab = 1, GetNumTalentTabs() do
+    for i = 1, (GetNumTalents and GetNumTalents(tab) or 0) do
+      local name, _, _, _, rank = GetTalentInfo(tab, i)
+      if rank and rank > 0 and (name == "Malice" or name == "Efficient Strikes" or name == "Coup de Grace") then
+        local text = TalentText(tab, i)
+        if name == "Malice" then out.malice = tonumber(text:match("by (%d+)%%")) or rank
+        elseif name == "Efficient Strikes" then out.efficient = tonumber(text:match("by (%d+)")) or 0
+        else out.coup = tonumber(text:match("Eviscerate ability by (%d+)%%")) or 0 end
+      end
+    end
+  end
+  return out
+end
+
+-- Professions: the skill line API where the client has it, else the profession API.
+function G.Professions()
+  local byName = {}
+  for id, name in pairs(R() and R().professions or {}) do byName[name] = id end
+  local out = {}
+  if GetNumSkillLines then
+    for i = 1, GetNumSkillLines() do
+      local name, isHeader, _, rank, _, _, maxRank = GetSkillLineInfo(i)
+      if name and not isHeader and byName[name] then out[#out + 1] = { id = byName[name], name = name, skill = rank, cap = maxRank } end
+    end
+  end
+  if #out == 0 and GetProfessions and GetProfessionInfo then
+    for _, index in ipairs({ GetProfessions() }) do
+      if index then
+        local name, _, rank, maxRank, _, _, skillLine = GetProfessionInfo(index)
+        local id = (R() and R().professions[skillLine]) and skillLine or byName[name]
+        if id then out[#out + 1] = { id = id, name = R().professions[id] or name, skill = rank or 0, cap = maxRank or 0 } end
+      end
+    end
+  end
+  table.sort(out, function(a, b) return a.name < b.name end)
+  for _, p in ipairs(out) do p.known = WA.charDB and WA.charDB.known[p.id] or {} end
+  return out
+end
+
+function G.Owned()
+  local c = WA.char or {}
+  local owned = {}
+  for _, src in ipairs({ c.bags or {}, c.bank or {} }) do
+    for id, n in pairs(src) do owned[tonumber(id)] = (owned[tonumber(id)] or 0) + n end
+  end
+  return owned
+end
+
+function G.Trainer()
+  local rows = {}
+  local STATES = { available = true, unavailable = true, used = true }
+  for _, t in pairs(WA.char and WA.char.trainer or {}) do
+    local state = STATES[t.state] and t.state or (STATES[t.rank] and t.rank or "unavailable")
+    rows[#rows + 1] = { name = t.name, required_level = t.level or 0, cost_copper = t.cost or 0, state = state,
+      tradeskill = t.tradeskill and 1 or 0 }
+  end
+  table.sort(rows, function(a, b)
+    if a.required_level ~= b.required_level then return a.required_level < b.required_level end
+    return a.name < b.name
+  end)
+  return rows
+end
+
+---------------------------------------------------------------------------
+-- prices
+---------------------------------------------------------------------------
+local DEPTH = 40
+-- Average price of the cheapest 40 units of an order book (the web app's "depth" price).
+local function Depth(b)
+  local need, cost = DEPTH, 0
+  for i = 1, #b, 3 do
+    local take = math.min(need, b[i + 1])
+    cost = cost + take * b[i]
+    need = need - take
+    if need <= 0 then break end
+  end
+  local bought = DEPTH - need
+  return bought > 0 and M.Round(cost / bought) or nil
+end
+G.Depth = Depth
+
+-- unit(id): vendor price for the reagents vendors sell when cheaper, else the auction depth price
+-- (order books of the full scan, refreshed live), else the cheapest unit price of the last scan.
+function G.Book()
+  local market = WowAssistantDB and WowAssistantDB.market or {}
+  local books = market.books or {}
+  local prices = WA.char and WA.char.ah and WA.char.ah.prices or {}
+  local rd = R() or {}
+  local cache = {}
+  return {
+    unit = function(id)
+      local c = cache[id]
+      if c ~= nil then return c or nil end
+      local auction = books[id] and #books[id] > 0 and Depth(books[id]) or prices[id]
+      local vendor = rd.vendorReagents and rd.vendorReagents[id] and rd.vendor[id] or nil
+      if vendor and vendor > 0 and (not auction or vendor <= auction) then c = { price = vendor, source = "vendor" }
+      elseif auction and auction > 0 then c = { price = auction, source = "AH" }
+      else c = false end
+      cache[id] = c
+      return c or nil
+    end,
+    vendorSell = G.SellPrice,
+    name = G.ItemName,
+  }
+end
+
+---------------------------------------------------------------------------
+-- fights and the model
+---------------------------------------------------------------------------
+-- Combat-log fights written by the uploader (Fights.lua), plus the ones the damage meter saw in
+-- this session that the log does not have yet.
+function G.Fights()
+  local list = {}
+  local fromLog = WowAssistantFights and WA.key and WowAssistantFights[WA.key] or {}
+  for _, f in ipairs(fromLog) do list[#list + 1] = f end
+  for _, f in ipairs(WA.charDB and WA.charDB.meterFights or {}) do
+    local covered = false
+    for _, l in ipairs(fromLog) do
+      if f.start >= l.start - 5 and f.start <= l.start + l.dur + 5 then covered = true break end
+    end
+    if not covered then list[#list + 1] = f end
+  end
+  return list
+end
+
+-- Only fights with hit counts calibrate the model (the damage meter may report totals only).
+function G.CombatReport(forModel)
+  local list = G.Fights()
+  if forModel then
+    local detailed = {}
+    for _, f in ipairs(list) do if f.source ~= "meter" or f.detailed then detailed[#detailed + 1] = f end end
+    list = detailed
+  end
+  return WA.Combat.Report(list)
+end
+
+function G.ModelInput()
+  local equipped, order = G.Equipped()
+  local _, agi = UnitStat("player", 2)
+  local _, str = UnitStat("player", 1)
+  local base, pos, neg = UnitAttackPower("player")
+  return {
+    level = UnitLevel("player"), agi = agi or 0, str = str or 0, ap = (base or 0) + (pos or 0) + (neg or 0),
+    crit = GetCritChance and GetCritChance() or 0, hit = GetHitModifier and (GetHitModifier() or 0) or 0,
+    equipped = equipped, slotOrder = order, talents = G.Talents(), combat = G.CombatReport(true),
+    buffs = WA.charDB and WA.charDB.buffs or {}, skills = WA.char and WA.char.skills,
+  }
+end
+
+function G.IsRogue() return select(2, UnitClass("player")) == "ROGUE" end
+
+function G.Context()
+  if not G.IsRogue() then return nil end
+  return M.Context(G.ModelInput())
+end
+
+function G.Routes(target)
+  return WA.Routes.Plan({
+    profs = G.Professions(), recipes = WA.Routes.FromRecipeData(), book = G.Book(), owned = G.Owned(),
+    level = UnitLevel("player"), target = target,
+  })
+end
+
+-- Auction house gear from the in-game scan (char.ah), when it is fresh enough.
+function G.Offers()
+  local ah = WA.char and WA.char.ah
+  local out = {}
+  if not ah or not ah.at or time() - ah.at > SCAN_FRESH then return out, ah and ah.at end
+  for _, it in ipairs(ah.items or {}) do
+    local item = {
+      itemId = it.id, name = it.name or G.ItemName(it.id), slot = tostring(it.slot or ""):gsub("^INVTYPE_", ""),
+      itemClass = it.cls or 0, subclass = it.sub or 0, reqLevel = it.req or 0, itemLevel = it.ilvl or 0,
+      quality = QUALITY[it.q or 1] or "COMMON", stats = M.GameStats(it.st, it.dmg),
+    }
+    if not (item.itemClass == 2 and not item.stats.weapon) and M.RogueUsable(item) and (it.price or 0) > 0 then
+      out[#out + 1] = { item = item, price = it.price, listings = it.count or 0, where = "Aukciósház (játékban szkennelve)" }
+    end
+  end
+  return out, ah.at
+end
+
+function G.PlanInput(ctx)
+  local level = ctx.level
+  local owned = G.Owned()
+  local ownedGear = {}
+  local ids = {}
+  for id in pairs(owned) do ids[#ids + 1] = id end
+  table.sort(ids)
+  for _, id in ipairs(ids) do
+    local g = G.GearItem(id)
+    if g then ownedGear[#ownedGear + 1] = g end
+  end
+  local profs = G.Professions()
+  local crafts = {}
+  local recipes = WA.Routes.FromRecipeData()
+  for _, p in ipairs(profs) do
+    local list = {}
+    for _, r in ipairs(recipes) do
+      if r.prof == p.id and r.product ~= 0 and r.orange <= p.skill then
+        list[#list + 1] = { name = r.name, product = r.product, reagents = r.reagents, trainingCost = r.trainingCost,
+          fromTrainer = r.fromTrainer, item = G.GearItem(r.product) }
+      end
+    end
+    crafts[#crafts + 1] = { name = p.name, known = p.known, recipes = list }
+  end
+  local side = UnitFactionGroup("player") == "Alliance" and 1 or 2
+  local quest = {}
+  local D = WowAssistantData or {}
+  for _, r in ipairs(D.loot or {}) do
+    if r[12] == "quest" and (r[6] or 0) <= level and (r[14] or 0) <= level and (r[13] == 0 or r[13] == side) and D.dungeons[r[2]] then
+      local row = { unpack(r) }
+      row.zone = D.dungeons[r[2]][1]
+      quest[#quest + 1] = row
+    end
+  end
+  local offers, scanAt = G.Offers()
+  local trainer = G.Trainer()
+  local warnings = {}
+  local c = WA.char or {}
+  if not c.bankAt then warnings[#warnings + 1] = "A bank tartalma ismeretlen: nyisd meg egyszer a bankot." end
+  if #trainer == 0 then warnings[#warnings + 1] = "Nincs trainer-adat: nyisd meg a rogue trainer ablakát minden szűrővel." end
+  if not scanAt then
+    warnings[#warnings + 1] = "Még nem szkennelted az aukciósházat: /wa ah az aukciósháznál. Enélkül nincs AH-ajánlat és ár."
+  elseif #offers == 0 then
+    warnings[#warnings + 1] = "Az aukciósház-szkennelésed több mint 12 órás: /wa ah az aukciósháznál."
+  end
+  if not ctx.combat then warnings[#warnings + 1] = "Nincs rögzített harc: a modell tankönyvi értékekkel számol. /wa log, és fusson a feltöltő." end
+  if not WowAssistantData then warnings[#warnings + 1] = "Hiányzik a GameData.lua (dungeon loot): npm run addon:recipes" end
+  local routes = WA.Routes.Plan({ profs = profs, recipes = recipes, book = G.Book(), owned = owned, level = level, target = 300 })
+  return {
+    ctx = ctx, gold = GetMoney(), offers = offers, ownedGear = ownedGear, crafts = crafts, owned = owned, book = G.Book(),
+    trainer = trainer, questLoot = quest, routes = routes, warnings = warnings, name = UnitName("player"),
+  }
+end

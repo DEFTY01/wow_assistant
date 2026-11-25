@@ -38,10 +38,40 @@ node scripts/uploader.mjs
 
 A játékban:
 
-- `/wa` – kiírja, mit lát az addon.
+- `/wa` – megnyitja a főablakot: a webapp oldalai a játékban (lásd lent).
+- `/wa status` – kiírja, mit lát az addon.
 - `/wa log` – bekapcsolja a harcnaplót (utána minden belépéskor magától indul).
 - `/wa save` – kiírja az adatokat lemezre (újratölti a felületet); a feltöltő ekkor küldi fel.
+- `/wa help` – az összes parancs.
 - A trainernél a Filter menüben pipálj be mindent, a bankot pedig nyisd meg egyszer.
+
+### A webapp a játékban (`/wa`)
+
+A 2.0-s addon egyetlen mappa (`WowAssistant`), benne a korábbi SessionBar és AzerothChronicle is.
+A főablak fülei ugyanazt számolják, mint a webapp, ugyanazzal a kóddal Lua-ra átírva:
+
+- **Haditerv** – mit vegyél, tanulj, gyárts és hol farmolj a meglévő aranyadból (`/wa plan`).
+- **Harc** – statisztika és tanácsok a rögzített harcokból (`/wa harc`).
+- **Felszerelés** – dungeon-fejlesztések helyenként, buffok és fogyóeszközök ki-be kapcsolva (`/wa gear`).
+- **Mesterségek** – a legolcsóbb út 225-ig vagy 300-ig, bevásárlólistával (`/wa prof`).
+- Gombok a vendorra gyártás ablakához, a session-sávhoz és a Chronicle panelhez.
+
+A táblák a fejlécükre kattintva rendezhetők, a keresőmező minden tábla sorait szűri. A karakter
+adatait (statok, felszerelés, táska, szakmák, pénz) élőben olvassa; az árakat a `/wa ah` szkenből.
+
+A harcokhoz az addon nem olvashatja a harcnaplót, ezért a feltöltő a feldolgozott harcokat
+beleírja a játék addon-mappájába (`WowAssistant/Fights.lua`); a játék ezt belépéskor vagy `/reload`
+után látja. A kliens damage meteréből is jönnek harcok (harc után kiolvasva, mert harc közben a
+számai titkosak), de ezekben nincs találati statisztika, ezért a sebzésmodellt nem kalibrálják
+(`/wa meter` mutatja, mit ad a kliens).
+
+A recept-, loot- és buffadat generált fájlokból jön, amelyek nincsenek a gitben:
+`npm run addon:recipes` készíti el és telepíti őket (`Recipes.lua`, `GameData.lua`).
+
+**Átköltözés 2.0-ra:** a telepítés a régi `SessionBar` és `AzerothChronicle` mappába egy üres
+átköltöztető addont tesz, amely csak a régi mentéseket tölti be. Minden karakter első belépésekor a
+WowAssistant átmásolja őket (a régi parancsok, `/sbar` és `/azc`, továbbra is működnek). Ha már
+minden karaktereddel beléptél egyszer, a két régi mappa törölhető.
 
 ### Korlátok
 
@@ -129,10 +159,11 @@ magától felismeri az `azeroth` szervert (első indításkor jóvá kell hagyni
 
 Addonok a játékhoz (a játék legyen bezárva, mert új addont csak induláskor lát):
 
-- **AzerothChronicle** – minden karaktered fejlődését menti, és heti guild-versenyt rendez.
-  `/azc` panel, `/azc share on` megosztás a guilddel, `/azc week` heti összesítő.
+- **WowAssistant** – a 2.0 óta ebben van a két alábbi modul is (régen külön addonok voltak):
+- *Azeroth Chronicle* – minden karaktered fejlődését menti, és heti guild-versenyt rendez.
+  `/azc` (vagy `/wa azc`) panel, `/azc share on` megosztás a guilddel, `/azc week` heti összesítő.
 - **AzerothMCP_Data** – ide írhat az AI jegyzeteket és célokat; `/reload` után `/amcp`.
-- **SessionBar** – kompakt session-sáv (idő, XP, arany); egérrel tooltip, a nyíllal részletes panel.
+- *SessionBar* – kompakt session-sáv (idő, XP, arany; `/sbar` vagy `/wa sbar`); egérrel tooltip, a nyíllal részletes panel.
   - XP-források (mobölés / küldetés / felfedezés), zónánkénti XP/óra és arany/óra.
   - AFK-szűrés: AFK vagy 5 perc tétlenség nem rontja az óránkénti értékeket.
   - Célok vékony csíkkal a sáv alján: `/sbar goal gold 100 [22:00]`, `/sbar goal gold +50`,
