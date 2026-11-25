@@ -576,7 +576,7 @@ local function StartFullScan()
   if full or ah then Print("Mar fut egy szkenneles.") return end
   local wait = FULL_COOLDOWN - (time() - (WA.db.lastFullScan or 0))
   if wait > 0 then
-    Print(string.format("Teljes szken 15 percenkent egyszer lehet: meg %d perc. Addig a lassu szken hasznalhato: /wa ah lassu", math.ceil(wait / 60)))
+    Print(string.format("Teljes szken 15 percenkent egyszer lehet: meg %d perc. Addig a lassu szken hasznalhato: /wa ah slow", math.ceil(wait / 60)))
     return
   end
   full = { phase = "wait", level = UnitLevel("player"), prices = {}, qty = {}, gear = {}, pending = {}, items = {}, books = {},
@@ -588,7 +588,7 @@ local function StartFullScan()
   C_Timer.After(90, function()
     if full and full.phase == "wait" then
       full = nil
-      Announce("Nem jott meg a teljes lista (lehet, hogy 15 percen belul mar volt teljes szken, akar mas addontol). Probald kesobb, vagy: /wa ah lassu")
+      Announce("Nem jott meg a teljes lista (lehet, hogy 15 percen belul mar volt teljes szken, akar mas addontol). Probald kesobb, vagy: /wa ah slow")
     end
   end)
 end
@@ -714,11 +714,12 @@ local function Status(msg)
   if errCount > 0 then
     for name, err in pairs(char.errors) do Print("hiba (" .. name .. "): " .. err) end
   end
-  Print("Aukcioshaz: /wa ah (teljes szken, 15 percenkent), /wa ah lassu (targyankent). Mentes: /wa save. Minden parancs: /wa help")
+  Print("Aukcioshaz: /wa ah (teljes szken, 15 percenkent), /wa ah slow (targyankent). Mentes: /wa save. Minden parancs: /wa help")
 end
 WA.Status = Status
 WA.Command("status", function() Status("") end, "/wa status – gold, taska, trainer, harcnaplo allapota")
-WA.Command("ah", function(rest) Status(rest == "lassu" and "ah lassu" or "ah") end, "/wa ah [lassu] – aukcioshaz szkenneles (teljes vagy targyankent)")
+-- "lassu" is the old (Hungarian) spelling of "slow", still accepted
+WA.Command("ah", function(rest) Status((rest == "slow" or rest == "lassu") and "ah lassu" or "ah") end, "/wa ah [slow] – aukcioshaz szkenneles (teljes vagy targyankent)")
 WA.Command("log", function() Status("log") end, "/wa log – harcnaplo be/ki")
 WA.Command("save", function() Status("save") end, "/wa save – mentes (/reload)")
 -- Plain /wa: the main window once UI.lua is loaded, else the status line.

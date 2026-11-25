@@ -758,7 +758,8 @@ for _, e in ipairs({ "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP", "CHARACTER_P
   pcall(ev.RegisterEvent, ev, e)
 end
 
-WA.Command("plan", function() UI.Show("plan") end, "/wa – főablak · /wa plan | harc | gear | prof – egy oldala")
-WA.Command("harc", function() UI.Show("combat") end)
+WA.Command("plan", function() UI.Show("plan") end, "/wa – főablak · /wa plan | combat | gear | prof – egy oldala")
+WA.Command("combat", function() UI.Show("combat") end)
+WA.Command("harc", function() UI.Show("combat") end) -- old name
 WA.Command("gear", function() UI.Show("gear") end)
 WA.Command("prof", function() UI.Show("prof") end)

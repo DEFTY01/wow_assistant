@@ -51,7 +51,7 @@ A 2.0-s addon egyetlen mappa (`WowAssistant`), benne a korábbi SessionBar és A
 A főablak fülei ugyanazt számolják, mint a webapp, ugyanazzal a kóddal Lua-ra átírva:
 
 - **Haditerv** – mit vegyél, tanulj, gyárts és hol farmolj a meglévő aranyadból (`/wa plan`).
-- **Harc** – statisztika és tanácsok a rögzített harcokból (`/wa harc`).
+- **Harc** – statisztika és tanácsok a rögzített harcokból (`/wa combat`).
 - **Felszerelés** – dungeon-fejlesztések helyenként, buffok és fogyóeszközök ki-be kapcsolva (`/wa gear`).
 - **Mesterségek** – a legolcsóbb út 225-ig vagy 300-ig, bevásárlólistával (`/wa prof`).
 - Gombok a vendorra gyártás ablakához, a session-sávhoz és a Chronicle panelhez.

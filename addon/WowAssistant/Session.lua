@@ -1621,7 +1621,7 @@ local function SessionCommand(msg)
     lastSample = time()
     Print("új session indult.")
     Tick()
-  elseif cmd == "goal" or cmd == "cel" then
+  elseif cmd == "goal" or cmd == "cel" then -- the Hungarian words are old aliases
     GoalCommand(args)
   elseif cmd == "advice" or cmd == "tanacs" then
     Print("|cffffd100Arany-tanács|r")
