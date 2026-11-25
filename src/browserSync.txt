@@ -106,7 +106,7 @@ async function tick() {
     if (saved && saved.lastModified !== seen.saved) {
       const data = parseSavedVariables(await saved.text()).WowAssistantDB;
       if (data && data.chars) {
-        const r = await post("/upload/addon", data);
+        const r = await post("/upload/addon", { version: data.version, last: data.last, chars: data.chars });
         log("Addon: " + r.bagItems + " féle tárgy a táskákban, " + r.bankItems + " a bankban, " + r.trainerSkills + " trainer skill");
       }
       seen.saved = saved.lastModified;
@@ -154,11 +154,13 @@ function start() {
 async function installAddon() {
   try {
     const addons = await child(dir, "Interface", "AddOns");
-    const folder = await addons.getDirectoryHandle("WowAssistant", { create: true });
-    for (const [name, text] of Object.entries(ADDON)) {
-      const writable = await (await folder.getFileHandle(name, { create: true })).createWritable();
-      await writable.write(text);
-      await writable.close();
+    for (const [folderName, files] of Object.entries(ADDON)) {
+      const folder = await addons.getDirectoryHandle(folderName, { create: true });
+      for (const [name, text] of Object.entries(files)) {
+        const writable = await (await folder.getFileHandle(name, { create: true })).createWritable();
+        await writable.write(text);
+        await writable.close();
+      }
     }
     log("Addon telepítve. Ha a játék fut: /reload; ha most települt először, indítsd újra a játékot.");
   } catch (err) {

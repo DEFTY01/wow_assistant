@@ -4,7 +4,9 @@
 -- in combat or inside instances. No snapshot is taken on logout: the Forever client reports
 -- zero money at that moment.
 
-local ADDON_NAME = ...
+-- Part of WoW Assistant: data in WowAssistantDB.chronicle (the old AzerothChronicleDB is copied
+-- there once by Core.lua), the character id in WowAssistantCharDB.id.
+local _, WA = ...
 local PREFIX = "AZCHR"
 local WEEK = 604800
 local WEEK_OFFSET = 6 * 86400 + 7 * 3600 -- weeks start Wednesday 07:00 UTC (EU reset)
@@ -42,18 +44,8 @@ local function WeekStart(k) return k * WEEK + WEEK_OFFSET end
 
 -- The Forever client can report an empty realm name. Characters are then told apart by an id
 -- kept in the per-character SavedVariables, and their key becomes "Name#id".
-local function RealmName()
-  local r = GetNormalizedRealmName and GetNormalizedRealmName()
-  if not r or r == "" then r = (GetRealmName() or ""):gsub("%s", "") end
-  if r == "" and UnitFullName then r = select(2, UnitFullName("player")) or "" end
-  return r
-end
-
-local function CharKey()
-  local realm = RealmName()
-  if realm ~= "" then return UnitName("player") .. "-" .. realm end
-  return UnitName("player") .. "#" .. charDb.id
-end
+local RealmName = WA.RealmName
+local CharKey = WA.CharKey
 
 local function DisplayName(key)
   return (key:gsub("#.*$", ""):gsub("%-" .. RealmName() .. "$", ""))
@@ -430,19 +422,13 @@ end
 local ev = CreateFrame("Frame")
 local H = {}
 
-function H.ADDON_LOADED(name)
-  if name ~= ADDON_NAME then return end
-  AzerothChronicleDB = AzerothChronicleDB or {}
-  db = AzerothChronicleDB
+WA.onLoad[#WA.onLoad + 1] = function()
+  db = WA.db.chronicle
   db.version = 1
   db.chars = db.chars or {}
   db.guild = db.guild or {}
   if db.share == nil then db.share = false end
-  AzerothChronicleCharDB = AzerothChronicleCharDB or {}
-  charDb = AzerothChronicleCharDB
-  if not charDb.id then
-    charDb.id = ("%08x%04x"):format(time() % 0x100000000, math.random(0, 0xffff))
-  end
+  charDb = WA.charDB
   if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then C_ChatInfo.RegisterAddonMessagePrefix(PREFIX) end
 end
 
@@ -509,8 +495,7 @@ for e in pairs(H) do pcall(ev.RegisterEvent, ev, e) end
 ---------------------------------------------------------------------------
 -- commands
 ---------------------------------------------------------------------------
-SLASH_AZEROTHCHRONICLE1 = "/azc"
-SlashCmdList.AZEROTHCHRONICLE = function(msg)
+local function ChronicleCommand(msg)
   local cmd, arg = strsplit(" ", strtrim(msg or ""):lower(), 2)
   if cmd == "" then
     TogglePanel()
@@ -535,3 +520,8 @@ SlashCmdList.AZEROTHCHRONICLE = function(msg)
     Print("/azc – panel · /azc share on|off · /azc sync · /azc week")
   end
 end
+WA.Chronicle = { Command = ChronicleCommand, Gains = function(c, wk) return Gains(c, wk) end, WeekKey = WeekKey,
+  Snapshot = function() return Snapshot() end, db = function() return db end }
+WA.Command("azc", ChronicleCommand, "/wa azc [share on|off | sync | week] – Azeroth Chronicle (régen /azc)")
+SLASH_AZEROTHCHRONICLE1 = "/azc"
+SlashCmdList.AZEROTHCHRONICLE = ChronicleCommand

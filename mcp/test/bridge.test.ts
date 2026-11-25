@@ -369,3 +369,50 @@ describe("AzerothChronicle without a realm name (regression: alts shared one rec
     assert.deepEqual({ ...c }, { name: "Lonely", realm: null });
   });
 });
+
+describe("WowAssistant 2.0: one addon, characters keyed Name-Realm or Name#id", () => {
+  const root2 = join(root, "wa2"); // removed with the main fake folder, after the databases close
+  const wow2 = join(root2, "_forever_");
+  const acc = join(wow2, "WTF", "Account", "ACC");
+  const cfg2: Config = { ...cfg, wowDir: wow2, dbPath: join(root2, "t.sqlite") };
+  const snap = (ts: number, level: number) => ({ ts, level, xp: 10, xpMax: 1000, money: 100, cxp: 0, deaths: 0, quests: 0, skills: 0 });
+
+  it("reads exporter, Chronicle and session data from the merged SavedVariables", () => {
+    for (const c of ["Testy-Realm", "Testy-Alt"]) mkdirSync(join(acc, "93", c, "SavedVariables"), { recursive: true });
+    mkdirSync(join(acc, "SavedVariables"), { recursive: true });
+    mkdirSync(join(wow2, "Logs"), { recursive: true });
+    writeFileSync(join(acc, "SavedVariables", "WowAssistant.lua"), "WowAssistantDB = " + toLua({
+      version: 7, last: "Testy-Realm",
+      chars: {
+        "Testy-Realm": { key: "Testy-Realm", name: "Testy", realm: "Realm", class: "ROGUE", formerKeys: ["Testy"], xp: [[now - 100, 5, 12, 1000, "Elwynn"]] },
+        "Testy#a1b2": { key: "Testy#a1b2", name: "Testy", realm: "", class: "MAGE", xp: [[now - 50, 7, 3, 1400, "Durotar"]] },
+      },
+      chronicle: { version: 1, share: false, guild: {}, chars: {
+        "Testy-Realm": { class: "ROGUE", snapshots: [snap(now - 900, 12)] },
+        "Testy#a1b2": { class: "MAGE", snapshots: [snap(now - 800, 3), snap(now - 700, 3)] },
+      } },
+      session: { expanded: false },
+    }) + "\n");
+    writeFileSync(join(acc, "93", "Testy-Alt", "SavedVariables", "WowAssistant.lua"), "WowAssistantCharDB = " + toLua({ id: "a1b2" }) + "\n");
+    // Old SessionBar file next to the migrated copy: the new file decides which session is current.
+    writeFileSync(join(acc, "93", "Testy-Realm", "SavedVariables", "SessionBar.lua"), "SessionBarCharDB = " + toLua({
+      history: [], current: { start: now - 7200, last: now - 3600, xp: 10, levels: 0, income: {}, expense: {} },
+    }) + "\n");
+    writeFileSync(join(acc, "93", "Testy-Realm", "SavedVariables", "WowAssistant.lua"), "WowAssistantCharDB = " + toLua({
+      id: "ffff", session: {
+        history: [{ start: now - 7200, duration: 3600, xp: 10, levels: 0, income: {}, expense: {} }],
+        current: { start: now - 600, last: now, xp: 300, levels: 0, income: { quest: 50 }, expense: {} },
+      },
+    }) + "\n");
+
+    const db = openDb(cfg2.dbPath);
+    openDbs.push(db);
+    const r = ingestAll(db, cfg2, { final: true });
+    assert.equal(r.savedVariables.errors.length, 0, r.savedVariables.errors.join("\n"));
+    const rows = (sql: string) => db.prepare(sql).all().map((x) => ({ ...(x as object) }));
+    assert.deepEqual(rows("SELECT char_key AS k, COUNT(*) AS n FROM xp_samples GROUP BY char_key ORDER BY k"), [{ k: "Testy-Alt", n: 1 }, { k: "Testy-Realm", n: 1 }]);
+    assert.deepEqual(rows("SELECT char_key AS k, COUNT(*) AS n FROM snapshots GROUP BY char_key ORDER BY k"), [{ k: "Testy-Alt", n: 2 }, { k: "Testy-Realm", n: 1 }]);
+    assert.deepEqual(rows("SELECT start - " + now + " AS s, is_current AS c FROM sessions WHERE char_key = 'Testy-Realm' ORDER BY start"), [{ s: -7200, c: 0 }, { s: -600, c: 1 }]);
+    assert.deepEqual(rows("SELECT key, class FROM characters WHERE key LIKE 'Testy%' ORDER BY key"), [{ key: "Testy-Alt", class: "MAGE" }, { key: "Testy-Realm", class: "ROGUE" }]);
+  });
+});

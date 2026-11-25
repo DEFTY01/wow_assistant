@@ -14,9 +14,11 @@
 --
 -- /wa vendor opens the window; at the auction house there is a button for it too.
 
+local _, WA = ...
 local R = WowAssistantRecipes
 local VC = {}
 WowAssistantVC = VC
+WA.VC = VC
 
 local MAX_CRAFTS = 1000
 local GIVE_UP_AFTER = 25
@@ -42,6 +44,7 @@ if R then
 end
 
 local function Market()
+  WowAssistantDB = WowAssistantDB or {}
   WowAssistantDB.market = WowAssistantDB.market or { books = {}, live = {} }
   local m = WowAssistantDB.market
   m.books = m.books or {}
@@ -720,3 +723,5 @@ for _, e in ipairs({ "COMMODITY_SEARCH_RESULTS_UPDATED", "ITEM_SEARCH_RESULTS_UP
   "CRAFT_SHOW", "CRAFT_UPDATE", "GET_ITEM_INFO_RECEIVED", "SKILL_LINES_CHANGED" }) do
   pcall(ev.RegisterEvent, ev, e)
 end
+
+WA.Command("vendor", function() VC.Toggle() end, "/wa vendor – mit érdemes legyártani vendornak")

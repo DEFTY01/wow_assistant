@@ -1,5 +1,10 @@
-// Loads addon SavedVariables (WowAssistant, SessionBar, AzerothChronicle) into SQLite.
-// Every insert is idempotent, so a file can be read again at any time.
+// Loads addon SavedVariables into SQLite. Every insert is idempotent, so a file can be read again
+// at any time.
+//   WowAssistant 2.0+ (one addon):  WowAssistantDB.chars / .chronicle (account file),
+//                                   WowAssistantCharDB.session / .id (per-character file)
+//   before 2.0:                     WowAssistantDB.chars, AzerothChronicleDB, SessionBarCharDB
+// Both layouts are read; after the in-game migration they hold the same data, which the
+// idempotent upserts merge.
 import { existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
@@ -53,37 +58,58 @@ function upsertCharacter(db: DatabaseSync, c: { key: string; account?: string | 
   ).run(c.key, c.account ?? null, c.name, c.realm ?? null, c.class ?? null, c.race ?? null, c.faction ?? null, c.guild ?? null, Math.floor(Date.now() / 1000));
 }
 
-/** WowAssistantDB.chars is keyed by first name only; resolve to Name-Realm when that is unambiguous. */
+/** Before addon 2.0 WowAssistantDB.chars was keyed by first name only; resolve to Name-Realm when that is unambiguous. */
 function resolveKey(chars: CharacterDir[], account: string, name: string): { key: string; realm: string | null } {
   const matches = chars.filter((c) => c.account === account && c.name === name);
   return matches.length === 1 ? { key: matches[0].key, realm: matches[0].realm } : { key: name, realm: null };
 }
 
-function ingestWowAssistant(db: DatabaseSync, account: string, data: Obj, chars: CharacterDir[], r: SvIngestResult): void {
+/**
+ * Key of a WowAssistantDB.chars record: "Name-Realm" (2.0+), "Name#id" when the client reported no
+ * realm (the id is in that character's own WowAssistant.lua, so its folder gives the realm), or a
+ * bare first name (before 2.0, possibly shared by same-name characters).
+ */
+function exporterKey(rawKey: string, chars: CharacterDir[], account: string, ids: Map<string, CharacterDir>) {
+  if (rawKey.includes("#") || rawKey.includes("-")) {
+    const k = chronicleKey(rawKey, ids);
+    return { ...k, legacy: false };
+  }
+  return { ...resolveKey(chars, account, rawKey), name: rawKey, legacy: true };
+}
+
+function ingestWowAssistant(db: DatabaseSync, account: string, data: Obj, chars: CharacterDir[], ids: Map<string, CharacterDir>, r: SvIngestResult): void {
   const insXp = db.prepare("INSERT OR IGNORE INTO xp_samples (char_key, ts, xp, level, xp_max, zone) VALUES (?, ?, ?, ?, ?, ?)");
-  for (const [name, raw] of Object.entries(obj(data.chars))) {
+  for (const [rawKey, raw] of Object.entries(obj(data.chars))) {
     const c = obj(raw);
-    const { key, realm } = resolveKey(chars, account, name);
+    const { key, realm, name, legacy } = exporterKey(rawKey, chars, account, ids);
     upsertCharacter(db, { key, account, name, realm, class: text(c.class) });
     r.characters++;
-    // Samples of a shared name may already have been moved to their Name-Realm (see resolve.ts).
+    // Samples of a shared name may already have been given to a Name-Realm (see resolve.ts). A
+    // 2.0 record that took over the shared one (formerKeys) holds those samples too: they stay
+    // where they were placed, and the ones still under the bare name move to this character.
+    const former = arr(c.formerKeys).filter((k): k is string => typeof k === "string");
     const siblings = chars.filter((d) => d.account === account && d.name === name).map((d) => d.key);
     const moved = new Set<number>();
-    if (realm == null && siblings.length) {
-      const ph = siblings.map(() => "?").join(",");
-      for (const row of db.prepare(`SELECT ts FROM xp_samples WHERE char_key IN (${ph})`).all(...siblings) as { ts: number }[]) moved.add(row.ts);
+    if ((legacy && realm == null) || former.length) {
+      const others = siblings.filter((k) => k !== key);
+      if (others.length) {
+        const ph = others.map(() => "?").join(",");
+        for (const row of db.prepare(`SELECT ts FROM xp_samples WHERE char_key IN (${ph})`).all(...others) as { ts: number }[]) moved.add(row.ts);
+      }
     }
+    const take = db.prepare("UPDATE OR REPLACE xp_samples SET char_key = ? WHERE char_key = ? AND ts = ?");
     for (const s of arr(c.xp)) {
       if (!Array.isArray(s)) continue;
       const [ts, xp, level, xpMax, zone] = s;
       if (num(ts) == null || moved.has(num(ts)!)) continue;
+      for (const old of former) take.run(key, old, num(ts));
       r.xpSamples += Number(insXp.run(key, num(ts), num(xp), num(level), num(xpMax), text(zone)).changes);
     }
+    for (const old of former) dropIfEmpty(db, old);
   }
 }
 
-function ingestSessionBar(db: DatabaseSync, c: CharacterDir, data: Obj, r: SvIngestResult): void {
-  const charDb = obj(data.SessionBarCharDB);
+function ingestSessionBar(db: DatabaseSync, c: CharacterDir, charDb: Obj, r: SvIngestResult): void {
   const put = db.prepare(
     `INSERT INTO sessions (char_key, start, duration, start_level, levels, xp, income, expense, income_json, expense_json, is_current)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -121,17 +147,19 @@ function chronicleKey(key: string, ids: Map<string, CharacterDir>): { key: strin
   return { key, name: key.slice(0, dash), realm: key.slice(dash + 1) || null };
 }
 
-/** Character id (AzerothChronicleCharDB.id) -> its folder, read from the per-character files. */
-function chronicleIds(chars: CharacterDir[], r: SvIngestResult): Map<string, CharacterDir> {
+/** Character id -> its folder, read from the per-character files (WowAssistantCharDB.id since 2.0, AzerothChronicleCharDB.id before). */
+function characterIds(chars: CharacterDir[], r: SvIngestResult): Map<string, CharacterDir> {
   const ids = new Map<string, CharacterDir>();
   for (const c of chars) {
-    const file = join(c.svDir, "AzerothChronicle.lua");
-    if (!existsSync(file)) continue;
-    try {
-      const id = text(obj(readSavedVariables(file).AzerothChronicleCharDB as LuaValue).id);
-      if (id) ids.set(id, c);
-    } catch (e) {
-      r.errors.push(`${file}: ${(e as Error).message}`);
+    for (const [addon, table] of [["AzerothChronicle", "AzerothChronicleCharDB"], ["WowAssistant", "WowAssistantCharDB"]] as const) {
+      const file = join(c.svDir, `${addon}.lua`);
+      if (!existsSync(file)) continue;
+      try {
+        const id = text(obj(readSavedVariables(file)[table] as LuaValue).id);
+        if (id) ids.set(id, c);
+      } catch (e) {
+        r.errors.push(`${file}: ${(e as Error).message}`);
+      }
     }
   }
   return ids;
@@ -193,8 +221,9 @@ function ingestChronicle(db: DatabaseSync, account: string, data: Obj, ids: Map<
 export function ingestSavedVariables(db: DatabaseSync, cfg: Config, force = false): SvIngestResult {
   const r: SvIngestResult = { files: 0, skipped: 0, characters: 0, snapshots: 0, sessions: 0, xpSamples: 0, guildRows: 0, errors: [] };
   const chars = characterDirs(cfg.wowDir);
-  const run = (file: string, fn: (data: Obj) => void) => {
-    if (!changed(db, file, force)) {
+  const run = (file: string, again: boolean | ((data: Obj) => void), body?: (data: Obj) => void) => {
+    const fn = typeof again === "function" ? again : body!;
+    if (!changed(db, file, force || again === true)) {
       r.skipped++;
       return;
     }
@@ -211,16 +240,30 @@ export function ingestSavedVariables(db: DatabaseSync, cfg: Config, force = fals
   };
 
   for (const c of chars) upsertCharacter(db, { key: c.key, account: c.account, name: c.name, realm: c.realm });
+  const ids = characterIds(chars, r);
   for (const { account, file } of accountSavedVariables(cfg.wowDir, "WowAssistant")) {
-    run(file, (d) => ingestWowAssistant(db, account, obj(d.WowAssistantDB), chars, r));
+    run(file, (d) => {
+      const wa = obj(d.WowAssistantDB);
+      ingestWowAssistant(db, account, wa, chars, ids, r);
+      if (wa.chronicle) ingestChronicle(db, account, obj(wa.chronicle), ids, r);
+    });
   }
-  const ids = chronicleIds(chars, r);
   for (const { account, file } of accountSavedVariables(cfg.wowDir, "AzerothChronicle")) {
     run(file, (d) => ingestChronicle(db, account, obj(d.AzerothChronicleDB), ids, r));
   }
   for (const c of chars) {
-    const file = join(c.svDir, "SessionBar.lua");
-    if (existsSync(file)) run(file, (d) => ingestSessionBar(db, c, d, r));
+    // The old file first: after the migration both hold the session, and the newer one must
+    // decide which session is current, so it is read again whenever the old one was.
+    const old = join(c.svDir, "SessionBar.lua");
+    let oldRead = false;
+    if (existsSync(old)) run(old, (d) => { oldRead = true; ingestSessionBar(db, c, obj(d.SessionBarCharDB), r); });
+    const file = join(c.svDir, "WowAssistant.lua");
+    if (existsSync(file)) {
+      run(file, oldRead, (d) => {
+        const session = obj(d.WowAssistantCharDB).session;
+        if (session) ingestSessionBar(db, c, obj(session), r);
+      });
+    }
   }
   return r;
 }

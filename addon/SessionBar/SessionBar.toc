@@ -1,8 +1,8 @@
 ## Interface: 16001, 120100
-## Title: SessionBar
-## Notes: Kompakt session sáv: idő, XP, arany. XP-források, zónák, célok arany-tanáccsal, pihent XP, táska, grafikon. /sbar
-## Version: 0.2.3
+## Title: SessionBar (migration to WoW Assistant)
+## Notes: Only keeps the old SessionBar data loaded so WoW Assistant can take it over. Remove this folder once every character has logged in with WoW Assistant 2.
+## Version: 1.0.0
 ## SavedVariables: SessionBarDB
 ## SavedVariablesPerCharacter: SessionBarCharDB
 
-SessionBar.lua
+Shim.lua

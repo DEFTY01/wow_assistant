@@ -1,16 +1,14 @@
--- WoW Assistant exporter.
+-- WoW Assistant exporter: gold, bags, bank, skills, spells, trainer, XP samples, auction scans.
 -- Addons cannot talk to the network: everything is written to SavedVariables, which the
--- game saves on logout or /reload. The uploader script then sends that file to the web app.
+-- game saves on logout or /reload. The uploader script then sends that file to the web app,
+-- and the in-game windows (UI.lua) read the same tables live.
 
-WowAssistantDB = WowAssistantDB or {}
-
+local _, WA = ...
 local frame = CreateFrame("Frame")
-local char -- this character's table inside WowAssistantDB
+local char -- this character's table: WowAssistantDB.chars[WA.key]
 local bankOpen = false
 
-local function Print(msg)
-  DEFAULT_CHAT_FRAME:AddMessage("|cfff0c040WoW Assistant:|r " .. msg)
-end
+local Print = WA.Print
 
 -- Important progress also goes to the middle of the screen, where it cannot be missed.
 local function Announce(msg)
@@ -185,7 +183,7 @@ end
 -- Logs/WoWCombatLog*.txt, which the uploader script parses instead.
 local function ApplyLogging()
   if not LoggingCombat then return end
-  if WowAssistantDB.logCombat then LoggingCombat(true) end
+  if WA.db.logCombat then LoggingCombat(true) end
   char.logging = LoggingCombat() and true or false
 end
 
@@ -575,14 +573,14 @@ local function StartFullScan()
     return
   end
   if full or ah then Print("Mar fut egy szkenneles.") return end
-  local wait = FULL_COOLDOWN - (time() - (WowAssistantDB.lastFullScan or 0))
+  local wait = FULL_COOLDOWN - (time() - (WA.db.lastFullScan or 0))
   if wait > 0 then
     Print(string.format("Teljes szken 15 percenkent egyszer lehet: meg %d perc. Addig a lassu szken hasznalhato: /wa ah lassu", math.ceil(wait / 60)))
     return
   end
   full = { phase = "wait", level = UnitLevel("player"), prices = {}, qty = {}, gear = {}, pending = {}, items = {}, books = {},
     i = 0, n = 0, t0 = Now() }
-  WowAssistantDB.lastFullScan = time()
+  WA.db.lastFullScan = time()
   C_AuctionHouse.ReplicateItems()
   Announce("Teljes AH-szken: az osszes aukcio letoltese... Hagyd nyitva az aukcioshazat.")
   -- The server sends nothing while the 15-minute cooldown runs (also after a scan by another addon).
@@ -617,20 +615,21 @@ end
 
 -- ------------------------------------------------------------------ events
 
+WA.onLogin[#WA.onLogin + 1] = function()
+  local db = WA.db
+  db.chars[WA.key] = db.chars[WA.key] or {}
+  char = db.chars[WA.key]
+  WA.char = char
+  char.key = WA.key
+  char.name = UnitName("player")
+  char.realm = WA.RealmName()
+  char.id = WA.charDB.id
+  char.class = select(2, UnitClass("player"))
+  char.errors = nil
+end
+
 frame:SetScript("OnEvent", function(_, event, ...)
-  if event == "PLAYER_LOGIN" then
-    local name = UnitName("player")
-    local oldVersion = WowAssistantDB.version or 0
-    WowAssistantDB.version = 6
-    WowAssistantDB.chars = WowAssistantDB.chars or {}
-    WowAssistantDB.chars[name] = WowAssistantDB.chars[name] or {}
-    char = WowAssistantDB.chars[name]
-    if oldVersion < 4 then char.trainer = nil end -- older versions stored trainer rows wrongly
-    char.name = name
-    char.class = select(2, UnitClass("player"))
-    char.errors = nil
-    WowAssistantDB.last = name
-  elseif not char then
+  if not char then
     return
   elseif event == "PLAYER_ENTERING_WORLD" then
     ScanAll()
@@ -673,7 +672,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
 end)
 
 for _, event in ipairs({
-  "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "PLAYER_MONEY", "BAG_UPDATE_DELAYED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
+  "PLAYER_ENTERING_WORLD", "PLAYER_MONEY", "BAG_UPDATE_DELAYED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
   "PLAYERBANKSLOTS_CHANGED", "SKILL_LINES_CHANGED", "PLAYER_LEVEL_UP", "SPELLS_CHANGED",
   "TRAINER_SHOW", "TRAINER_UPDATE", "PLAYER_XP_UPDATE", "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED",
   "AUCTION_HOUSE_BROWSE_RESULTS_ADDED", "ITEM_SEARCH_RESULTS_UPDATED", "ITEM_SEARCH_RESULTS_ADDED", "AUCTION_HOUSE_THROTTLED_SYSTEM_READY",
@@ -682,14 +681,10 @@ for _, event in ipairs({
   pcall(frame.RegisterEvent, frame, event) -- an event unknown to this client must not break the rest
 end
 
-SLASH_WOWASSISTANT1 = "/wa"
-SLASH_WOWASSISTANT2 = "/wowassistant"
-SlashCmdList["WOWASSISTANT"] = function(msg)
+-- /wa status (and /wa ah, /wa log, /wa save): the exporter's own commands.
+local function Status(msg)
   if not char then return end
-  if msg == "vendor" then
-    if WowAssistantVC then WowAssistantVC.Toggle() end
-    return
-  end
+  msg = (msg or ""):lower()
   ScanAll()
   if msg == "ah" or msg == "ah lassu" then
     char.errors = char.errors or {}
@@ -699,9 +694,9 @@ SlashCmdList["WOWASSISTANT"] = function(msg)
     return
   end
   if msg == "log" then
-    WowAssistantDB.logCombat = not WowAssistantDB.logCombat
-    if LoggingCombat then LoggingCombat(WowAssistantDB.logCombat and true or false) end
-    Print(WowAssistantDB.logCombat and "harcnaplo BEKAPCSOLVA (minden belepeskor magatol indul)." or "harcnaplo kikapcsolva.")
+    WA.db.logCombat = not WA.db.logCombat
+    if LoggingCombat then LoggingCombat(WA.db.logCombat and true or false) end
+    Print(WA.db.logCombat and "harcnaplo BEKAPCSOLVA (minden belepeskor magatol indul)." or "harcnaplo kikapcsolva.")
     return
   end
   if msg == "save" then
@@ -718,5 +713,12 @@ SlashCmdList["WOWASSISTANT"] = function(msg)
   if errCount > 0 then
     for name, err in pairs(char.errors) do Print("hiba (" .. name .. "): " .. err) end
   end
-  Print("Aukcioshaz: /wa ah (teljes szken, 15 percenkent), /wa ah lassu (targyankent). Vendorra gyartas: /wa vendor. Mentes: /wa save.")
+  Print("Aukcioshaz: /wa ah (teljes szken, 15 percenkent), /wa ah lassu (targyankent). Mentes: /wa save. Minden parancs: /wa help")
 end
+WA.Status = Status
+WA.Command("status", function() Status("") end, "/wa status – gold, taska, trainer, harcnaplo allapota")
+WA.Command("ah", function(rest) Status(rest == "lassu" and "ah lassu" or "ah") end, "/wa ah [lassu] – aukcioshaz szkenneles (teljes vagy targyankent)")
+WA.Command("log", function() Status("log") end, "/wa log – harcnaplo be/ki")
+WA.Command("save", function() Status("save") end, "/wa save – mentes (/reload)")
+-- Plain /wa: the main window once UI.lua is loaded, else the status line.
+WA.Command("", function(msg) if WA.ToggleMain then WA.ToggleMain() else Status(msg) end end)

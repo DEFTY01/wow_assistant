@@ -43,6 +43,13 @@ function install() {
   }
   cpSync(join(root, "addon", ADDON), target, { recursive: true });
   console.log(`Addon telepítve: ${target}`);
+  // SessionBar and AzerothChronicle are part of WowAssistant since 2.0. Their folders get a shim
+  // that only keeps the old SavedVariables loaded, so the first login copies them over.
+  for (const old of ["SessionBar", "AzerothChronicle"]) {
+    const dir = join(WOW_DIR, "Interface", "AddOns", old);
+    cpSync(join(root, "addon", old), dir, { recursive: true });
+    console.log(`Átköltöztető shim: ${dir} (minden karakter első belépése után törölhető)`);
+  }
 }
 
 async function post(path, body) {
@@ -80,7 +87,9 @@ async function upload(file) {
     console.log("A fájlban még nincs adat.");
     return;
   }
-  const r = await post("/api/addon", db);
+  // Only the exporter data goes to the web app: the session bar, Chronicle and market tables
+  // (also in WowAssistantDB since addon 2.0) are read in game and by the Azeroth MCP bridge.
+  const r = await post("/api/addon", { version: db.version, last: db.last, chars: db.chars });
   console.log(
     `${new Date().toLocaleTimeString()} feltöltve → ${APP_URL}: ${r.money ?? "?"} copper, ${r.bagItems} féle tárgy a táskákban, ` +
       `${r.bankItems} a bankban, ${r.trainerSkills} trainer skill`,

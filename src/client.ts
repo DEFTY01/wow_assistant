@@ -1,5 +1,13 @@
 import { html } from "hono/html";
-import addonLua from "../addon/WowAssistant/WowAssistant.lua";
+import chronicleShim from "../addon/AzerothChronicle/Shim.lua";
+import chronicleToc from "../addon/AzerothChronicle/AzerothChronicle.toc";
+import sessionShim from "../addon/SessionBar/Shim.lua";
+import sessionToc from "../addon/SessionBar/SessionBar.toc";
+import chronicle from "../addon/WowAssistant/Chronicle.lua";
+import core from "../addon/WowAssistant/Core.lua";
+import exporter from "../addon/WowAssistant/Exporter.lua";
+import session from "../addon/WowAssistant/Session.lua";
+import vendorCraft from "../addon/WowAssistant/VendorCraft.lua";
 import addonToc from "../addon/WowAssistant/WowAssistant.toc";
 import { parseCombatLog } from "../scripts/combat-log.mjs";
 import { parseSavedVariables } from "../scripts/lua-table.mjs";
@@ -11,7 +19,16 @@ import type { Html } from "./layout";
  * the Node uploader uses: both are self-contained, so their own source can be shipped as is.
  */
 export function clientScript(): string {
-  const addon = { "WowAssistant.toc": addonToc, "WowAssistant.lua": addonLua };
+  // Folder -> files. The generated data files (Recipes.lua, ...) are not in the bundle: they are
+  // built locally (npm run addon:recipes) and an install here leaves them in place.
+  const addon = {
+    WowAssistant: {
+      "WowAssistant.toc": addonToc, "Core.lua": core, "Exporter.lua": exporter, "VendorCraft.lua": vendorCraft,
+      "Session.lua": session, "Chronicle.lua": chronicle,
+    },
+    SessionBar: { "SessionBar.toc": sessionToc, "Shim.lua": sessionShim },
+    AzerothChronicle: { "AzerothChronicle.toc": chronicleToc, "Shim.lua": chronicleShim },
+  };
   return [
     "(async () => {",
     '"use strict";',

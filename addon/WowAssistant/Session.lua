@@ -1,7 +1,9 @@
--- SessionBar: kompakt session sáv (idő, XP, arany) WoW Forever / Retail kliensre.
+-- SessionBar (a WoW Assistant modulja): kompakt session sáv (idő, XP, arany) WoW Forever / Retail kliensre.
 -- Csak nem-harci adatot használ (pénz, XP, táska), így a Secret Values korlátozás nem érinti.
+-- Beállítások: WowAssistantDB.session, karakterenként: WowAssistantCharDB.session
+-- (a régi SessionBarDB / SessionBarCharDB tartalmát a Core.lua másolja át egyszer).
 
-local ADDON_NAME = ...
+local _, WA = ...
 
 ---------------------------------------------------------------------------
 -- Beállítások
@@ -1302,11 +1304,8 @@ end
 local ev = CreateFrame("Frame")
 local H = {}
 
-function H.ADDON_LOADED(name)
-  if name ~= ADDON_NAME then return end
-  SessionBarDB = SessionBarDB or {}
-  SessionBarCharDB = SessionBarCharDB or {}
-  db, charDB = SessionBarDB, SessionBarCharDB
+WA.onLoad[#WA.onLoad + 1] = function()
+  db, charDB = WA.db.session, WA.charDB.session
   charDB.history = charDB.history or {}
   charDB.goals = charDB.goals or {}
   if db.scale then bar:SetScale(db.scale) end
@@ -1607,9 +1606,7 @@ local function GoalCommand(args)
   Tick()
 end
 
-SLASH_SESSIONBAR1 = "/sbar"
-SLASH_SESSIONBAR2 = "/sessionbar"
-SlashCmdList.SESSIONBAR = function(msg)
+local function SessionCommand(msg)
   local args = {}
   for w in strtrim(msg or ""):lower():gmatch("%S+") do args[#args + 1] = w end
   local cmd, arg = args[1], args[2]
@@ -1677,3 +1674,9 @@ SlashCmdList.SESSIONBAR = function(msg)
     Print("/sbar lock | unlock | scale 0.5-2 | hide | show | autosummary on|off")
   end
 end
+WA.Session = { Command = SessionCommand }
+WA.SessionState = function() return session, charDB end
+WA.Command("sbar", SessionCommand, "/wa sbar goal | advice | zones | summary | history | reset | lock | unlock | scale | hide | show (régen /sbar)")
+SLASH_SESSIONBAR1 = "/sbar"
+SLASH_SESSIONBAR2 = "/sessionbar"
+SlashCmdList.SESSIONBAR = SessionCommand

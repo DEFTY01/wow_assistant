@@ -1,0 +1,3 @@
+-- Migration shim: SessionBar and Azeroth Chronicle are now part of WoW Assistant (/wa).
+-- This file does nothing; the TOC only declares the old SavedVariables so that WoW Assistant can
+-- copy them on each character's first login. The data is left untouched as a backup.

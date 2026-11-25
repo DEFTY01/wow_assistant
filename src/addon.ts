@@ -22,13 +22,40 @@ export interface AddonState {
   trainer?: Record<string, { name: string; rank: string; state: string; cost: number; level: number; tradeskill: boolean }>;
 }
 
+const slugPart = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+
+/**
+ * The character a slug ("defty-graveshade") means in WowAssistantDB.chars. Since addon 2.0 the
+ * keys are "Name-Realm", or "Name#id" when the client reported no realm (then the record's
+ * `realm` field is empty too, and the only Name#id record of that name is taken). Older uploads
+ * are keyed by the first name only.
+ */
+export function pickCharacter(chars: Record<string, Obj>, slug: string, last?: unknown): string | undefined {
+  const [first, ...rest] = slug.split("-");
+  const realm = slugPart(rest.join("-"));
+  const keys = Object.keys(chars);
+  const nameOf = (k: string) => String(chars[k]?.name ?? k.replace(/[-#].*$/, ""));
+  const exact = keys.find((k) => {
+    const dash = k.lastIndexOf("-");
+    const r = chars[k]?.realm ? String(chars[k].realm) : dash > 0 ? k.slice(dash + 1) : "";
+    return nameOf(k).toLowerCase() === first.toLowerCase() && realm !== "" && slugPart(r) === realm;
+  });
+  if (exact) return exact;
+  const sameName = keys.filter((k) => nameOf(k).toLowerCase() === first.toLowerCase());
+  const noRealm = sameName.filter((k) => k.includes("#"));
+  if (noRealm.length === 1) return noRealm[0];
+  const legacy = sameName.find((k) => !k.includes("-") && !k.includes("#"));
+  if (legacy) return legacy;
+  if (sameName.length === 1) return sameName[0];
+  if (typeof last === "string" && chars[last]) return last;
+  return keys[0];
+}
+
 /** Store what the in-game addon exported (the uploader script posts the parsed SavedVariables). */
 export async function importAddon(env: Env, db: Obj) {
   const chars = (db?.chars ?? {}) as Record<string, AddonState>;
-  const first = env.CHARACTER_SLUG.split("-")[0];
-  const key =
-    Object.keys(chars).find((k) => k.toLowerCase() === first) ?? (db.last as string) ?? Object.keys(chars)[0];
-  const c = chars[key];
+  const key = pickCharacter(chars, env.CHARACTER_SLUG, db?.last);
+  const c = key ? chars[key] : undefined;
   if (!c) throw new Error("Nincs karakteradat a feltöltésben");
 
   // Fights go to their own table; keep them out of the state blob.
