@@ -13,8 +13,8 @@ local UI = {}
 WA.UI = UI
 local G = WA.Game
 
-local W, H = 920, 600
-local CONTENT_W = W - 36
+local W, H = 960, 620
+local CONTENT_W = W - 66 -- set by Build from the style's margins
 local ROW_H = 16
 local TABLE_LIMIT = 60
 
@@ -79,7 +79,7 @@ end
 
 local function Text(parent, font)
   return Acquire("text", function()
-    local t = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    local t = parent:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
     t:SetJustifyH("LEFT")
     t:SetJustifyV("TOP")
     return t
@@ -92,88 +92,49 @@ local function Height(fs, fallback)
 end
 
 local function Build()
-  local f = CreateFrame("Frame", "WowAssistantMainFrame", UIParent, "BackdropTemplate")
-  f:SetSize(W, H)
-  f:SetPoint("CENTER")
-  f:SetFrameStrata("HIGH")
-  f:SetMovable(true)
-  f:EnableMouse(true)
-  f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", f.StartMoving)
-  f:SetScript("OnDragStop", f.StopMovingOrSizing)
-  f:SetClampedToScreen(true)
-  f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-  f:SetBackdropColor(0.05, 0.04, 0.03, 0.96)
-  f:SetBackdropBorderColor(0.45, 0.35, 0.15, 1)
-  tinsert(UISpecialFrames, "WowAssistantMainFrame")
+  local St = WA.Style
+  local f = St.Window("WowAssistantMainFrame", W, H, "WoW Assistant")
+  local inset = f.inset
+  CONTENT_W = W - 2 * inset - 30
+  f.who = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
+  if St.Wow() then f.who:SetPoint("TOPLEFT", inset + 4, -20) else f.who:SetPoint("LEFT", f.title, "RIGHT", 10, 0) end
 
-  local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  title:SetPoint("TOPLEFT", 10, -8)
-  title:SetText("WoW Assistant")
-  f.who = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  f.who:SetPoint("LEFT", title, "RIGHT", 10, 0)
-  local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-  close:SetPoint("TOPRIGHT", 2, 2)
-
-  local function Btn(text, w, x, y, onClick, anchor)
-    local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    b:SetSize(w, 20)
-    b:SetPoint(anchor or "TOPLEFT", x, y)
-    b:SetText(text)
-    b:SetScript("OnClick", onClick)
-    return b
+  f.tabs = St.Tabs(f, TABS, function(id) UI.Show(id) end)
+  local y = -(f.top + f.tabs.height)
+  -- the other windows of the addon, left
+  local x = inset
+  for _, b in ipairs({
+    { "Vendor", 80, function() if WA.VC then WA.VC.Toggle() end end },
+    { "Session sáv", 104, function()
+      local hidden = WA.db.session and WA.db.session.hidden
+      if WA.Session then WA.Session.Command(hidden and "show" or "hide") end
+    end },
+    { "Chronicle", 96, function() if WA.Chronicle then WA.Chronicle.Command("") end end },
+  }) do
+    local btn = St.Button(f, b[1], b[2], b[3])
+    btn:SetPoint("TOPLEFT", x, y)
+    x = x + b[2] + 4
   end
-  f.tabs = {}
-  for i, t in ipairs(TABS) do
-    f.tabs[t[1]] = Btn(t[2], 110, 10 + (i - 1) * 114, -28, function() UI.Show(t[1]) end)
-  end
-  -- the other windows of the addon
-  Btn("Vendor", 70, 10 + #TABS * 114 + 8, -28, function() if WA.VC then WA.VC.Toggle() end end)
-  Btn("Session sáv", 90, 10 + #TABS * 114 + 82, -28, function()
-    local hidden = WA.db.session and WA.db.session.hidden
-    if WA.Session then WA.Session.Command(hidden and "show" or "hide") end
-  end)
-  Btn("Chronicle", 80, 10 + #TABS * 114 + 176, -28, function() if WA.Chronicle then WA.Chronicle.Command("") end end)
+  -- filter and refresh, right
+  local refresh = St.Button(f, "Frissítés", 96, function() UI.Refresh() end)
+  refresh:SetPoint("TOPRIGHT", -inset, y)
+  local search = St.Search(f, "Szűrés:", 170, function(text) UI.filter = text UI.Draw() end)
+  search:SetPoint("RIGHT", refresh, "LEFT", -10, 0)
 
-  local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-  search:SetSize(130, 20)
-  search:SetPoint("TOPRIGHT", -112, -28)
-  search:SetAutoFocus(false)
-  search:SetScript("OnTextChanged", function(e) UI.filter = e:GetText() or "" UI.Draw() end)
-  search:SetScript("OnEscapePressed", function(e) e:ClearFocus() end)
-  local sl = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  sl:SetPoint("BOTTOMLEFT", search, "TOPLEFT", -4, 1)
-  sl:SetText("szűrés minden táblában")
-  Btn("Frissítés", 96, -12, -28, function() UI.Refresh() end, "TOPRIGHT")
-
-  local scroll = CreateFrame("ScrollFrame", nil, f)
-  scroll:SetPoint("TOPLEFT", 10, -58)
-  scroll:SetPoint("BOTTOMRIGHT", -14, 24)
-  local child = CreateFrame("Frame", nil, scroll)
-  child:SetSize(CONTENT_W, 10)
-  scroll:SetScrollChild(child)
-  scroll:EnableMouseWheel(true)
-  scroll:SetScript("OnMouseWheel", function(s, delta)
-    local max = math.max(0, (child.h or 0) - (tonumber(s:GetHeight()) or 0))
-    s:SetVerticalScroll(math.max(0, math.min(max, (tonumber(s:GetVerticalScroll()) or 0) - delta * 48)))
-    UI.UpdateScrollNote()
-  end)
-  f.scroll, f.child = scroll, child
-  f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  f.note:SetPoint("BOTTOMLEFT", 10, 7)
-  f.note:SetPoint("RIGHT", -10, 0)
+  local top = f.top + f.tabs.height + 30
+  f.scroll, f.child = St.Scroll(f, inset, top, inset, 26, CONTENT_W)
+  f.note = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
+  f.note:SetPoint("BOTTOMLEFT", inset, St.Wow() and 14 or 7)
+  f.note:SetPoint("RIGHT", -inset, 0)
   f.note:SetJustifyH("LEFT")
+  f.note:SetWordWrap(false)
   f:Hide()
   return f
 end
 
 function UI.UpdateScrollNote()
   if not frame then return end
-  local s = frame.scroll
-  local max = math.max(0, (frame.child.h or 0) - (tonumber(s:GetHeight()) or 0))
-  local at = tonumber(s:GetVerticalScroll()) or 0
-  local where = max <= 0 and "" or (at <= 0 and "görgess lefelé ▼" or (at >= max - 1 and "▲ az oldal vége" or "▲ görgess ▼"))
-  frame.note:SetText((UI.status or "") .. (where ~= "" and ("   ·   " .. where) or ""))
+  frame.note:SetText(UI.status or "")
 end
 
 ---------------------------------------------------------------------------
@@ -223,7 +184,7 @@ local function DrawTable(child, b, y)
     local h = Acquire("head", function()
       local btn = CreateFrame("Button", nil, child)
       btn:SetHeight(ROW_H)
-      btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      btn.text = btn:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormalSmall")
       btn.text:SetAllPoints()
       btn.text:SetWordWrap(false)
       return btn
@@ -231,7 +192,7 @@ local function DrawTable(child, b, y)
     h:SetWidth(c[2])
     h:SetPoint("TOPLEFT", child, "TOPLEFT", x, -y)
     h.text:SetJustifyH(c[3] or "LEFT")
-    h.text:SetText(c[1] .. ((s and s[1] == i) and (s[2] > 0 and " ▲" or " ▼") or ""))
+    h.text:SetText(c[1] .. ((s and s[1] == i) and (s[2] > 0 and " ↑" or " ↓") or ""))
     h:SetScript("OnClick", function()
       local cur = UI.sort[b.id]
       if cur and cur[1] == i then cur[2] = -cur[2]
@@ -256,7 +217,7 @@ local function DrawTable(child, b, y)
         if not self.itemId and not self.tip then return end
         GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
         if self.itemId then pcall(GameTooltip.SetItemByID, GameTooltip, self.itemId) end
-        if self.tip then GameTooltip:AddLine(self.tip, 1, 0.82, 0.5, true) end
+        if self.tip then GameTooltip:AddLine(WA.Fix(self.tip), 1, 0.82, 0.5, true) end
         GameTooltip:Show()
       end)
       btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -264,14 +225,16 @@ local function DrawTable(child, b, y)
     end)
     row:SetWidth(CONTENT_W)
     row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -y)
-    row.bg:SetShown(n % 2 == 0)
+    row.bg:SetShown(n % 2 == 0 or r.selected == true)
+    row.bg:SetColorTexture(1, 0.85, 0.5, r.selected and 0.22 or 0.04)
     row.itemId, row.tip = r.itemId, r.tip
+    row:SetScript("OnClick", r.onClick)
     local cells = r.cells or r
     local cx = 0
     for i, c in ipairs(b.cols) do
       local fs = row.cells[i]
       if not fs then
-        fs = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs = row:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
         fs:SetWordWrap(false)
         row.cells[i] = fs
       end
@@ -310,7 +273,7 @@ local function DrawChecks(child, b, y)
     local cb = Acquire("check", function()
       local btn = CreateFrame("CheckButton", nil, child, "UICheckButtonTemplate")
       btn:SetSize(20, 20)
-      btn.label = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      btn.label = btn:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
       btn.label:SetPoint("LEFT", btn, "RIGHT", 2, 0)
       btn.label:SetJustifyH("LEFT")
       btn.label:SetWordWrap(false)
@@ -331,7 +294,7 @@ local function DrawButtons(child, b, y)
   local x = 0
   for _, c in ipairs(b.buttons) do
     local btn = Acquire("button", function()
-      return CreateFrame("Button", nil, child, "UIPanelButtonTemplate")
+      return WA.Style.Button(child, "", 120)
     end)
     btn:SetSize(c.width or 120, 20)
     btn:SetPoint("TOPLEFT", child, "TOPLEFT", x, -y)
@@ -357,14 +320,14 @@ function UI.Draw()
   for _, b in ipairs(blocks) do
     if b.h then
       local t = Text(child)
-      t:SetFontObject(b.small and "GameFontNormalSmall" or "GameFontNormal")
+      t:SetFontObject(b.small and "WowAssistantFontNormal" or "WowAssistantFontHeader")
       t:SetWidth(CONTENT_W)
       t:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -(y + (b.small and 2 or 6)))
       t:SetText(b.h)
       y = y + (b.small and 18 or 24)
     elseif b.p then
       local t = Text(child)
-      t:SetFontObject("GameFontHighlightSmall")
+      t:SetFontObject("WowAssistantFontHighlightSmall")
       t:SetWidth(CONTENT_W)
       t:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -y)
       t:SetText(b.p)
@@ -382,7 +345,7 @@ function UI.Draw()
   end
   child.h = y + 10
   child:SetHeight(math.max(10, y + 10))
-  for id, b in pairs(frame.tabs) do b:SetEnabled(id ~= UI.tab) end
+  frame.tabs.Select(UI.tab)
   frame.who:SetText(("%s · %d. szint · %s"):format(WA.key or UnitName("player"), UnitLevel("player"), Money(GetMoney())))
   UI.UpdateScrollNote()
 end
@@ -411,9 +374,10 @@ function UI.Toggle()
 end
 WA.ToggleMain = UI.Toggle
 
--- A new fight from the damage meter: the combat page is out of date.
+-- A fight was just recorded: show it (the newest one is selected again).
 function WA.OnFight()
   UI.cache.combat, UI.cache.plan, UI.cache.gear = nil, nil, nil
+  UI.selFight = nil
   if frame and frame:IsShown() and (UI.tab == "combat") then UI.Draw() end
 end
 
@@ -547,46 +511,109 @@ function UI.pages.plan()
   return out
 end
 
+local GRADE_COLOR = { S = "ff8000", A = "a335ee", B = "0070dd", C = "1eff00", D = "9d9d9d" }
+local function Grade(sc)
+  if not sc then return "–" end
+  return ("|cff%s%d (%s)|r"):format(GRADE_COLOR[sc.grade] or "ffffff", sc.total, sc.grade)
+end
+local SOURCE_NAME = { log = "harcnapló", live = "játékban", meter = "damage meter" }
+local function Clock(ds) -- deciseconds -> m:ss.d
+  local s = (ds or 0) / 10
+  return ("%d:%04.1f"):format(math.floor(s / 60), s % 60)
+end
+
+local function AbilityRows(list, damage)
+  local rows = {}
+  for _, a in ipairs(list) do
+    local n = tonumber(a.n) or 0
+    local landed = (a.hit or 0) + (a.crit or 0) + (a.glance or 0)
+    local function R(x) return n > 0 and (x or 0) / n * 100 or nil end
+    rows[#rows + 1] = { a.name, Cell(Pct(damage > 0 and a.dmg / damage * 100 or 0), a.dmg), Cell(a.dmg, a.dmg), Cell(n, n),
+      Cell(landed > 0 and math.floor(a.dmg / landed + 0.5) or "–", landed > 0 and a.dmg / landed or 0), Cell(a.max or 0, a.max or 0),
+      Cell(landed > 0 and Pct(a.crit / landed * 100) or "–", landed > 0 and a.crit / landed or -1),
+      Cell(n > 0 and Pct(R(a.miss)) or "–", R(a.miss) or -1), Cell(n > 0 and Pct(R(a.dodge)) or "–", R(a.dodge) or -1),
+      Cell(n > 0 and Pct(R(a.parry)) or "–", R(a.parry) or -1), Cell(n > 0 and Pct(R(a.glance)) or "–", R(a.glance) or -1) }
+  end
+  return rows
+end
+local ABILITY_COLS = { { "Képesség", 180 }, { "Arány", 56, "RIGHT" }, { "Sebzés", 66, "RIGHT" },
+  { "Db", 44, "RIGHT" }, { "Átlag", 50, "RIGHT" }, { "Max", 50, "RIGHT" }, { "Crit", 56, "RIGHT" }, { "Miss", 56, "RIGHT" },
+  { "Dodge", 56, "RIGHT" }, { "Parry", 56, "RIGHT" }, { "Glancing", 60, "RIGHT" } }
+
 function UI.pages.combat()
   local all = G.Fights()
-  local r = WA.Combat.Report(all)
+  table.sort(all, function(a, b) return a.start > b.start end)
   local out = {}
-  local meter = 0
-  for _, f in ipairs(all) do if f.source == "meter" then meter = meter + 1 end end
-  UI.status = ("%d harc: %d a harcnaplóból (feltöltő), %d a damage meterből"):format(#all, #all - meter, meter)
-  if not r then
+  local counts = { log = 0, live = 0, meter = 0 }
+  for _, f in ipairs(all) do counts[f.source or "log"] = (counts[f.source or "log"] or 0) + 1 end
+  UI.status = ("%d harc: %d játékban rögzítve, %d a harcnaplóból"):format(#all, counts.live + counts.meter, counts.log)
+  if #all == 0 then
     out[#out + 1] = { h = "Harc" }
-    out[#out + 1] = { p = "Még nincs rögzített harc. Kapcsold be a harcnaplót (/wa log), és fusson a feltöltő " ..
-      "(node scripts/uploader.mjs): a harcokat a Fights.lua-ba írja, amit a játék /reload után lát. " ..
-      (C_DamageMeter and "A kliens damage meteréből is jönnek harcok, de csak összesítve." or "") }
+    out[#out + 1] = { p = "Még nincs rögzített harc. Az addon minden harcot magától rögzít: üss meg egy mobot, és a harc vége után itt lesz." }
     return out
   end
-  out[#out + 1] = { h = ("Harc – %d harc, %d perc, átlag %s DPS"):format(r.fights, math.floor(r.seconds / 60 + 0.5), F1(r.dps)) }
-  if r.energyCappedPct then out[#out + 1] = { p = ("Energiaplafonon töltött idő: %s"):format(Pct(r.energyCappedPct)) } end
-  if meter > 0 then
-    out[#out + 1] = { p = "|cff888888A damage meterből jött harcokban nincs találati statisztika: a táblák arányait csak a harcnapló harcai adják.|r" }
+  local ctx = G.IsRogue() and G.Context() or nil
+  local baseline = ctx and ctx.baseline or nil
+
+  -- the selected fight (the newest by default)
+  local f = all[1]
+  for _, x in ipairs(all) do if x.start == UI.selFight then f = x end end
+  local sc = WA.Combat.Score(f, baseline)
+  out[#out + 1] = { h = ("%s%s – %s, %s mp"):format(f.target or "?", (f.targetLevel or 0) > 0 and (" (" .. f.targetLevel .. ")") or "",
+    date("%m.%d %H:%M", f.start), F1(f.dur)) }
+  out[#out + 1] = { p = ("Pontszám: %s   ·   %s DPS   ·   %d sebzés   ·   forrás: %s%s"):format(Grade(sc), F1(f.dur > 0 and f.dmg / f.dur or 0),
+    f.dmg or 0, SOURCE_NAME[f.source or "log"] or "?", (f.source == "live" and not f.detailed) and
+      " |cff888888(találati arányok nélkül: a célpont ütéseit csak egyedül játszva számolja)|r" or "") }
+  if sc then
+    local rows = {}
+    for _, p in ipairs(sc.parts) do
+      rows[#rows + 1] = { p.label, Cell(("%d / %d"):format(math.floor(p.points + 0.5), p.max), p.points / p.max), p.text }
+    end
+    out[#out + 1] = { table = { id = "combat.score", cols = { { "Mi számít", 200 }, { "Pont", 70, "RIGHT" }, { "Részletek", 560 } }, rows = rows } }
   end
+  local ab = {}
+  for _, a in ipairs(f.ab or {}) do ab[#ab + 1] = a end
+  WA.Model.Stable(ab, function(a, b) return (a.dmg or 0) > (b.dmg or 0) end)
+  out[#out + 1] = { h = "Képességek ebben a harcban", small = true }
+  out[#out + 1] = { table = { id = "combat.fab", cols = ABILITY_COLS, rows = AbilityRows(ab, f.dmg or 0) } }
+  if f.casts and #f.casts > 0 then
+    out[#out + 1] = { h = "Mikor mit használtál", small = true }
+    local rows = {}
+    for i, c in ipairs(f.casts) do
+      rows[#rows + 1] = { Cell(Clock(c[1]), c[1]), c[2], Cell((c[3] or -1) >= 0 and c[3] or "–", c[3] or -1),
+        Cell((c[4] or 0) > 0 and c[4] or "", c[4] or 0), Cell(i, i) }
+    end
+    out[#out + 1] = { table = { id = "combat.casts", cols = { { "Idő", 70 }, { "Képesség", 200 }, { "Energia", 70, "RIGHT" },
+      { "Combo", 60, "RIGHT" }, { "#", 40, "RIGHT" } }, rows = rows, limit = 80 } }
+  end
+
+  -- every fight
+  out[#out + 1] = { h = "Harcok (kattints egyre a részleteihez)" }
+  local list = {}
+  for i = 1, math.min(40, #all) do
+    local x = all[i]
+    local s2 = WA.Combat.Score(x, baseline)
+    list[#list + 1] = { cells = { Cell(date("%m.%d %H:%M", x.start), x.start), (x.target or "?") .. ((x.targetLevel or 0) > 0 and (" (" .. x.targetLevel .. ")") or ""),
+      Cell(F1(x.dur) .. " mp", x.dur), Cell(F1(x.dur > 0 and x.dmg / x.dur or 0), x.dur > 0 and x.dmg / x.dur or 0),
+      Cell(Grade(s2), s2 and s2.total or -1), SOURCE_NAME[x.source or "log"] or "?" },
+      selected = x == f, onClick = function() UI.selFight = x.start UI.cache.combat = nil UI.Draw() end }
+  end
+  out[#out + 1] = { table = { id = "combat.list", cols = { { "Mikor", 90 }, { "Célpont", 220 }, { "Hossz", 70, "RIGHT" },
+    { "DPS", 60, "RIGHT" }, { "Pont", 70, "RIGHT" }, { "Forrás", 100 } }, rows = list } }
+
+  -- all fights together (the web app's combat page)
+  local r = WA.Combat.Report(all)
+  if not r then return out end
+  out[#out + 1] = { h = ("Összesítve – %d harc, %d perc, átlag %s DPS"):format(r.fights, math.floor(r.seconds / 60 + 0.5), F1(r.dps)) }
+  if r.energyCappedPct then out[#out + 1] = { p = ("Energiaplafonon töltött idő: %s"):format(Pct(r.energyCappedPct)) } end
   if #r.advice > 0 then
-    out[#out + 1] = { h = "Tanácsok", small = true }
     local COLOR = { fix = "ff6060", tip = "ffd100", info = "aaaaaa" }
     for _, a in ipairs(r.advice) do
       out[#out + 1] = { p = ("|cff%s%s|r – %s"):format(COLOR[a.level] or "ffffff", a.title, a.text) }
     end
   end
-  out[#out + 1] = { h = "Képességek", small = true }
-  local rows = {}
-  for _, a in ipairs(r.abilities) do
-    local landed = a.hit + a.crit + a.glance
-    rows[#rows + 1] = { a.name, Cell(Pct(a.share), a.share), Cell(a.dmg, a.dmg), Cell(a.n, a.n), Cell(math.floor(a.avg + 0.5), a.avg),
-      Cell(a.max, a.max), Cell(Pct(landed > 0 and a.crit / landed * 100 or 0), landed > 0 and a.crit / landed or 0),
-      Cell(Pct(a.n > 0 and a.miss / a.n * 100 or 0), a.n > 0 and a.miss / a.n or 0),
-      Cell(Pct(a.n > 0 and a.dodge / a.n * 100 or 0), a.n > 0 and a.dodge / a.n or 0),
-      Cell(Pct(a.n > 0 and a.parry / a.n * 100 or 0), a.n > 0 and a.parry / a.n or 0),
-      Cell(Pct(a.n > 0 and a.glance / a.n * 100 or 0), a.n > 0 and a.glance / a.n or 0) }
-  end
-  out[#out + 1] = { table = { id = "combat.ab", cols = { { "Képesség", 180 }, { "Arány", 56, "RIGHT" }, { "Sebzés", 66, "RIGHT" },
-    { "Db", 48, "RIGHT" }, { "Átlag", 48, "RIGHT" }, { "Max", 48, "RIGHT" }, { "Crit", 56, "RIGHT" }, { "Miss", 56, "RIGHT" },
-    { "Dodge", 56, "RIGHT" }, { "Parry", 56, "RIGHT" }, { "Glancing", 60, "RIGHT" } }, rows = rows } }
+  out[#out + 1] = { h = "Képességek, minden harc", small = true }
+  out[#out + 1] = { table = { id = "combat.ab", cols = ABILITY_COLS, rows = AbilityRows(r.abilities, r.damage) } }
   out[#out + 1] = { p = ("Auto-attack: %s miss, %s dodge, %s glancing, %s crit · képességek: %s miss, %s crit")
     :format(Pct(r.white.miss), Pct(r.white.dodge), Pct(r.white.glance), Pct(r.white.crit), Pct(r.yellow.miss), Pct(r.yellow.crit)) }
   if #r.finishers > 0 or #r.auras > 0 then
@@ -605,15 +632,12 @@ function UI.pages.combat()
     out[#out + 1] = { table = { id = "combat.lvl", cols = { { "Szintkülönbség", 110 }, { "Harc", 60, "RIGHT" }, { "DPS", 70, "RIGHT" },
       { "Fehér miss", 80, "RIGHT" } }, rows = rows3 } }
   end
-  out[#out + 1] = { h = "Legutóbbi harcok", small = true }
-  local rows4 = {}
-  for _, f in ipairs(r.recent) do
-    rows4[#rows4 + 1] = { Cell(date("%m.%d %H:%M", f.start), f.start), f.target .. ((f.targetLevel or 0) > 0 and (" (" .. f.targetLevel .. ")") or ""),
-      Cell(F1(f.dur) .. " mp", f.dur), Cell(F1(f.dps), f.dps), f.source == "meter" and "damage meter" or "harcnapló" }
-  end
-  out[#out + 1] = { table = { id = "combat.recent", cols = { { "Mikor", 90 }, { "Célpont", 220 }, { "Hossz", 70, "RIGHT" },
-    { "DPS", 60, "RIGHT" }, { "Forrás", 100 } }, rows = rows4 } }
   return out
+end
+
+local function Weapon(w)
+  if type(w) ~= "table" or not w.min then return "–" end
+  return ("%d–%d / %.1f"):format(w.min, w.max or w.min, w.speed or 0)
 end
 
 function UI.pages.gear()
@@ -625,7 +649,7 @@ function UI.pages.gear()
     g.measuredDps and (", mért " .. F1(g.measuredDps)) or "") }
   local sh = g.sheet
   out[#out + 1] = { p = ("AP %d · crit %s · hit %s · főkéz %s · balkéz %s"):format(sh.ap or 0, Pct(sh.crit), Pct(sh.hit),
-    sh.mh and ("%d–%d / %.1f"):format(sh.mh[1], sh.mh[2], sh.mh[3]) or "–", sh.oh and ("%d–%d / %.1f"):format(sh.oh[1], sh.oh[2], sh.oh[3]) or "–") }
+    Weapon(sh.mh), Weapon(sh.oh)) }
   if not WowAssistantData then Warn(out, { "Hiányzik a GameData.lua (dungeon loot): node scripts/build-addon-recipes.mjs --install" }) end
 
   out[#out + 1] = { h = "Buffok és fogyóeszközök a számításban", small = true }

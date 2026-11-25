@@ -59,11 +59,18 @@ A főablak fülei ugyanazt számolják, mint a webapp, ugyanazzal a kóddal Lua-
 A táblák a fejlécükre kattintva rendezhetők, a keresőmező minden tábla sorait szűri. A karakter
 adatait (statok, felszerelés, táska, szakmák, pénz) élőben olvassa; az árakat a `/wa ah` szkenből.
 
-A harcokhoz az addon nem olvashatja a harcnaplót, ezért a feltöltő a feldolgozott harcokat
-beleírja a játék addon-mappájába (`WowAssistant/Fights.lua`); a játék ezt belépéskor vagy `/reload`
-után látja. A kliens damage meteréből is jönnek harcok (harc után kiolvasva, mert harc közben a
-számai titkosak), de ezekben nincs találati statisztika, ezért a sebzésmodellt nem kalibrálják
-(`/wa meter` mutatja, mit ad a kliens).
+**Harc:** az addon minden harcot magától rögzít, ahogy a Details: mikor mit használtál (idő,
+energia, combo pont), képességenként a találatokat (hit, crit, glancing, miss, dodge, parry – ezeket
+a célpont ütéseiből, csak egyedül játszva), az energiaplafont és a buffokat. Harc után a kliens damage
+meteréből jön a pontos sebzés képességenként, és a harc pontszámot kap (0–100, S–D): DPS a
+felszerelésedtől várthoz képest, kárba ment energia, Eviscerate combo pontjai, Slice and Dice
+uptime, képességek percenként. A Harc fülön bármelyik harcra rákattintva látod a részleteit.
+A feltöltő a harcnaplóból feldolgozott harcokat is beleírja a játék addon-mappájába
+(`WowAssistant/Fights.lua`; belépéskor vagy `/reload` után látszik). `/wa meter` mutatja, mit ad a kliens.
+
+**Kinézet:** alapból játékbeli ablakok (kő háttér, díszes keret, fülek alul); `/wa style flat` a
+letisztult, Daylight UI-szerű változat, `/wa style wow` vissza (utána `/reload`). A játék betűi
+között nincs ő és ű, ezért az addon saját betűkészlettel jön (Fira Sans, Cinzel – `Fonts/`, SIL OFL).
 
 A recept-, loot- és buffadat generált fájlokból jön, amelyek nincsenek a gitben:
 `npm run addon:recipes` készíti el és telepíti őket (`Recipes.lua`, `GameData.lua`).

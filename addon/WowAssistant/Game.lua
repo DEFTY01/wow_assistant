@@ -242,7 +242,8 @@ function G.CombatReport(forModel)
   local list = G.Fights()
   if forModel then
     local detailed = {}
-    for _, f in ipairs(list) do if f.source ~= "meter" or f.detailed then detailed[#detailed + 1] = f end end
+    -- log fights always; in-game fights only with hit counts (the damage meter alone has none)
+    for _, f in ipairs(list) do if (f.source ~= "meter" and f.source ~= "live") or f.detailed then detailed[#detailed + 1] = f end end
     list = detailed
   end
   return WA.Combat.Report(list)

@@ -99,7 +99,7 @@ local lootSlots = {}
 ---------------------------------------------------------------------------
 -- Segédfüggvények
 ---------------------------------------------------------------------------
-local function Print(msg) print("|cff33ccffSessionBar|r: " .. msg) end
+local function Print(msg) print("|cff33ccffSessionBar|r: " .. WA.Fix(msg)) end
 
 local function Icon(path, size)
   size = size or 14
@@ -911,7 +911,7 @@ bar:SetBackdropColor(0, 0, 0, 0.6)
 bar:SetBackdropBorderColor(0, 0, 0, 0.9)
 bar:Hide()
 
-bar.text = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+bar.text = bar:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
 bar.text:SetPoint("LEFT", 6, 0)
 
 -- Vékony cél-csíkok a sáv alján (arany: sárga, szint: lila).
@@ -943,7 +943,7 @@ local function CreateSpark(parent, template)
   for si, d in ipairs(defs) do
     local top = -2 - (si - 1) * SPARK_BLOCK
     local s = { key = d.key, title = d.title, color = d, bars = {} }
-    s.label = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+    s.label = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
     s.label:SetPoint("TOPLEFT", 8, top)
     for i = 1, SPARK_N do
       local t = f:CreateTexture(nil, "ARTWORK")
@@ -1040,7 +1040,7 @@ local function UpdatePanel()
       nn = nn + 1
       local fs = panel.notes[nn]
       if not fs then
-        fs = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        fs = panel:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
         fs:SetJustifyH("LEFT")
         fs:SetTextColor(0.8, 0.8, 0.8)
         panel.notes[nn] = fs
@@ -1052,8 +1052,8 @@ local function UpdatePanel()
       local row = panel.rows[nr]
       if not row then
         row = {
-          l = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"),
-          r = panel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall"),
+          l = panel:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall"),
+          r = panel:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall"),
         }
         row.r:SetJustifyH("RIGHT")
         panel.rows[nr] = row
@@ -1116,11 +1116,11 @@ local function ShowTooltip()
   GameTooltip:SetOwner(bar, "ANCHOR_BOTTOM")
   for _, r in ipairs(BuildRows(false)) do
     if r[3] == "h" then
-      GameTooltip:AddLine(r[1], 1, 0.82, 0)
+      GameTooltip:AddLine(WA.Fix(r[1]), 1, 0.82, 0)
     elseif r[3] == "n" then
-      GameTooltip:AddLine(r[1], 0.8, 0.8, 0.8, true)
+      GameTooltip:AddLine(WA.Fix(r[1]), 0.8, 0.8, 0.8, true)
     else
-      GameTooltip:AddDoubleLine(r[1], r[2], 0.85, 0.85, 0.85, 1, 1, 1)
+      GameTooltip:AddDoubleLine(WA.Fix(r[1]), WA.Fix(r[2]), 0.85, 0.85, 0.85, 1, 1, 1)
     end
   end
   GameTooltip:AddLine(" ")

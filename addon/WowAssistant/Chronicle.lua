@@ -36,7 +36,7 @@ local panel
 ---------------------------------------------------------------------------
 -- helpers
 ---------------------------------------------------------------------------
-local function Print(msg) print("|cffc0a060Azeroth Chronicle|r: " .. msg) end
+local function Print(msg) print("|cffc0a060Azeroth Chronicle|r: " .. WA.Fix(msg)) end
 
 local function Now() return (GetServerTime and GetServerTime()) or time() end
 local function WeekKey(ts) return math.floor(((ts or Now()) - WEEK_OFFSET) / WEEK) end
@@ -264,7 +264,7 @@ local function BuildPanel()
   f.cat = db.lastCategory or "xp"
   f.view = "guild"
 
-  f.title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  f.title = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormal")
   f.title:SetPoint("TOPLEFT", 10, -8)
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
   close:SetPoint("TOPRIGHT", 2, 2)
@@ -301,24 +301,24 @@ local function BuildPanel()
     Request()
     f:Refresh()
   end)
-  f.footer = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+  f.footer = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
   f.footer:SetPoint("BOTTOMRIGHT", -10, 10)
 
   f.rows = {}
   for i = 1, ROWS do
     local r = {}
     local y = -54 - (i - 1) * 18
-    r.rank = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    r.rank = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
     r.rank:SetPoint("TOPLEFT", 12, y)
     r.rank:SetWidth(22)
     r.rank:SetJustifyH("RIGHT")
-    r.name = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    r.name = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
     r.name:SetPoint("TOPLEFT", 40, y)
     r.name:SetWidth(190)
     r.name:SetJustifyH("LEFT")
-    r.level = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    r.level = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
     r.level:SetPoint("TOPLEFT", 235, y)
-    r.value = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+    r.value = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
     r.value:SetPoint("TOPRIGHT", -12, y)
     r.value:SetJustifyH("RIGHT")
     f.rows[i] = r

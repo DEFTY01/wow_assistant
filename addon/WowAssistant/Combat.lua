@@ -187,3 +187,56 @@ function C.Advise(r, fights)
   end
   return out
 end
+
+-- Score of one fight, 0-100, from what a rogue controls. `baseline` is the damage model's
+-- expected DPS for your gear (nil when the model has none: then that part is left out and the
+-- rest is scaled up). Parts: { key, label, points, max, text }.
+local GRADES = { { 90, "S" }, { 80, "A" }, { 65, "B" }, { 50, "C" }, { 0, "D" } }
+function C.Score(f, baseline)
+  local parts = {}
+  local function Part(key, label, got, max, text) parts[#parts + 1] = { key = key, label = label, points = got, max = max, text = text } end
+  local dur = f.dur or 0
+  local dps = dur > 0 and (f.dmg or 0) / dur or 0
+  if baseline and baseline > 0 then
+    local ratio = dps / baseline
+    Part("dps", "DPS a várthoz képest", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS, a felszerelésedtől várt %d %d%%-a"):format(
+      math.floor(dps + 0.5), math.floor(baseline + 0.5), math.floor(ratio * 100 + 0.5)))
+  end
+  if (f.samples or 0) > 0 then
+    local pct = (f.capped or 0) / f.samples * 100
+    Part("energy", "Energia nem megy kárba", (1 - math.min(pct / 20, 1)) * 20, 20, ("az idő %s%%-ában volt tele az energiád"):format(F1(pct)))
+  end
+  local fin, cps, evis, evisCp = 0, 0, 0, 0
+  local casts = f.casts or {}
+  for _, c in ipairs(casts) do
+    if FINISHERS[c[2]] then
+      fin, cps = fin + 1, cps + (tonumber(c[4]) or 0)
+      if c[2] == "Eviscerate" then evis, evisCp = evis + 1, evisCp + (tonumber(c[4]) or 0) end
+    end
+  end
+  if evis > 0 then
+    local avg = evisCp / evis
+    Part("finisher", "Eviscerate elég combo ponttal", math.max(0, math.min((avg - 2) / 3, 1)) * 20, 20,
+      ("%d Eviscerate, átlag %s combo ponttal"):format(evis, F1(avg)))
+  elseif fin > 0 then
+    Part("finisher", "Finisherek", 15, 20, ("%d finisher, átlag %s combo ponttal"):format(fin, F1(cps / fin)))
+  end
+  if dur >= 15 then
+    local snd = 0
+    for _, a in ipairs(f.auras or {}) do if a[1] == "Slice and Dice" then snd = a[2] end end
+    local pct = math.min(100, snd / dur * 100)
+    Part("snd", "Slice and Dice fent", math.min(pct / 60, 1) * 10, 10, ("a harc %d%%-ában"):format(math.floor(pct + 0.5)))
+  end
+  if dur >= 6 and #casts > 0 then
+    local perMin = #casts / dur * 60
+    Part("active", "Folyamatos ütés", math.min(perMin / 12, 1) * 10, 10, ("%s képesség percenként"):format(F1(perMin)))
+  end
+  local got, max = 0, 0
+  for _, p in ipairs(parts) do got, max = got + p.points, max + p.max end
+  if max == 0 then return nil end
+  local total = math.floor(got / max * 100 + 0.5)
+  local grade = "D"
+  for _, g in ipairs(GRADES) do if total >= g[1] then grade = g[2] break end end
+  return { total = total, grade = grade, parts = parts, dps = dps }
+end
+

@@ -13,7 +13,7 @@ local Print = WA.Print
 -- Important progress also goes to the middle of the screen, where it cannot be missed.
 local function Announce(msg)
   Print(msg)
-  if UIErrorsFrame and UIErrorsFrame.AddMessage then UIErrorsFrame:AddMessage("WoW Assistant: " .. msg, 1, 0.82, 0.25) end
+  if UIErrorsFrame and UIErrorsFrame.AddMessage then UIErrorsFrame:AddMessage("WoW Assistant: " .. WA.Fix(msg), 1, 0.82, 0.25) end
 end
 
 -- Run one scan; a failure is stored for the web app instead of breaking the others.

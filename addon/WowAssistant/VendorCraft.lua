@@ -26,7 +26,7 @@ local GIVE_UP_AFTER = 25
 local ROWS = 14
 local SOURCE = { ["2"] = "drop", ["4"] = "quest", ["5"] = "receptárus", ["6"] = "tréner", ["7"] = "felfedezés" }
 
-local function Print(msg) DEFAULT_CHAT_FRAME:AddMessage("|cfff0c040WoW Assistant:|r " .. msg) end
+local function Print(msg) WA.Print(msg) end
 
 ---------------------------------------------------------------------------
 -- data
@@ -473,95 +473,69 @@ local function Signed(c)
 end
 
 local COLS = {
-  { "Recept", 210, "LEFT" }, { "Termék · vendorár", 170, "LEFT" }, { "1. darab", 78, "RIGHT" },
-  { "Átlagáron", 78, "RIGHT" }, { "Adag", 50, "RIGHT" }, { "Befektetés", 82, "RIGHT" }, { "Haszon", 82, "RIGHT" },
+  { "Recept", 214, "LEFT" }, { "Termék · vendorár", 176, "LEFT" }, { "1. darab", 78, "RIGHT" },
+  { "Átlagáron", 78, "RIGHT" }, { "Adag", 50, "RIGHT" }, { "Befektetés", 84, "RIGHT" }, { "Haszon", 84, "RIGHT" },
 }
+local W = 820
 
-local function ProfLabel()
-  local p = VC.filter.prof
-  if p == "mine" then return "Szakma: enyém" end
-  if p == "all" then return "Szakma: mind" end
-  return "Szakma: " .. (R.professions[p] or p)
-end
-
-local function CycleProf()
-  local order = { "mine", "all" }
+-- Dropdown choices.
+local function ProfItems()
+  local list = { { "mine", "Saját szakmáim" }, { "all", "Minden szakma" } }
   local ids = {}
   for id in pairs(R.professions) do ids[#ids + 1] = id end
   table.sort(ids, function(a, b) return R.professions[a] < R.professions[b] end)
-  for _, id in ipairs(ids) do order[#order + 1] = id end
-  for i, v in ipairs(order) do
-    if v == VC.filter.prof then VC.filter.prof = order[i % #order + 1] return end
-  end
-  VC.filter.prof = "mine"
+  for _, id in ipairs(ids) do list[#list + 1] = { id, R.professions[id] } end
+  return list
+end
+local function SkillItems()
+  return { { "current", "Amit most tudok (skill)" }, { "max", "Minden recept 300-ig" } }
 end
 
 local function Build()
-  local f = CreateFrame("Frame", "WowAssistantVendorFrame", UIParent, "BackdropTemplate")
-  f:SetSize(800, 160 + ROWS * 18 + 120)
-  f:SetFrameStrata("HIGH")
-  f:SetMovable(true)
-  f:EnableMouse(true)
-  f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", f.StartMoving)
-  f:SetScript("OnDragStop", f.StopMovingOrSizing)
-  f:SetClampedToScreen(true)
-  f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-  f:SetBackdropColor(0.05, 0.04, 0.03, 0.95)
-  f:SetBackdropBorderColor(0.45, 0.35, 0.15, 1)
-  tinsert(UISpecialFrames, "WowAssistantVendorFrame")
+  local St = WA.Style
+  local f = St.Window("WowAssistantVendorFrame", W, 0, "Mit érdemes legyártani vendornak")
+  local inset = f.inset
+  local y0 = -f.top
+  f:SetHeight(f.top + 70 + ROWS * 18 + 118)
   f.offset, f.sel = 0, nil
 
-  local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  title:SetPoint("TOPLEFT", 10, -8)
-  title:SetText("WoW Assistant – mit érdemes legyártani vendornak")
-  local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-  close:SetPoint("TOPRIGHT", 2, 2)
-
-  local function Btn(text, w, x, y, onClick)
-    local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    b:SetSize(w, 20)
-    b:SetPoint("TOPLEFT", x, y)
-    b:SetText(text)
-    b:SetScript("OnClick", onClick)
-    return b
-  end
-  f.profBtn = Btn(ProfLabel(), 150, 10, -30, function() CycleProf() dirty = true VC.Refresh() end)
-  f.skillBtn = Btn("", 150, 164, -30, function()
-    VC.filter.skill = VC.filter.skill == "current" and "max" or "current"
+  -- filters: profession, skill, known only, search
+  f.prof = St.Dropdown(f, 190, ProfItems, function() return VC.filter.prof end, function(v)
+    VC.filter.prof = v
+    if v ~= "mine" and type(v) ~= "number" then VC.filter.skill = "max" end
     dirty = true
     VC.Refresh()
   end)
-  local known = CreateFrame("CheckButton", nil, f, "UICheckButtonTemplate")
-  known:SetSize(22, 22)
-  known:SetPoint("TOPLEFT", 320, -29)
-  known:SetScript("OnClick", function(b) VC.filter.known = b:GetChecked() and true or false dirty = true VC.Refresh() end)
-  local kl = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  kl:SetPoint("LEFT", known, "RIGHT", 0, 0)
-  kl:SetText("csak amit ismerek")
-  local search = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
-  search:SetSize(150, 20)
-  search:SetPoint("TOPLEFT", 470, -30)
-  search:SetAutoFocus(false)
-  search:SetScript("OnTextChanged", function(e) VC.filter.text = e:GetText() dirty = true VC.Refresh() end)
-  search:SetScript("OnEscapePressed", function(e) e:ClearFocus() end)
-  local sl = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  sl:SetPoint("BOTTOMLEFT", search, "TOPLEFT", 0, 1)
-  sl:SetText("keresés")
-  f.status = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  f.status:SetPoint("TOPRIGHT", -12, -34)
-  f.status:SetJustifyH("RIGHT")
+  f.prof:SetPoint("TOPLEFT", inset - (f.prof.SetupMenu and 0 or 14), y0)
+  f.skill = St.Dropdown(f, 190, SkillItems, function() return VC.filter.skill end, function(v)
+    VC.filter.skill = v
+    dirty = true
+    VC.Refresh()
+  end)
+  f.skill:SetPoint("LEFT", f.prof, "RIGHT", f.prof.SetupMenu and 8 or -16, 0)
+  local known = St.Check(f, "csak amit ismerek", function(on) VC.filter.known = on dirty = true VC.Refresh() end)
+  known:SetPoint("LEFT", f.skill, "RIGHT", f.skill.SetupMenu and 10 or -6, 0)
+  local search = St.Search(f, "Keresés:", 150, function(text) VC.filter.text = text dirty = true VC.Refresh() end)
+  search:SetPoint("TOPRIGHT", -inset, y0 - 2)
+
+  f.status = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
+  f.status:SetPoint("TOPLEFT", inset, y0 - 30)
+  f.status:SetPoint("RIGHT", -inset, 0)
+  f.status:SetJustifyH("LEFT")
+  f.status:SetWordWrap(false)
 
   -- column headers: click to sort
-  local x = 10
+  local x = inset
+  local headY = y0 - 48
   f.heads = {}
   for i, c in ipairs(COLS) do
     local h = CreateFrame("Button", nil, f)
     h:SetSize(c[2], 18)
-    h:SetPoint("TOPLEFT", x, -58)
-    local t = h:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    h:SetPoint("TOPLEFT", x, headY)
+    local t = h:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormalSmall")
     t:SetAllPoints()
     t:SetJustifyH(c[3])
+    t:SetWordWrap(false)
     h.text = t
     h:SetScript("OnClick", function()
       if VC.filter.sort == i then VC.filter.dir = -VC.filter.dir
@@ -576,8 +550,8 @@ local function Build()
   f.rows = {}
   for i = 1, ROWS do
     local row = CreateFrame("Button", nil, f)
-    row:SetSize(780, 18)
-    row:SetPoint("TOPLEFT", 10, -76 - (i - 1) * 18)
+    row:SetSize(W - 2 * inset, 18)
+    row:SetPoint("TOPLEFT", inset, headY - 18 - (i - 1) * 18)
     row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
     row.sel = row:CreateTexture(nil, "BACKGROUND")
     row.sel:SetAllPoints()
@@ -585,7 +559,7 @@ local function Build()
     row.cells = {}
     local cx = 0
     for k, c in ipairs(COLS) do
-      local t = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+      local t = row:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
       t:SetPoint("LEFT", cx, 0)
       t:SetWidth(c[2])
       t:SetJustifyH(c[3])
@@ -602,14 +576,14 @@ local function Build()
     VC.Refresh()
   end)
 
-  -- details of the selected recipe
-  local top = -82 - ROWS * 18
-  f.detail = f:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  f.detail:SetPoint("TOPLEFT", 10, top)
-  f.detail:SetPoint("RIGHT", -170, 0)
+  -- details of the selected recipe, and the price buttons on the right
+  local top = headY - 24 - ROWS * 18
+  f.detail = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
+  f.detail:SetPoint("TOPLEFT", inset, top)
+  f.detail:SetPoint("RIGHT", -(inset + 176), 0)
   f.detail:SetJustifyH("LEFT")
   f.detail:SetJustifyV("TOP")
-  f.refresh = Btn("Árak frissítése", 150, 640, top, function()
+  f.refresh = St.Button(f, "Árak frissítése", 170, function()
     local res
     for _, x2 in ipairs(results) do if x2.r.spell == f.sel then res = x2 end end
     if not res then return end
@@ -617,12 +591,14 @@ local function Build()
     for i = 1, #res.r.reagents, 2 do if not R.vendor[res.r.reagents[i]] then ids[#ids + 1] = res.r.reagents[i] end end
     VC.RequestPrices(ids)
   end)
-  f.top = Btn("Legjobb 10 élő ára", 150, 640, top - 24, function() VC.RefreshTop(false) end)
-  f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
-  f.note:SetPoint("BOTTOMLEFT", 10, 8)
-  f.note:SetPoint("RIGHT", -10, 0)
+  f.refresh:SetPoint("TOPRIGHT", -inset, top)
+  f.topBtn = St.Button(f, "Legjobb 10 élő ára", 170, function() VC.RefreshTop(false) end)
+  f.topBtn:SetPoint("TOPRIGHT", -inset, top - 26)
+  f.note = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
+  f.note:SetPoint("BOTTOMLEFT", inset, St.Wow() and 16 or 8)
+  f.note:SetPoint("RIGHT", -inset, 0)
   f.note:SetJustifyH("LEFT")
-  f.note:SetText("Haszon = amennyit a vendor fizet, mínusz amennyibe az alapanyag kerül. Adag: hány darabot éri meg legyártani a legolcsóbb hirdetésektől felfelé. Görgess a listán; a fejlécre kattintva rendez.")
+  f.note:SetText("Haszon = amennyit a vendor fizet, mínusz az alapanyag ára. Adag: hány darabot éri meg legyártani a legolcsóbb hirdetésektől felfelé. Görgess a listán; a fejlécre kattintva rendez.")
   f:Hide()
   return f
 end
@@ -657,15 +633,15 @@ function VC.Refresh()
   if not frame or not frame:IsShown() then return end
   if dirty then Compute() end
   local f = VC.filter
-  frame.profBtn:SetText(ProfLabel())
-  frame.skillBtn:SetText(f.skill == "current" and "Skill: jelenlegi" or "Skill: minden (300)")
+  frame.prof:Refresh()
+  frame.skill:Refresh()
   for i, h in ipairs(frame.heads) do
-    h.text:SetText(COLS[i][1] .. (f.sort == i and (f.dir > 0 and " ▲" or " ▼") or ""))
+    h.text:SetText(COLS[i][1] .. (f.sort == i and (f.dir > 0 and " ↑" or " ↓") or ""))
   end
   local m = Market()
   local live = 0
   for _ in pairs(m.live) do live = live + 1 end
-  frame.top:SetEnabled(AHOpen() and true or false)
+  frame.topBtn:SetEnabled(AHOpen() and true or false)
   frame.status:SetText(("%d recept · AH-szken: %s · élő ár: %d tárgy"):format(#results,
     m.at and (date("%m.%d %H:%M", m.at) .. (m.src == "web" and " (webapp)" or "")) or "|cffff9933nincs|r", live))
   frame.offset = math.min(frame.offset, math.max(0, #results - ROWS))
