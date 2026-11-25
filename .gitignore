@@ -12,3 +12,4 @@ data/
 addon/WowAssistant/Recipes.lua
 addon/WowAssistant/GameData.lua
 addon/WowAssistant/Fights.lua
+addon/WowAssistant/Market.lua

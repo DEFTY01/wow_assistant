@@ -15,6 +15,7 @@ Model.lua
 Combat.lua
 Routes.lua
 Plan.lua
+Market.lua
 Fights.lua
 Game.lua
 Meter.lua

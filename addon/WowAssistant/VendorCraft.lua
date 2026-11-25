@@ -4,9 +4,10 @@
 -- house (or from a vendor, when that is cheaper). The same calculation as the web app's
 -- "Vendor" page, but with what the game itself knows:
 --   * the vendor price of the product comes from the client (GetItemInfo), so it is exact;
---   * reagent prices are an order book: every auction from the full scan (/wa ah), replaced
---     live whenever the auction house shows the listings of a reagent (your own search or the
---     "Árak frissítése" button);
+--   * reagent prices are an order book: every listing, from the newest of the web app's hourly
+--     download (Market.lua, written by the uploader) and the in-game full scan (/wa ah), replaced
+--     live whenever the auction house shows the listings of a reagent (your own search, the
+--     "Árak frissítése" button, or the reagents of the best crafts when the window opens there);
 --   * your professions and skill come from the skill list, the recipes you know from the
 --     profession window (open it once per profession).
 -- Costs are bought listing by listing, cheapest first; a batch ends at the craft where buying
@@ -100,7 +101,7 @@ local dirty = true
 -- From the full scan: books[itemID] = { {unit, qty, whole}, ... }.
 function VC.SetBooks(books, at)
   local m = Market()
-  m.books, m.live, m.at = {}, {}, at or time()
+  m.books, m.live, m.at, m.src, m.avg = {}, {}, at or time(), "scan", nil
   for id, list in pairs(books) do m.books[id] = Flatten(list) end
   version, dirty = version + 1, true
   if VC.Refresh then VC.Refresh() end
@@ -158,7 +159,10 @@ local function AvgPrice(id)
   if avgVersion ~= version then avgCache, avgVersion = {}, version end
   local v = avgCache[id]
   if v ~= nil then return v or nil end
-  local b = Market().books[id]
+  local m = Market()
+  -- the web app's average covers every listing; a live search replaces it with what the game saw
+  if m.avg and m.avg[id] and not m.live[id] then avgCache[id] = m.avg[id] return m.avg[id] end
+  local b = m.books[id]
   if not b or #b == 0 then avgCache[id] = false return nil end
   local total = 0
   for i = 2, #b, 3 do total = total + b[i] end
@@ -176,6 +180,16 @@ local function AvgPrice(id)
   avgCache[id] = v or false
   return v
 end
+
+-- The web app's order books (Market.lua from the uploader), when newer than what the game has.
+table.insert(WA.onLoad, function()
+  local file = WowAssistantMarketFile
+  if type(file) ~= "table" or type(file.books) ~= "table" or not file.at then return end
+  local m = Market()
+  if m.at and m.at >= file.at then return end
+  m.books, m.live, m.at, m.src, m.avg = file.books, {}, file.at, "web", file.avg
+  version, dirty = version + 1, true
+end)
 
 ---------------------------------------------------------------------------
 -- the calculation
@@ -391,10 +405,43 @@ local function SendNext()
   C_Timer.After(3, function() if waiting == id then waiting = nil SendNext() end end)
 end
 
-function VC.RequestPrices(ids)
-  if not AHOpen() then Print("Az élő árakhoz nyisd meg az aukciósházat.") return end
-  for _, id in ipairs(ids) do queue[#queue + 1] = id end
+function VC.RequestPrices(ids, quiet)
+  if not AHOpen() then
+    if not quiet then Print("Az élő árakhoz nyisd meg az aukciósházat.") end
+    return
+  end
+  local queued = {}
+  for _, id in ipairs(queue) do queued[id] = true end
+  for _, id in ipairs(ids) do
+    if not queued[id] and id ~= waiting then queue[#queue + 1] = id queued[id] = true end
+  end
   SendNext()
+end
+
+-- Live prices for the reagents of the best crafts: the hourly data can be an hour old, and the
+-- list is only right when the cheapest listings are still there.
+local TOP = 10
+function VC.RefreshTop(quiet)
+  if dirty then VC.Compute() end
+  local best = {}
+  for _, x in ipairs(results) do if x.crafts > 0 then best[#best + 1] = x end end
+  table.sort(best, function(a, b) return a.profit > b.profit end)
+  local ids, seen = {}, {}
+  for i = 1, math.min(TOP, #best) do
+    local reag = best[i].r.reagents
+    for k = 1, #reag, 2 do
+      local id = reag[k]
+      if not seen[id] and not (R.vendorReagents and R.vendorReagents[id] and R.vendor[id]) then
+        seen[id] = true
+        ids[#ids + 1] = id
+      end
+    end
+  end
+  if #ids > 0 then
+    VC.RequestPrices(ids, quiet)
+    if not quiet then Print(("%d alapanyag élő árát kérem le a legjobb %d gyártáshoz."):format(#ids, math.min(TOP, #best))) end
+  end
+  return #ids
 end
 
 local function Received(id)
@@ -570,6 +617,7 @@ local function Build()
     for i = 1, #res.r.reagents, 2 do if not R.vendor[res.r.reagents[i]] then ids[#ids + 1] = res.r.reagents[i] end end
     VC.RequestPrices(ids)
   end)
+  f.top = Btn("Legjobb 10 élő ára", 150, 640, top - 24, function() VC.RefreshTop(false) end)
   f.note = f:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
   f.note:SetPoint("BOTTOMLEFT", 10, 8)
   f.note:SetPoint("RIGHT", -10, 0)
@@ -617,8 +665,9 @@ function VC.Refresh()
   local m = Market()
   local live = 0
   for _ in pairs(m.live) do live = live + 1 end
+  frame.top:SetEnabled(AHOpen() and true or false)
   frame.status:SetText(("%d recept · AH-szken: %s · élő ár: %d tárgy"):format(#results,
-    m.at and date("%m.%d %H:%M", m.at) or "|cffff9933nincs (/wa ah)|r", live))
+    m.at and (date("%m.%d %H:%M", m.at) .. (m.src == "web" and " (webapp)" or "")) or "|cffff9933nincs|r", live))
   frame.offset = math.min(frame.offset, math.max(0, #results - ROWS))
   local selRes
   for i, row in ipairs(frame.rows) do
@@ -650,7 +699,7 @@ function VC.Refresh()
     frame.refresh:SetEnabled(AHOpen() and true or false)
   else
     local msg = #results == 0 and "Ezzel a szűréssel most egy recept sem hoz hasznot vendornál." or "Kattints egy receptre a bevásárlólistáért."
-    if not m.at then msg = msg .. "\nAz árakhoz kell egy teljes AH-szken: az aukciósháznál /wa ah." end
+    if not m.at then msg = msg .. "\nÁrak kellenek: fusson a feltöltő (a webapp óránkénti AH-adata, /reload után), vagy az aukciósháznál /wa ah." end
     if unpriced > 0 then msg = msg .. ("\n%d receptnek most nincs elég alapanyaga az AH-ban."):format(unpriced) end
     frame.detail:SetText(msg)
     frame.refresh:Hide()
@@ -666,6 +715,7 @@ function VC.Toggle()
   dirty = true
   frame:Show()
   VC.Refresh()
+  if AHOpen() then VC.RefreshTop(true) end
 end
 
 ---------------------------------------------------------------------------
@@ -699,7 +749,12 @@ ev:SetScript("OnEvent", function(_, event, ...)
       ahButton:SetText("Vendorra gyártás")
       ahButton:SetScript("OnClick", VC.Toggle)
     end
-    if frame and frame:IsShown() then frame:ClearAllPoints() frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 4, 0) VC.Refresh() end
+    if frame and frame:IsShown() then
+      frame:ClearAllPoints()
+      frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 4, 0)
+      VC.Refresh()
+      VC.RefreshTop(true)
+    end
   elseif event == "AUCTION_HOUSE_CLOSED" then
     queue, waiting = {}, nil
     if frame and frame:IsShown() then VC.Refresh() end

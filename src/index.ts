@@ -281,6 +281,26 @@ root.post("/api/fights", async (c) => {
   return c.json({ stored });
 });
 
+// The stored order books for the addon's vendor crafting window (the uploader writes them into
+// the game's addon folder as Market.lua): { at: unix seconds, books: { itemId: [[unit, qty, whole], ...] },
+// avg: { itemId: average unit price over every listing } }.
+root.get("/api/market", async (c) => {
+  const env = await uploadTarget(c.env, c.req.header("Authorization"));
+  if (!env) return c.text("Unauthorized", 401);
+  const rows = await env.DB.prepare("SELECT item_id, book, avg_price FROM prices WHERE book IS NOT NULL")
+    .all<{ item_id: number; book: string; avg_price: number | null }>();
+  const synced = await env.DB.prepare(
+    "SELECT COALESCE((SELECT value FROM manual_state WHERE key = 'prices_synced'), (SELECT MAX(updated_at) FROM prices)) AS at",
+  ).first<string>("at");
+  const books: Record<number, unknown> = {};
+  const avg: Record<number, number> = {};
+  for (const r of rows.results) {
+    books[r.item_id] = JSON.parse(r.book);
+    if (r.avg_price != null) avg[r.item_id] = r.avg_price;
+  }
+  return c.json({ at: synced ? Math.floor(Date.parse(synced) / 1000) : null, books, avg });
+});
+
 // --- shared characters -----------------------------------------------------------
 root.get("/u/join", async (c) => {
   const code = c.req.query("code") ?? "";

@@ -141,7 +141,7 @@ ev:SetScript("OnEvent", function(_, event, name)
     db.chronicle = db.chronicle or {}
     c.session = c.session or {}
     c.known = c.known or {}
-    if not c.id then c.id = ("%08x%04x"):format(time() % 0x100000000, math.random(0, 0xffff)) end
+    if not c.id then c.id = ("%08x%04x"):format(time() % 2 ^ 32, math.random(0, 0xffff)) end
     WA.db, WA.charDB = db, c
     for _, fn in ipairs(WA.onLoad) do
       local ok, err = pcall(fn)

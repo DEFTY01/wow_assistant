@@ -26,7 +26,7 @@ import type { Html } from "./layout";
  * the Node uploader uses: both are self-contained, so their own source can be shipped as is.
  */
 export function clientScript(): string {
-  // Folder -> files. The generated data files (Recipes.lua, GameData.lua, Fights.lua) are not in the bundle: they are
+  // Folder -> files. The generated data files (Recipes.lua, GameData.lua, Fights.lua, Market.lua) are not in the bundle: they are
   // built locally (npm run addon:recipes) and an install here leaves them in place.
   const addon = {
     WowAssistant: {

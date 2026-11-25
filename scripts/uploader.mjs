@@ -167,6 +167,47 @@ function writeGameFights(text, includeOpen) {
   if (added) console.log(`${new Date().toLocaleTimeString()} harcnapló a játéknak: ${added} új harc (${target})`);
 }
 
+// ------------------------------------------------------------------ prices for the game
+// The web app keeps every auction house listing of the crafting reagents (hourly download). The
+// addon's vendor crafting window gets them as WowAssistant/Market.lua, read at login or /reload,
+// so it knows what crafting costs without an in-game scan. A newer in-game scan or a live
+// auction house search still takes precedence.
+let lastMarketAt = null;
+async function writeGameMarket() {
+  const dir = join(WOW_DIR, "Interface", "AddOns", ADDON);
+  if (!existsSync(dir)) return;
+  const res = await fetch(`${APP_URL}/api/market`, {
+    redirect: "manual",
+    headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {},
+  });
+  if (res.status === 404) return; // an older web app without the endpoint
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const m = await res.json();
+  if (!m.at || m.at === lastMarketAt) return;
+  const target = join(dir, "Market.lua");
+  const lines = Object.entries(m.books ?? {}).map(([id, book]) =>
+    `    [${Number(id)}] = {${book.map(([u, q, w]) => `${+u},${+q},${w ? 1 : 0}`).join(",")}},`);
+  const body = [
+    "-- Written by scripts/uploader.mjs from the web app's auction house data; read by the addon at login or /reload.",
+    "-- books[item] = { unit price, quantity, whole stack (1) or not (0), ... }, cheapest first",
+    "WowAssistantMarketFile = {",
+    `  at = ${m.at},`,
+    "  books = {",
+    ...lines,
+    "  },",
+    "  -- average unit price over every listing (the book above stops at 5000 units)",
+    "  avg = {",
+    ...Object.entries(m.avg ?? {}).map(([id, p]) => `    [${Number(id)}] = ${+p},`),
+    "  },",
+    "}",
+    "",
+  ].join("\n");
+  writeFileSync(target + ".tmp", body);
+  renameSync(target + ".tmp", target);
+  lastMarketAt = m.at;
+  console.log(`${new Date().toLocaleTimeString()} AH-árak a játéknak: ${lines.length} alapanyag, ${new Date(m.at * 1000).toLocaleTimeString()}-i adat (${target})`);
+}
+
 let lastLogKey = "";
 async function uploadFights(final = false) {
   const file = findCombatLog();
@@ -204,9 +245,12 @@ if (process.argv.includes("--install")) {
   console.log(`Figyelt fájl: ${file}`);
   await upload(file).catch((e) => console.error("Feltöltés sikertelen:", e.message));
   await uploadFights(true).catch((e) => console.error("Harcnapló feltöltés sikertelen:", e.message));
+  await writeGameMarket().catch((e) => console.error("AH-árak a játéknak sikertelen:", e.message));
   if (!process.argv.includes("--once")) {
     // The game appends to the combat log continuously; look at it every 20 seconds.
     setInterval(() => uploadFights().catch((e) => console.error("Harcnapló feltöltés sikertelen:", e.message)), 20000);
+    // The web app downloads prices hourly; checking every 5 minutes picks a new download up soon.
+    setInterval(() => writeGameMarket().catch((e) => console.error("AH-árak a játéknak sikertelen:", e.message)), 300000);
     watchFile(file, { interval: 2000 }, (cur, prev) => {
       if (cur.mtimeMs !== prev.mtimeMs) upload(file).catch((e) => console.error("Feltöltés sikertelen:", e.message));
     });
