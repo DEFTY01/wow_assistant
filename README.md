@@ -49,6 +49,21 @@ A játékban:
 - Az aukciós árak az EU Normal ruleset Horde aukciósházából származnak.
 - A random utótagos tárgyak („of the Tiger") kimaradnak az aukciós ajánlásból.
 
+## Csak a saját gépeden (Cloudflare nélkül)
+
+Egy parancs elindítja az appot helyi adatbázissal, a feltöltőt és a 30 percenkénti
+Blizzard-szinkront. Csak a `127.0.0.1` címen figyel, a hálózatról nem érhető el. Kell hozzá
+egy `.dev.vars` a Blizzard API kulcsokkal (minta: `.dev.vars.example`).
+
+```bash
+npm install
+npm run db:migrate:local   # csak első alkalommal
+npm run local              # aztán: http://127.0.0.1:8787
+```
+
+Az adatok a `.wrangler/state` mappában vannak; ezt érdemes időnként lementeni. Az online
+adatbázis egy korábbi exportja a `backups/` mappában van (nincs a gitben).
+
 ## Saját példány üzemeltetése
 
 Cloudflare Workers + D1. A titkok (`BLIZZARD_CLIENT_ID`, `BLIZZARD_CLIENT_SECRET`,

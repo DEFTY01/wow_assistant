@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --test-scheduled --var LOCAL_DEV:1",
+    "local": "node scripts/local.mjs",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "addon:install": "node scripts/uploader.mjs --install",
