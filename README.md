@@ -102,7 +102,14 @@ Addonok a játékhoz (a játék legyen bezárva, mert új addont csak indulásko
 - **AzerothChronicle** – minden karaktered fejlődését menti, és heti guild-versenyt rendez.
   `/azc` panel, `/azc share on` megosztás a guilddel, `/azc week` heti összesítő.
 - **AzerothMCP_Data** – ide írhat az AI jegyzeteket és célokat; `/reload` után `/amcp`.
-- **SessionBar** – kompakt session-sáv (idő, XP, arany).
+- **SessionBar** – kompakt session-sáv (idő, XP, arany); egérrel tooltip, a nyíllal részletes panel.
+  - XP-források (mobölés / küldetés / felfedezés), zónánkénti XP/óra és arany/óra.
+  - AFK-szűrés: AFK vagy 5 perc tétlenség nem rontja az óránkénti értékeket.
+  - Célok vékony csíkkal a sáv alján: `/sbar goal gold 100 [22:00]`, `/sbar goal gold +50`,
+    `/sbar goal level 40 [22:00]`, `/sbar goal clear`; lassú tempónál figyelmeztet.
+  - Arany-tanács (`/sbar advice`): legjobb zóna, fő bevételi forrás, szürke tárgyak, becsült idő a célig.
+  - Pihent XP tervező, táska szabad hely + szürke tárgyak vendor-értéke, nyíl a korábbi sessionök
+    átlagához képest, mini grafikon, összefoglaló kilépéskor és belépéskor (`/sbar summary`, `/sbar zones`).
 
 Az adatok csak `/reload` vagy kilépés után kerülnek lemezre, utána frissül az adatbázis.
 Példa kérdések Claude-nak: „Mennyi XP-t szereztem ezen a héten az előzőhöz képest?",
