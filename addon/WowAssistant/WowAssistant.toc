@@ -2,10 +2,14 @@
 ## Title: WoW Assistant
 ## Notes: The WoW Assistant web app in game: plan, professions, gear, combat, vendor crafting, session bar and Azeroth Chronicle. /wa
 ## Author: Defty
-## Version: 2.0.0
+## Version: 2.1.0
 ## SavedVariables: WowAssistantDB
 ## SavedVariablesPerCharacter: WowAssistantCharDB
 ## OptionalDeps: SessionBar, AzerothChronicle
+## IconTexture: Interface\Icons\INV_Weapon_ShortBlade_05
+## AddonCompartmentFunc: WowAssistant_OnAddonCompartmentClick
+## AddonCompartmentFuncOnEnter: WowAssistant_OnAddonCompartmentEnter
+## AddonCompartmentFuncOnLeave: WowAssistant_OnAddonCompartmentLeave
 
 Core.lua
 Style.lua
@@ -24,3 +28,4 @@ VendorCraft.lua
 Session.lua
 Chronicle.lua
 UI.lua
+Minimap.lua

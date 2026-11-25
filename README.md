@@ -43,6 +43,10 @@ A játékban:
 - `/wa log` – bekapcsolja a harcnaplót (utána minden belépéskor magától indul).
 - `/wa save` – kiírja az adatokat lemezre (újratölti a felületet); a feltöltő ekkor küldi fel.
 - `/wa help` – az összes parancs.
+
+A minimap mellett ott a gombja (tőr egy aranyérmével): bal klikk a főablak, jobb klikk a vendorra
+gyártás, Shift + bal klikk a session sáv ki/be, húzással áthelyezhető. `/wa minimap` elrejti vagy
+visszahozza, `/wa minimap icon` másik ikonra vált.
 - A trainernél a Filter menüben pipálj be mindent, a bankot pedig nyisd meg egyszer.
 
 ### A webapp a játékban (`/wa`)

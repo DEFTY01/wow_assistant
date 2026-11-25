@@ -9,6 +9,7 @@ import core from "../addon/WowAssistant/Core.lua";
 import exporter from "../addon/WowAssistant/Exporter.lua";
 import game from "../addon/WowAssistant/Game.lua";
 import meter from "../addon/WowAssistant/Meter.lua";
+import minimap from "../addon/WowAssistant/Minimap.lua";
 import model from "../addon/WowAssistant/Model.lua";
 import plan from "../addon/WowAssistant/Plan.lua";
 import routes from "../addon/WowAssistant/Routes.lua";
@@ -34,7 +35,7 @@ export function clientScript(): string {
     WowAssistant: {
       "WowAssistant.toc": addonToc, "Core.lua": core, "Style.lua": style, "Exporter.lua": exporter, "VendorCraft.lua": vendorCraft,
       "Session.lua": session, "Chronicle.lua": chronicle, "Model.lua": model, "Combat.lua": combat, "Routes.lua": routes,
-      "Plan.lua": plan, "Game.lua": game, "Meter.lua": meter, "UI.lua": ui,
+      "Plan.lua": plan, "Game.lua": game, "Meter.lua": meter, "UI.lua": ui, "Minimap.lua": minimap,
     },
     SessionBar: { "SessionBar.toc": sessionToc, "Shim.lua": sessionShim },
     AzerothChronicle: { "AzerothChronicle.toc": chronicleToc, "Shim.lua": chronicleShim },
