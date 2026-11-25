@@ -164,6 +164,7 @@ local function ScanApi()
     damageMeter = C_DamageMeter ~= nil,
     loggingCombat = LoggingCombat ~= nil,
     auctionBrowse = C_AuctionHouse ~= nil and C_AuctionHouse.SendBrowseQuery ~= nil,
+    auctionReplicate = C_AuctionHouse ~= nil and C_AuctionHouse.ReplicateItems ~= nil,
     itemStats = (C_Item ~= nil and C_Item.GetItemStats ~= nil) or GetItemStats ~= nil,
     tooltipInfo = C_TooltipInfo ~= nil and C_TooltipInfo.GetHyperlink ~= nil,
   }
@@ -254,7 +255,10 @@ end
 
 local function FinishScan(reason)
   if not ah then return end
-  char.ah = { at = time(), items = ah.items, note = reason, dbg = ah.dbg }
+  -- Keep the full price list of an earlier full scan: this slow scan does not collect one.
+  local prev = char.ah
+  char.ah = { at = time(), items = ah.items, note = reason, dbg = ah.dbg, mode = "search",
+    prices = prev and prev.prices, qty = prev and prev.qty, pricesAt = prev and (prev.pricesAt or prev.at) }
   Announce(string.format("AH-szkenneles kesz: %d targy%s. Mentes: /wa save", #ah.items, reason and (" (" .. reason .. ")") or ""))
   ah = nil
 end
@@ -361,7 +365,7 @@ local function OnBrowseResults()
   NextSearch()
 end
 
-local function StartScan()
+local function StartSlowScan()
   if not (C_AuctionHouse and C_AuctionHouse.SendBrowseQuery and C_AuctionHouse.GetBrowseResults) then
     Print("Ez a kliens nem tamogatja az aukcioshaz lekerdezeset addonbol.")
     return
@@ -388,6 +392,219 @@ local function StartScan()
       if #(C_AuctionHouse.GetBrowseResults() or {}) > 0 then OnBrowseResults() else FinishScan("a kinalat nem jott meg") end
     end
   end)
+end
+
+-- ------------------------------------------------------------------ full auction house scan
+
+-- One request downloads every auction (C_AuctionHouse.ReplicateItems), then the list is read
+-- locally. The server allows this once every 15 minutes. The work is split across frames so
+-- the game does not freeze, and only the cheapest price per item is kept, not every auction.
+local FULL_COOLDOWN = 15 * 60
+local SCAN_CHUNK = 2000    -- auctions read per frame
+local DETAIL_CHUNK = 40    -- gear items whose stats are read per frame
+local GEAR_MAX = 1500      -- cap on gear offers stored for the web app
+local full = nil           -- the running full scan
+
+local function Now() return (GetTimePreciseSec and GetTimePreciseSec()) or GetTime() end
+local function Later(fn, delay) C_Timer.After(delay or 0, function() Safe("ah", fn) end) end
+
+-- Random suffix ("of the Tiger") is the 7th number of the item link.
+local function LinkSuffix(link)
+  return tonumber(link and link:match("item:%d+:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:(%-?%d+)")) or 0
+end
+
+local equipCache = {}
+-- Slot, class and subclass for gear this character can use, or nil.
+local function Equip(itemID)
+  local e = equipCache[itemID]
+  if e == nil then
+    local _, _, _, equipLoc, _, classID, subID = GetItemInfoInstant(itemID)
+    if equipLoc and equipLoc ~= "" and Usable(classID, subID) then
+      e = { equipLoc, classID, subID }
+    else
+      e = false
+    end
+    equipCache[itemID] = e
+  end
+  if e then return e[1], e[2], e[3] end
+end
+
+local function AddGear(rec, link)
+  local suffix = LinkSuffix(link)
+  local key = rec.id .. ":" .. suffix
+  local g = full.gear[key]
+  if not g then
+    g = { id = rec.id, suffix = suffix, slot = rec.slot, cls = rec.cls, sub = rec.sub, count = 0 }
+    full.gear[key] = g
+  end
+  g.count = g.count + rec.count
+  if not g.price or rec.buyout < g.price then g.price, g.link = rec.buyout, link end
+end
+
+local function FinishFull()
+  if not full then return end
+  local f = full
+  full = nil
+  local priced = 0
+  for _ in pairs(f.prices) do priced = priced + 1 end
+  local note = f.closed and "az aukcioshaz bezarult, reszleges" or nil
+  char.ah = {
+    at = time(), mode = "full", note = note, items = f.items,
+    prices = f.prices, qty = f.qty, pricesAt = time(),
+    dbg = { auctions = f.n, read = f.i, priced = priced, gear = #f.items, unresolved = f.unresolved or 0,
+      seconds = math.floor(Now() - f.t0 + 0.5) },
+  }
+  Announce(string.format("Teljes AH-szken kesz %d mp alatt: %d aukcio, %d targy ara, %d felszereles%s. Mentes: /wa save",
+    char.ah.dbg.seconds, f.i, priced, #f.items, note and (" (" .. note .. ")") or ""))
+end
+
+-- Stats of the gear offers (from the item link, no auction house traffic).
+local function DetailStep()
+  if not full then return end
+  local list = full.gearList
+  local stop = math.min(#list, full.di + DETAIL_CHUNK)
+  local level = full.level
+  local getStats = (C_Item and C_Item.GetItemStats) or GetItemStats
+  for i = full.di + 1, stop do
+    local g = list[i]
+    local name, _, quality, ilvl, minLevel = GetItemInfo(g.link)
+    if name and (minLevel or 0) >= level - 8 and (minLevel or 0) <= level + 4 then
+      full.items[#full.items + 1] = {
+        id = g.id, suffix = g.suffix, ilvl = ilvl or 0, name = name, q = quality, req = minLevel,
+        slot = g.slot, cls = g.cls, sub = g.sub, price = g.price, count = g.count,
+        st = getStats and getStats(g.link) or nil,
+        dmg = g.cls == 2 and WeaponNumbers(g.link) or nil,
+      }
+    end
+  end
+  full.di = stop
+  if stop < #list then Later(DetailStep) else FinishFull() end
+end
+
+local function StartDetails()
+  local list = {}
+  for _, g in pairs(full.gear) do list[#list + 1] = g end
+  table.sort(list, function(a, b) return a.price < b.price end)
+  while #list > GEAR_MAX do table.remove(list) end
+  for _, g in ipairs(list) do
+    if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, g.id) end
+  end
+  full.gearList, full.di, full.phase = list, 0, "detail"
+  Print(string.format("AH: %d felszereles adatainak beolvasasa...", #list))
+  Later(DetailStep, 1) -- a moment for the item data requested above
+end
+
+-- Gear auctions whose link was not loaded yet: ask the client for the item data and retry.
+local function ResolvePending(tries)
+  if not full then return end
+  local still = {}
+  if not full.closed then
+    for _, rec in ipairs(full.pending) do
+      local link = C_AuctionHouse.GetReplicateItemLink(rec.idx)
+      if link then AddGear(rec, link) else still[#still + 1] = rec end
+    end
+  end
+  full.pending = still
+  if #still > 0 and tries < 3 and not full.closed then
+    local asked = {}
+    for _, rec in ipairs(still) do
+      if not asked[rec.id] and C_Item and C_Item.RequestLoadItemDataByID then
+        asked[rec.id] = true
+        pcall(C_Item.RequestLoadItemDataByID, rec.id)
+      end
+    end
+    Later(function() ResolvePending(tries + 1) end, 3)
+    return
+  end
+  full.unresolved = #still
+  StartDetails()
+end
+
+-- Read the downloaded list in chunks. Replicate indices start at 0.
+local function ScanStep()
+  if not full then return end
+  local AH = C_AuctionHouse
+  local stop = full.closed and full.i or math.min(full.n, full.i + SCAN_CHUNK)
+  local level = full.level
+  for i = full.i, stop - 1 do
+    local _, _, count, _, _, reqLevel, _, _, _, buyout, _, _, _, _, _, _, itemID, hasAll = AH.GetReplicateItemInfo(i)
+    if itemID and buyout and buyout > 0 then
+      count = (count and count > 0) and count or 1
+      local unit = math.floor(buyout / count)
+      local p = full.prices[itemID]
+      if not p or unit < p then full.prices[itemID] = unit end
+      full.qty[itemID] = (full.qty[itemID] or 0) + count
+      local slot, cls, sub = Equip(itemID)
+      if slot and (not reqLevel or reqLevel == 0 or (reqLevel >= level - 8 and reqLevel <= level + 4)) then
+        local rec = { id = itemID, buyout = buyout, count = count, slot = slot, cls = cls, sub = sub, idx = i }
+        local link = hasAll and AH.GetReplicateItemLink(i)
+        if link then AddGear(rec, link) else full.pending[#full.pending + 1] = rec end
+      end
+    end
+  end
+  full.i = stop
+  if stop < full.n and not full.closed then
+    if full.i % 40000 < SCAN_CHUNK then Print(string.format("AH: %d / %d aukcio feldolgozva", full.i, full.n)) end
+    Later(ScanStep)
+  else
+    full.phase = "pending"
+    ResolvePending(0)
+  end
+end
+
+local function OnReplicateList()
+  if not full or full.phase ~= "wait" then return end
+  local n = C_AuctionHouse.GetNumReplicateItems() or 0
+  if n == 0 then return end
+  full.phase, full.n = "scan", n
+  Announce(string.format("AH: %d aukcio megjott (%d mp), feldolgozas...", n, math.floor(Now() - full.t0 + 0.5)))
+  ScanStep()
+end
+
+local function StartFullScan()
+  if not (AuctionHouseFrame and AuctionHouseFrame:IsShown()) then
+    Print("Nyisd meg az aukcioshazat, aztan ird be ujra: /wa ah")
+    return
+  end
+  if full or ah then Print("Mar fut egy szkenneles.") return end
+  local wait = FULL_COOLDOWN - (time() - (WowAssistantDB.lastFullScan or 0))
+  if wait > 0 then
+    Print(string.format("Teljes szken 15 percenkent egyszer lehet: meg %d perc. Addig a lassu szken hasznalhato: /wa ah lassu", math.ceil(wait / 60)))
+    return
+  end
+  full = { phase = "wait", level = UnitLevel("player"), prices = {}, qty = {}, gear = {}, pending = {}, items = {},
+    i = 0, n = 0, t0 = Now() }
+  WowAssistantDB.lastFullScan = time()
+  C_AuctionHouse.ReplicateItems()
+  Announce("Teljes AH-szken: az osszes aukcio letoltese... Hagyd nyitva az aukcioshazat.")
+  -- The server sends nothing while the 15-minute cooldown runs (also after a scan by another addon).
+  C_Timer.After(90, function()
+    if full and full.phase == "wait" then
+      full = nil
+      Announce("Nem jott meg a teljes lista (lehet, hogy 15 percen belul mar volt teljes szken, akar mas addontol). Probald kesobb, vagy: /wa ah lassu")
+    end
+  end)
+end
+
+local function OnAuctionClosed()
+  if full then
+    if full.phase == "wait" then
+      full = nil
+      Print("Teljes AH-szken megszakitva: bezartad az aukcioshazat.")
+    else
+      full.closed = true -- the downloaded list is gone; finish with what was read
+    end
+  end
+  if ah then FinishScan("az aukcioshaz bezarult, reszleges") end
+end
+
+-- Full scan when the client supports it, otherwise the item-by-item search.
+local function StartScan(mode)
+  if full or ah then Print("Mar fut egy AH-szkenneles, varj, amig vegez.") return end
+  if mode ~= "lassu" and C_AuctionHouse and C_AuctionHouse.ReplicateItems and C_AuctionHouse.GetReplicateItemInfo then
+    return StartFullScan()
+  end
+  return StartSlowScan()
 end
 
 -- ------------------------------------------------------------------ events
@@ -438,8 +655,10 @@ frame:SetScript("OnEvent", function(_, event, ...)
     Safe("ah", OnItemResults, ...)
   elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
     if ah and ah.waiting then Safe("ah", NextSearch) end
+  elseif event == "REPLICATE_ITEM_LIST_UPDATE" then
+    Safe("ah", OnReplicateList)
   elseif event == "AUCTION_HOUSE_CLOSED" then
-    if ah then Safe("ah", FinishScan, "az aukcioshaz bezarult, reszleges")  end
+    Safe("ah", OnAuctionClosed)
   end
   -- Nothing is scanned on PLAYER_LOGOUT: at that point the Forever client already reports
   -- zero gold and empty bags, which would overwrite the good data.
@@ -450,7 +669,7 @@ for _, event in ipairs({
   "PLAYERBANKSLOTS_CHANGED", "SKILL_LINES_CHANGED", "PLAYER_LEVEL_UP", "SPELLS_CHANGED",
   "TRAINER_SHOW", "TRAINER_UPDATE", "PLAYER_XP_UPDATE", "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED",
   "AUCTION_HOUSE_BROWSE_RESULTS_ADDED", "ITEM_SEARCH_RESULTS_UPDATED", "ITEM_SEARCH_RESULTS_ADDED", "AUCTION_HOUSE_THROTTLED_SYSTEM_READY",
-  "AUCTION_HOUSE_CLOSED",
+  "AUCTION_HOUSE_CLOSED", "REPLICATE_ITEM_LIST_UPDATE",
 }) do
   pcall(frame.RegisterEvent, frame, event) -- an event unknown to this client must not break the rest
 end
@@ -460,8 +679,10 @@ SLASH_WOWASSISTANT2 = "/wowassistant"
 SlashCmdList["WOWASSISTANT"] = function(msg)
   if not char then return end
   ScanAll()
-  if msg == "ah" then
-    Safe("ah", StartScan)
+  if msg == "ah" or msg == "ah lassu" then
+    char.errors = char.errors or {}
+    char.errors.ah = nil
+    Safe("ah", StartScan, msg == "ah lassu" and "lassu" or nil)
     if char.errors and char.errors.ah then Print("hiba (ah): " .. char.errors.ah) end
     return
   end
@@ -485,5 +706,5 @@ SlashCmdList["WOWASSISTANT"] = function(msg)
   if errCount > 0 then
     for name, err in pairs(char.errors) do Print("hiba (" .. name .. "): " .. err) end
   end
-  Print("Aukcioshaz szkenneles: /wa ah (nyitott aukcioshaznal). Mentes: /wa save.")
+  Print("Aukcioshaz: /wa ah (teljes szken, 15 percenkent), /wa ah lassu (targyankent). Mentes: /wa save.")
 end
