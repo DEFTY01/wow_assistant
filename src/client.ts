@@ -13,6 +13,7 @@ import model from "../addon/WowAssistant/Model.lua";
 import plan from "../addon/WowAssistant/Plan.lua";
 import routes from "../addon/WowAssistant/Routes.lua";
 import session from "../addon/WowAssistant/Session.lua";
+import style from "../addon/WowAssistant/Style.lua";
 import ui from "../addon/WowAssistant/UI.lua";
 import vendorCraft from "../addon/WowAssistant/VendorCraft.lua";
 import addonToc from "../addon/WowAssistant/WowAssistant.toc";
@@ -28,9 +29,10 @@ import type { Html } from "./layout";
 export function clientScript(): string {
   // Folder -> files. The generated data files (Recipes.lua, GameData.lua, Fights.lua, Market.lua) are not in the bundle: they are
   // built locally (npm run addon:recipes) and an install here leaves them in place.
+  // The fonts (Fonts/*.ttf) are binary and not shipped either: without them the windows use the game's font.
   const addon = {
     WowAssistant: {
-      "WowAssistant.toc": addonToc, "Core.lua": core, "Exporter.lua": exporter, "VendorCraft.lua": vendorCraft,
+      "WowAssistant.toc": addonToc, "Core.lua": core, "Style.lua": style, "Exporter.lua": exporter, "VendorCraft.lua": vendorCraft,
       "Session.lua": session, "Chronicle.lua": chronicle, "Model.lua": model, "Combat.lua": combat, "Routes.lua": routes,
       "Plan.lua": plan, "Game.lua": game, "Meter.lua": meter, "UI.lua": ui,
     },

@@ -8,6 +8,7 @@
 ## OptionalDeps: SessionBar, AzerothChronicle
 
 Core.lua
+Style.lua
 Recipes.lua
 GameData.lua
 Exporter.lua

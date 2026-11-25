@@ -24,7 +24,8 @@ WA.onLogin = {}  -- run at PLAYER_LOGIN, once the character key is known
 WA.commands = {} -- /wa <name> ... handlers: fn(rest, msg)
 WA.help = {}     -- lines for /wa help
 
-function WA.Print(msg) DEFAULT_CHAT_FRAME:AddMessage("|cfff0c040WoW Assistant:|r " .. msg) end
+-- Chat uses the game's font, which has no ő and ű: WA.Fix (Style.lua) swaps them for ö and ü.
+function WA.Print(msg) DEFAULT_CHAT_FRAME:AddMessage("|cfff0c040WoW Assistant:|r " .. (WA.Fix and WA.Fix(msg) or msg)) end
 
 local function Copy(v, seen)
   if type(v) ~= "table" then return v end
