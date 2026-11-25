@@ -448,6 +448,7 @@ local function FinishFull()
   local priced = 0
   for _ in pairs(f.prices) do priced = priced + 1 end
   local note = f.closed and "az aukcioshaz bezarult, reszleges" or nil
+  if WowAssistantVC and f.books then WowAssistantVC.SetBooks(f.books, time()) end
   char.ah = {
     at = time(), mode = "full", note = note, items = f.items,
     prices = f.prices, qty = f.qty, pricesAt = time(),
@@ -534,6 +535,13 @@ local function ScanStep()
       local p = full.prices[itemID]
       if not p or unit < p then full.prices[itemID] = unit end
       full.qty[itemID] = (full.qty[itemID] or 0) + count
+      -- Every listing of a crafting reagent, for the vendor-craft calculator (VendorCraft.lua).
+      -- Reagents stack, so they are commodities and can be bought in any amount.
+      if WowAssistantVC and WowAssistantVC.reagents[itemID] then
+        local b = full.books[itemID]
+        if not b then b = {} full.books[itemID] = b end
+        b[#b + 1] = { buyout / count, count, 0 }
+      end
       local slot, cls, sub = Equip(itemID)
       if slot and (not reqLevel or reqLevel == 0 or (reqLevel >= level - 8 and reqLevel <= level + 4)) then
         local rec = { id = itemID, buyout = buyout, count = count, slot = slot, cls = cls, sub = sub, idx = i }
@@ -572,7 +580,7 @@ local function StartFullScan()
     Print(string.format("Teljes szken 15 percenkent egyszer lehet: meg %d perc. Addig a lassu szken hasznalhato: /wa ah lassu", math.ceil(wait / 60)))
     return
   end
-  full = { phase = "wait", level = UnitLevel("player"), prices = {}, qty = {}, gear = {}, pending = {}, items = {},
+  full = { phase = "wait", level = UnitLevel("player"), prices = {}, qty = {}, gear = {}, pending = {}, items = {}, books = {},
     i = 0, n = 0, t0 = Now() }
   WowAssistantDB.lastFullScan = time()
   C_AuctionHouse.ReplicateItems()
@@ -678,6 +686,10 @@ SLASH_WOWASSISTANT1 = "/wa"
 SLASH_WOWASSISTANT2 = "/wowassistant"
 SlashCmdList["WOWASSISTANT"] = function(msg)
   if not char then return end
+  if msg == "vendor" then
+    if WowAssistantVC then WowAssistantVC.Toggle() end
+    return
+  end
   ScanAll()
   if msg == "ah" or msg == "ah lassu" then
     char.errors = char.errors or {}
@@ -706,5 +718,5 @@ SlashCmdList["WOWASSISTANT"] = function(msg)
   if errCount > 0 then
     for name, err in pairs(char.errors) do Print("hiba (" .. name .. "): " .. err) end
   end
-  Print("Aukcioshaz: /wa ah (teljes szken, 15 percenkent), /wa ah lassu (targyankent). Mentes: /wa save.")
+  Print("Aukcioshaz: /wa ah (teljes szken, 15 percenkent), /wa ah lassu (targyankent). Vendorra gyartas: /wa vendor. Mentes: /wa save.")
 end

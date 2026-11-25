@@ -8,3 +8,5 @@ dist/
 backups/
 # Game data saved from Wowhead for the recipe import
 data/
+# Generated from the Wowhead data by scripts/build-addon-recipes.mjs
+addon/WowAssistant/Recipes.lua

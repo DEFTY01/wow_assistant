@@ -2,7 +2,10 @@
 ## Title: WoW Assistant
 ## Notes: Exports gold, bags, bank, skills, spells and trainer offers for the WoW Assistant web app.
 ## Author: Defty
-## Version: 1.1.0
+## Version: 1.2.0
 ## SavedVariables: WowAssistantDB
+## SavedVariablesPerCharacter: WowAssistantCharDB
 
+Recipes.lua
 WowAssistant.lua
+VendorCraft.lua

@@ -64,6 +64,17 @@ lehet a saját szakmáidra, a jelenlegi skilledre, illetve csak a már ismert re
   jelzi, ha eltérnek.
 - **Cooldown:** a cooldownos recepteknél (transmute, Mooncloth) az adag egyetlen gyártás.
 
+**Játékon belül is:** az aukciósháznál a „Vendorra gyártás” gomb (vagy `/wa vendor`) ugyanezt
+számolja, a játék saját adataival:
+- a vendorárat a kliens adja meg, így az pontos;
+- az alapanyagok árai a teljes AH-szkenből (`/wa ah`) jönnek;
+- élőben frissülnek, amikor egy alapanyagra rákeresel az AH-ban, vagy megnyomod az „Árak frissítése”
+  gombot;
+- az ismert recepteket a szakmaablakból olvassa ki: szakmánként egyszer nyisd meg.
+
+A receptadatot az addon egy generált fájlból kapja, amely nincs a gitben. Az elkészítése és
+telepítése: `npm run addon:recipes`.
+
 A receptlisták a Wowhead Forever szakmaoldalairól származnak. Ezeket a `data/wowhead/<szakma
 azonosító>.json` fájlokba kell lementeni (nincsenek a gitben), és a futó appba ezzel tölthetők be:
 `npm run import:recipes`.
