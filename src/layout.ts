@@ -1,5 +1,6 @@
 import { html, raw } from "hono/html";
 import type { HtmlEscapedString } from "hono/utils/html";
+import { TABLE_CSS, TABLE_JS } from "./tableKit";
 
 export type Html = HtmlEscapedString | Promise<HtmlEscapedString>;
 
@@ -29,7 +30,7 @@ export function money(copper: number | null | undefined): Html {
   const g = Math.floor(v / 10000);
   const s = Math.floor((v % 10000) / 100);
   const c = v % 100;
-  return html`<span class="money">${g > 0 ? html`<span class="coin g">${g.toLocaleString("hu-HU")}</span>` : ""}${
+  return html`<span class="money" data-c="${v}">${g > 0 ? html`<span class="coin g">${g.toLocaleString("hu-HU")}</span>` : ""}${
     g > 0 || s > 0 ? html`<span class="coin s">${s}</span>` : ""
   }<span class="coin c">${c}</span></span>`;
 }
@@ -41,7 +42,7 @@ const TABS = [
   { id: "combat", href: "/combat", label: "Harc" },
   { id: "gear", href: "/gear", label: "Felszerelés" },
   { id: "prof", href: "/professions", label: "Mesterségek" },
-  { id: "vendor", href: "/vendor", label: "Vendorra gyártás" },
+  { id: "vendor", href: "/vendor", label: "Vendor" },
 ] as const;
 export type TabId = (typeof TABS)[number]["id"];
 
@@ -55,7 +56,7 @@ export function page(opts: { title: string; active: TabId | null; body: Html; to
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Alegreya+Sans:wght@400;500;700&display=swap" rel="stylesheet">
-<style>${raw(CSS)}</style>
+<style>${raw(CSS)}${raw(TABLE_CSS)}</style>
 </head>
 <body>
 <header class="bar">
@@ -71,6 +72,7 @@ export function page(opts: { title: string; active: TabId | null; body: Html; to
 ${opts.body}
 </main>
 <footer>Blizzard API · Wowhead adatbázis · saját addon és harcnapló</footer>
+<script>${raw(TABLE_JS)}</script>
 </body>
 </html>`;
 }
@@ -115,6 +117,7 @@ code{font:13px ui-monospace,Consolas,monospace;background:#0d0b08;border:1px sol
 .tabs a:hover{color:var(--text);text-decoration:none}
 .tabs a.on{color:var(--gold-hi);border-bottom-color:var(--gold-hi);background:linear-gradient(transparent,rgba(201,162,74,.10))}
 .tools{margin-left:auto;display:flex;align-items:center;gap:10px}
+@media (max-width:1200px){.tabs a{padding:0 10px;letter-spacing:.06em}.bar{gap:12px}}
 .tools form{margin:0}
 
 /* layout */

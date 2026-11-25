@@ -299,7 +299,7 @@ root.post("/u/join", async (c) => {
 });
 
 // What a shared link may reach. Everything else stays owner-only.
-const SHARED_GET = new Set(["/", "/character", "/gear", "/combat", "/professions", "/talents", "/client.js"]);
+const SHARED_GET = new Set(["/", "/character", "/gear", "/combat", "/professions", "/vendor", "/talents", "/client.js"]);
 const SHARED_POST = new Set([
   "/sync", "/manual/gold", "/gear/buffs", "/plan/refresh", "/professions/refresh", "/upload/addon", "/upload/fights",
 ]);

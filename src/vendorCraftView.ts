@@ -2,8 +2,6 @@ import { html } from "hono/html";
 import { money, page } from "./layout";
 import { PROFESSIONS, type VendorCraft, type VendorCraftFilter, type VendorCraftReport } from "./vendorCraft";
 
-const SHOW = 150;
-
 export function vendorCraftPage(rep: VendorCraftReport, f: VendorCraftFilter) {
   const when = rep.pricesAt ? new Date(rep.pricesAt).toLocaleString("hu-HU", { timeZone: "Europe/Budapest" }) : "még nincs letöltve";
   const profOpt = (v: string, label: string) => html`<option value="${v}" ${String(f.profession) === v ? "selected" : ""}>${label}</option>`;
@@ -38,9 +36,8 @@ export function vendorCraftPage(rep: VendorCraftReport, f: VendorCraftFilter) {
       ? html`<table>
           <thead><tr><th>Recept</th><th>Termék · vendorár</th><th class="num">1. darab</th><th class="num">Átlagáron</th>
             <th class="num">Legjobb adag</th><th class="num">Befektetés</th><th class="num">Haszon</th></tr></thead>
-          <tbody>${rep.rows.slice(0, SHOW).map(row)}</tbody>
-        </table>
-        ${rep.rows.length > SHOW ? html`<p class="muted">… és még ${rep.rows.length - SHOW} recept.</p>` : ""}`
+          <tbody>${rep.rows.map(row)}</tbody>
+        </table>`
       : html`<p class="muted">Ezzel a szűréssel most egy recept sem hoz hasznot vendornál.</p>`}
     <p class="muted" style="margin:12px 0 0">
       <b>1. darab</b>: a haszon az első gyártáson, a legolcsóbb kint lévő alapanyagokkal.
@@ -71,15 +68,15 @@ function row(r: VendorCraft) {
       ${r.shopping.length
         ? html`<details><summary class="muted">bevásárlólista</summary>${shopping(r)}</details>`
         : ""}</td>
-    <td>${r.product} ${makes ? html`<span class="muted">×${makes}</span>` : ""}
+    <td data-sort="${r.vendorEach}">${r.product} ${makes ? html`<span class="muted">×${makes}</span>` : ""}
       <div class="act-detail">${money(r.vendorEach)} / db${check}</div></td>
-    <td class="num">${signedMoney(r.firstProfit)}<div class="act-detail">költség ${money(r.firstCost)}</div></td>
-    <td class="num">${r.avgProfit == null ? html`<span class="muted">–</span>` : signedMoney(r.avgProfit)}
+    <td class="num" data-sort="${r.firstProfit}">${signedMoney(r.firstProfit)}<div class="act-detail">költség ${money(r.firstCost)}</div></td>
+    <td class="num" data-sort="${r.avgProfit ?? ""}">${r.avgProfit == null ? html`<span class="muted">–</span>` : signedMoney(r.avgProfit)}
       <div class="act-detail">${r.avgCost == null ? "" : html`költség ${money(r.avgCost)}`}</div></td>
-    <td class="num">${r.crafts ? html`<b>${r.crafts}${r.capped ? "+" : ""}×</b>` : html`<span class="muted">–</span>`}
+    <td class="num" data-sort="${r.crafts || ""}">${r.crafts ? html`<b>${r.crafts}${r.capped ? "+" : ""}×</b>` : html`<span class="muted">–</span>`}
       ${r.cooldown ? html`<div class="act-detail">cooldown: ${duration(r.cooldown)}</div>` : ""}</td>
-    <td class="num">${r.crafts ? money(r.cost) : ""}<div class="act-detail">${r.crafts ? html`vendor ad: ${money(r.income)}` : ""}</div></td>
-    <td class="num">${r.crafts ? html`<b class="gain">${money(r.profit)}</b><div class="act-detail">${Math.round(r.roiPct)}%</div>` : html`<span class="muted">–</span>`}</td>
+    <td class="num" data-sort="${r.crafts ? r.cost : ""}">${r.crafts ? money(r.cost) : ""}<div class="act-detail">${r.crafts ? html`vendor ad: ${money(r.income)}` : ""}</div></td>
+    <td class="num" data-sort="${r.crafts ? r.profit : ""}">${r.crafts ? html`<b class="gain">${money(r.profit)}</b><div class="act-detail">${Math.round(r.roiPct)}%</div>` : html`<span class="muted">–</span>`}</td>
   </tr>`;
 }
 
