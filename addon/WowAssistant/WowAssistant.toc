@@ -2,7 +2,7 @@
 ## Title: WoW Assistant
 ## Notes: The WoW Assistant web app in game: plan, professions, gear, combat, vendor crafting, session bar and Azeroth Chronicle. /wa
 ## Author: Defty
-## Version: 2.3.0
+## Version: 2.3.1
 ## SavedVariables: WowAssistantDB
 ## SavedVariablesPerCharacter: WowAssistantCharDB
 ## OptionalDeps: SessionBar, AzerothChronicle

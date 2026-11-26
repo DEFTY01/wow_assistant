@@ -117,8 +117,9 @@ számolja, a játék saját adataival:
   mappájába (`Market.lua`, a játék belépéskor vagy `/reload` után látja); ha frissebb, a játékbeli
   teljes AH-szken (`/wa ah`) számít;
 - élőben frissülnek, amikor egy alapanyagra rákeresel az AH-ban, megnyomod az „Árak frissítése”
-  gombot, vagy megnyitod az ablakot az aukciósháznál: ilyenkor a legjobb 10 gyártás alapanyagait
-  magától lekérdezi („Legjobb 10 élő ára” gomb);
+  gombot, vagy megnyitod az ablakot az aukciósháznál: ilyenkor minden szakma legjobb 10
+  gyártásának alapanyagait magától lekérdezi, a szűrőtől függetlenül, előbb mindegyik szakma
+  legjobbját („Szakmánként legjobb 10 élő ára” gomb);
 - az ismert recepteket a szakmaablakból olvassa ki: szakmánként egyszer nyisd meg.
 
 Az ablak azt mutatja, mennyi pénzt hoz egy eladás. A **Hányszor gyártod** mezőbe (–/+, Shift-tel

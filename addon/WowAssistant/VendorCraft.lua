@@ -451,30 +451,53 @@ function VC.RequestPrices(ids, quiet)
   SendNext()
 end
 
--- Live prices for the reagents of the best crafts: the hourly data can be an hour old, and the
--- list is only right when the cheapest listings are still there.
+-- Live prices for the reagents of the best crafts of every profession, whatever the filter
+-- shows: the hourly data can be an hour old, and the list is only right when the cheapest
+-- listings are still there. Rank 1 of every profession is asked first, then rank 2, and so on.
 local TOP = 10
 function VC.RefreshTop(quiet)
-  if dirty then VC.Compute() end
-  local best = {}
-  for _, x in ipairs(results) do if x.crafts > 0 then best[#best + 1] = x end end
-  table.sort(best, function(a, b) return a.profit > b.profit end)
-  local ids, seen = {}, {}
-  for i = 1, math.min(TOP, #best) do
-    local reag = best[i].r.reagents
-    for k = 1, #reag, 2 do
-      local id = reag[k]
-      if not seen[id] and not (R.vendorReagents and R.vendorReagents[id] and R.vendor[id]) then
-        seen[id] = true
-        ids[#ids + 1] = id
+  local f = VC.filter
+  local saved = { f.prof, f.skill, f.known, f.text }
+  f.prof, f.skill, f.known, f.text = "all", "max", false, ""
+  Compute()
+  local byProf, profs = {}, 0
+  for _, x in ipairs(results) do
+    local p = x.r.prof
+    if not byProf[p] then byProf[p] = {} profs = profs + 1 end
+    table.insert(byProf[p], x)
+  end
+  f.prof, f.skill, f.known, f.text = saved[1], saved[2], saved[3], saved[4]
+  Compute()
+  local lists = {}
+  for _, list in pairs(byProf) do
+    table.sort(list, function(a, b) return a.profit > b.profit end)
+    lists[#lists + 1] = list
+  end
+  table.sort(lists, function(a, b) return a[1].r.prof < b[1].r.prof end)
+  local ids, seen, crafts = {}, {}, 0
+  for rank = 1, TOP do
+    for _, list in ipairs(lists) do
+      local x = list[rank]
+      if x then
+        crafts = crafts + 1
+        local reag = x.r.reagents
+        for k = 1, #reag, 2 do
+          local id = reag[k]
+          if not seen[id] and not (R.vendorReagents and R.vendorReagents[id] and R.vendor[id]) then
+            seen[id] = true
+            ids[#ids + 1] = id
+          end
+        end
       end
     end
   end
   if #ids > 0 then
     VC.RequestPrices(ids, quiet)
-    if not quiet then Print(("%d alapanyag élő árát kérem le a legjobb %d gyártáshoz."):format(#ids, math.min(TOP, #best))) end
+    if not quiet then
+      Print(("%d alapanyag élő árát kérem le: %d szakma legjobb %d gyártása (%d recept)."):format(#ids, profs, TOP, crafts))
+    end
   end
-  return #ids
+  return #ids, profs, crafts
 end
 
 local function Received(id)
@@ -704,10 +727,10 @@ local function Build()
   local top = headY - 32 - ROWS * ROW_H
   f.detail = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
   f.detail:SetPoint("TOPLEFT", inset, top)
-  f.detail:SetPoint("RIGHT", -(inset + 176), 0)
+  f.detail:SetPoint("RIGHT", -(inset + 236), 0)
   f.detail:SetJustifyH("LEFT")
   f.detail:SetJustifyV("TOP")
-  f.refresh = St.Button(f, "Árak frissítése", 170, function()
+  f.refresh = St.Button(f, "Árak frissítése", 230, function()
     local res
     for _, x2 in ipairs(results) do if x2.r.spell == f.sel then res = x2 end end
     if not res then return end
@@ -716,7 +739,7 @@ local function Build()
     VC.RequestPrices(ids)
   end)
   f.refresh:SetPoint("TOPRIGHT", -inset, top)
-  f.topBtn = St.Button(f, "Legjobb 10 élő ára", 170, function() VC.RefreshTop(false) end)
+  f.topBtn = St.Button(f, "Szakmánként legjobb 10 élő ára", 230, function() VC.RefreshTop(false) end)
   f.topBtn:SetPoint("TOPRIGHT", -inset, top - 26)
   f.note = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
   f.note:SetPoint("BOTTOMLEFT", inset, St.Wow() and 16 or 8)
