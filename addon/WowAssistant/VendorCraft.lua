@@ -473,10 +473,11 @@ local function Signed(c)
 end
 
 local COLS = {
-  { "Recept", 214, "LEFT" }, { "Termék · vendorár", 176, "LEFT" }, { "1. darab", 78, "RIGHT" },
-  { "Átlagáron", 78, "RIGHT" }, { "Adag", 50, "RIGHT" }, { "Befektetés", 84, "RIGHT" }, { "Haszon", 84, "RIGHT" },
+  { "Recept", 236, "LEFT" }, { "Termék · vendorár", 196, "LEFT" }, { "1. darab", 80, "RIGHT" },
+  { "Átlagáron", 84, "RIGHT" }, { "Adag", 54, "RIGHT" }, { "Befektetés", 90, "RIGHT" }, { "Haszon", 90, "RIGHT" },
 }
-local W = 820
+local W = 900
+local ROW_H = 20
 
 -- Dropdown choices.
 local function ProfItems()
@@ -496,7 +497,7 @@ local function Build()
   local f = St.Window("WowAssistantVendorFrame", W, 0, "Mit érdemes legyártani vendornak")
   local inset = f.inset
   local y0 = -f.top
-  f:SetHeight(f.top + 70 + ROWS * 18 + 118)
+  f:SetHeight(f.top + 130 + ROWS * ROW_H + 124)
   f.offset, f.sel = 0, nil
 
   -- filters: profession, skill, known only, search
@@ -518,21 +519,44 @@ local function Build()
   local search = St.Search(f, "Keresés:", 150, function(text) VC.filter.text = text dirty = true VC.Refresh() end)
   search:SetPoint("TOPRIGHT", -inset, y0 - 2)
 
+  -- the three numbers that matter, as cards
+  f.cards = {}
+  local cw = math.floor((W - 2 * inset - 20) / 3)
+  for i = 1, 3 do
+    local c = CreateFrame("Frame", nil, f, "BackdropTemplate")
+    St.Panel(c, St.C.card, St.C.edge, 0.4)
+    c:SetSize(cw, 54)
+    c:SetPoint("TOPLEFT", inset + (i - 1) * (cw + 10), y0 - 34)
+    c.label = c:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
+    c.label:SetPoint("TOPLEFT", 10, -7)
+    c.value = c:CreateFontString(nil, "OVERLAY", "WowAssistantFontHeader")
+    c.value:SetPoint("TOPLEFT", c.label, "BOTTOMLEFT", 0, -4)
+    c.value:SetPoint("RIGHT", -8, 0)
+    c.value:SetJustifyH("LEFT")
+    c.value:SetWordWrap(false)
+    c.sub = c:CreateFontString(nil, "OVERLAY", "WowAssistantFontMuted")
+    c.sub:SetPoint("BOTTOMLEFT", 10, 6)
+    c.sub:SetPoint("RIGHT", -8, 0)
+    c.sub:SetJustifyH("LEFT")
+    c.sub:SetWordWrap(false)
+    f.cards[i] = c
+  end
+
   f.status = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
-  f.status:SetPoint("TOPLEFT", inset, y0 - 30)
+  f.status:SetPoint("TOPLEFT", inset, y0 - 98)
   f.status:SetPoint("RIGHT", -inset, 0)
   f.status:SetJustifyH("LEFT")
   f.status:SetWordWrap(false)
 
   -- column headers: click to sort
   local x = inset
-  local headY = y0 - 48
+  local headY = y0 - 116
   f.heads = {}
   for i, c in ipairs(COLS) do
     local h = CreateFrame("Button", nil, f)
     h:SetSize(c[2], 18)
     h:SetPoint("TOPLEFT", x, headY)
-    local t = h:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormalSmall")
+    local t = h:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
     t:SetAllPoints()
     t:SetJustifyH(c[3])
     t:SetWordWrap(false)
@@ -550,12 +574,17 @@ local function Build()
   f.rows = {}
   for i = 1, ROWS do
     local row = CreateFrame("Button", nil, f)
-    row:SetSize(W - 2 * inset, 18)
-    row:SetPoint("TOPLEFT", inset, headY - 18 - (i - 1) * 18)
-    row:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
+    row:SetSize(W - 2 * inset, ROW_H)
+    row:SetPoint("TOPLEFT", inset, headY - 22 - (i - 1) * ROW_H)
+    local zebra = row:CreateTexture(nil, "BACKGROUND", nil, -1)
+    zebra:SetAllPoints()
+    zebra:SetColorTexture(1, 0.9, 0.7, i % 2 == 0 and 0.035 or 0)
+    local hl = row:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetAllPoints()
+    hl:SetColorTexture(1, 0.9, 0.7, 0.08)
     row.sel = row:CreateTexture(nil, "BACKGROUND")
     row.sel:SetAllPoints()
-    row.sel:SetColorTexture(0.8, 0.6, 0.2, 0.18)
+    row.sel:SetColorTexture(1, 0.82, 0, 0.16)
     row.cells = {}
     local cx = 0
     for k, c in ipairs(COLS) do
@@ -577,7 +606,7 @@ local function Build()
   end)
 
   -- details of the selected recipe, and the price buttons on the right
-  local top = headY - 24 - ROWS * 18
+  local top = headY - 32 - ROWS * ROW_H
   f.detail = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
   f.detail:SetPoint("TOPLEFT", inset, top)
   f.detail:SetPoint("RIGHT", -(inset + 176), 0)
@@ -636,7 +665,7 @@ function VC.Refresh()
   frame.prof:Refresh()
   frame.skill:Refresh()
   for i, h in ipairs(frame.heads) do
-    h.text:SetText(COLS[i][1] .. (f.sort == i and (f.dir > 0 and " ↑" or " ↓") or ""))
+    h.text:SetText(COLS[i][1]:upper() .. (f.sort == i and (f.dir > 0 and " ↑" or " ↓") or ""))
   end
   local m = Market()
   local live = 0
@@ -644,6 +673,24 @@ function VC.Refresh()
   frame.topBtn:SetEnabled(AHOpen() and true or false)
   frame.status:SetText(("%d recept · AH-szken: %s · élő ár: %d tárgy"):format(#results,
     m.at and (date("%m.%d %H:%M", m.at) .. (m.src == "web" and " (webapp)" or "")) or "|cffff9933nincs|r", live))
+  -- cards: the best craft now, how many are worth it, how fresh the prices are
+  local best, worth = nil, 0
+  for _, x in ipairs(results) do
+    if x.crafts > 0 and x.profit > 0 then
+      worth = worth + 1
+      if not best or x.profit > best.profit then best = x end
+    end
+  end
+  local c1, c2, c3 = frame.cards[1], frame.cards[2], frame.cards[3]
+  c1.label:SetText("LEGJOBB MOST")
+  c1.value:SetText(best and best.r.name or "|cff9e917a–|r")
+  c1.sub:SetText(best and ("|cff5ee05e+" .. Short(best.profit) .. "|r haszon, " .. best.crafts .. "× gyártva") or "egyik sem hoz most hasznot")
+  c2.label:SetText("MEGÉRI")
+  c2.value:SetText(("%d recept"):format(worth))
+  c2.sub:SetText(("%d-ből a szűrés szerint"):format(#results))
+  c3.label:SetText("ÁRAK")
+  c3.value:SetText(m.at and date("%m.%d %H:%M", m.at) or "|cffff9933nincs ár|r")
+  c3.sub:SetText(m.at and ((m.src == "web" and "webapp AH-adat" or "saját AH-szken") .. (live > 0 and (" · élő: " .. live) or "")) or "fusson a feltöltő, vagy /wa ah")
   frame.offset = math.min(frame.offset, math.max(0, #results - ROWS))
   local selRes
   for i, row in ipairs(frame.rows) do

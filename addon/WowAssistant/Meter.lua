@@ -103,17 +103,32 @@ end
 
 -- The target's name when it is an enemy. Any secret answer (in combat) counts as "no".
 local function EnemyTarget()
-  local e = UnitExists("target")
-  if Secret(e) or not e then return nil end
+  -- In combat UnitExists/UnitCanAttack may be secret while the name is not: a readable name is
+  -- enough, unless the client says plainly that the target is not an enemy.
+  local name = Str(UnitName("target"))
+  if not name then return nil end
   local c = UnitCanAttack("player", "target")
-  if Secret(c) or not c then return nil end
-  return Str(UnitName("target"))
+  if not Secret(c) and not c then return nil end
+  return name
+end
+
+-- The last enemy you targeted while its name could be read (usually just before the pull).
+local lastTarget
+local function RememberTarget()
+  local name = EnemyTarget()
+  if name then lastTarget = { name = name, level = Num(UnitLevel("target")) or 0, at = GetTime() } end
+end
+local function TargetNow()
+  local name = EnemyTarget()
+  if name then return name, Num(UnitLevel("target")) or 0 end
+  if lastTarget and GetTime() - lastTarget.at < 60 then return lastTarget.name, lastTarget.level end
+  return nil, 0
 end
 
 local function Begin()
-  local name = EnemyTarget()
+  local name, level = TargetNow()
   fight = {
-    start = time(), t0 = GetTime(), target = Str(name), targetLevel = name and Num(UnitLevel("target")) or 0,
+    start = time(), t0 = GetTime(), target = name, targetLevel = level,
     level = Num(UnitLevel("player")) or 0, casts = {}, ab = {}, order = {}, samples = 0, capped = 0, auras = {}, auraOrder = {},
     cp = Power(POWER_CP) or 0, spent = 0, spentAt = 0, pending = nil, events = 0, secret = 0,
     solo = InGroup() == false,
@@ -131,8 +146,8 @@ local function OnCast(spellID)
     fight.casts[#fight.casts + 1] = { math.floor((now - fight.t0) * 10 + 0.5), name, Power(POWER_ENERGY) or -1, cp }
   end
   if not fight.target then
-    local t = EnemyTarget()
-    fight.target, fight.targetLevel = Str(t), t and Num(UnitLevel("target")) or 0
+    local t, l = TargetNow()
+    fight.target, fight.targetLevel = t, l
   end
   if not NO_HIT[name] then
     fight.pending = { name = name, at = now }
@@ -303,12 +318,14 @@ frame:SetScript("OnEvent", function(_, event, ...)
     if unit == "player" then OnPower(kind) end
   elseif event == "UNIT_COMBAT" then
     OnTargetHit(...)
+  elseif event == "PLAYER_TARGET_CHANGED" then
+    RememberTarget()
   end
 end)
 
 table.insert(WA.onLoad, function()
   WA.charDB.meterFights = WA.charDB.meterFights or {}
-  for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_POWER_FREQUENT", "UNIT_COMBAT" }) do
+  for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_POWER_FREQUENT", "UNIT_COMBAT", "PLAYER_TARGET_CHANGED" }) do
     pcall(frame.RegisterEvent, frame, e)
   end
 end)

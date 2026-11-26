@@ -72,7 +72,12 @@ uptime, képességek percenként. A Harc fülön bármelyik harcra rákattintva 
 A feltöltő a harcnaplóból feldolgozott harcokat is beleírja a játék addon-mappájába
 (`WowAssistant/Fights.lua`; belépéskor vagy `/reload` után látszik). `/wa meter` mutatja, mit ad a kliens.
 
-**Kinézet:** alapból játékbeli ablakok (kő háttér, díszes keret, fülek alul); `/wa style flat` a
+**Felület:** bal oldalt a menü (karakter, oldalak, az addon többi ablaka), jobbra az oldal. Minden oldal
+a legfontosabb számokkal kezd, alattuk lenyitható szakaszok: csak a fontosak nyitottak, a táblák a
+fő oszlopokkal és az első sorokkal indulnak – „Több oszlop”, „Mutasd mind” és a keresőmező adja a
+többit. Hogy mi van nyitva, azt az addon megjegyzi.
+
+**Kinézet:** alapból játékbeli ablakok (sötét kő, arany keret, címszalag); `/wa style flat` a
 letisztult, Daylight UI-szerű változat, `/wa style wow` vissza (utána `/reload`). A játék betűi
 között nincs ő és ű, ezért az addon saját betűkészlettel jön (Fira Sans, Cinzel – `Fonts/`, SIL OFL).
 

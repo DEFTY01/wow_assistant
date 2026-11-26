@@ -31,13 +31,26 @@ local function MakeFont(name, path, size, r, g, b)
   return f
 end
 -- The same names as the game's font objects, with "WowAssistant" in front.
+-- Colours: one set, used everywhere (gold for titles, parchment white for text, muted brown-grey).
+S.C = {
+  gold = { 1, 0.82, 0 }, text = { 0.93, 0.9, 0.82 }, muted = { 0.62, 0.57, 0.48 },
+  bg = { 0.055, 0.047, 0.04 }, panel = { 0.095, 0.08, 0.062 }, card = { 0.12, 0.1, 0.075 },
+  edge = { 0.55, 0.43, 0.2 },
+}
+S.HEX = { gold = "ffd100", text = "ede6d1", muted = "9e917a", good = "5ee05e", warn = "ff9933", bad = "ff5a5a" }
+
+-- The same names as the game's font objects, with "WowAssistant" in front. Body text is at least 12.
 MakeFont("WowAssistantFontTitle", S.TITLE, 16, 1, 0.82, 0)
+MakeFont("WowAssistantFontPage", S.TITLE, 19, 1, 0.82, 0)
 MakeFont("WowAssistantFontHeader", S.TITLE, 13, 1, 0.82, 0)
-MakeFont("WowAssistantFontNormal", S.BODY, 12, 1, 0.82, 0)
-MakeFont("WowAssistantFontNormalSmall", S.BODY, 11, 1, 0.82, 0)
-MakeFont("WowAssistantFontHighlight", S.BODY, 12, 1, 1, 1)
-MakeFont("WowAssistantFontHighlightSmall", S.BODY, 11, 1, 1, 1)
-MakeFont("WowAssistantFontDisableSmall", S.BODY, 10, 0.6, 0.6, 0.6)
+MakeFont("WowAssistantFontNav", S.TITLE, 13, 0.93, 0.9, 0.82)
+MakeFont("WowAssistantFontBig", S.BODY, 21, 1, 1, 1)
+MakeFont("WowAssistantFontNormal", S.BODY, 13, 1, 0.82, 0)
+MakeFont("WowAssistantFontNormalSmall", S.BODY, 12, 1, 0.82, 0)
+MakeFont("WowAssistantFontHighlight", S.BODY, 13, 0.93, 0.9, 0.82)
+MakeFont("WowAssistantFontHighlightSmall", S.BODY, 12, 0.93, 0.9, 0.82)
+MakeFont("WowAssistantFontMuted", S.BODY, 12, 0.62, 0.57, 0.48)
+MakeFont("WowAssistantFontDisableSmall", S.BODY, 11, 0.62, 0.57, 0.48)
 
 -- For text shown in the game's own font (chat, tooltips).
 local FIX = { ["ő"] = "ö", ["ű"] = "ü", ["Ő"] = "Ö", ["Ű"] = "Ü", ["→"] = "->", ["↑"] = "^", ["↓"] = "v", ["…"] = "...", ["≈"] = "~" }
@@ -63,15 +76,27 @@ local function Try(kind, name, parent, template)
 end
 
 local DIALOG = {
-  bgFile = "Interface\\DialogFrame\\UI-DialogBox-Background-Dark",
-  edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-  tile = true, tileSize = 32, edgeSize = 32,
-  insets = { left = 11, right = 12, top = 12, bottom = 11 },
+  bgFile = "Interface\\Buttons\\WHITE8x8",
+  edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Gold-Border",
+  tile = false, edgeSize = 32,
+  insets = { left = 11, right = 11, top = 11, bottom = 11 },
 }
 local FLAT = { bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 }
+S.FLAT = FLAT
+
+-- A plain panel: solid colour with a 1 px edge (cards, the side menu).
+function S.Panel(f, color, edge, edgeAlpha)
+  if not f.SetBackdrop then return f end
+  f:SetBackdrop(FLAT)
+  local c, e = color or S.C.panel, edge or S.C.edge
+  f:SetBackdropColor(c[1], c[2], c[3], 0.95)
+  f:SetBackdropBorderColor(e[1], e[2], e[3], edgeAlpha or 0.35)
+  return f
+end
 
 -- A movable window with a title and a close button. Returns the frame; frame.inset is how far
--- content keeps from the edges.
+-- content keeps from the edges, frame.top where content may start.
+-- wow: dark stone with the gold dialog border and the title banner on the top edge.
 function S.Window(name, w, h, title)
   local f = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
   f:SetSize(w, h)
@@ -89,17 +114,23 @@ function S.Window(name, w, h, title)
   local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
   if S.Wow() then
     f:SetBackdrop(DIALOG)
-    f:SetBackdropColor(1, 1, 1, 1)
-    f.inset = 18
-    f.title:SetPoint("TOP", 0, -16)
-    close:SetPoint("TOPRIGHT", -5, -5)
-    -- a thin gold rule under the title
-    local rule = f:CreateTexture(nil, "ARTWORK")
-    rule:SetColorTexture(1, 0.82, 0, 0.35)
-    rule:SetHeight(1)
-    rule:SetPoint("TOPLEFT", 18, -38)
-    rule:SetPoint("TOPRIGHT", -18, -38)
-    f.top = 44
+    f:SetBackdropColor(S.C.bg[1], S.C.bg[2], S.C.bg[3], 0.97)
+    -- a warm glow from the top, so the stone is not flat black
+    local glow = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+    glow:SetPoint("TOPLEFT", 11, -11)
+    glow:SetPoint("TOPRIGHT", -11, -11)
+    glow:SetHeight(120)
+    glow:SetColorTexture(0.55, 0.4, 0.18, 0.08)
+    -- the title banner sits on the top edge
+    local banner = f:CreateTexture(nil, "ARTWORK")
+    banner:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
+    banner:SetSize(math.min(420, 180 + #(title or "") * 7), 64)
+    banner:SetPoint("TOP", 0, 12)
+    f.banner = banner
+    f.title:SetPoint("TOP", banner, "TOP", 0, -14)
+    f.inset = 16
+    close:SetPoint("TOPRIGHT", -4, -4)
+    f.top = 34
   else
     f:SetBackdrop(FLAT)
     f:SetBackdropColor(0.05, 0.04, 0.03, 0.96)

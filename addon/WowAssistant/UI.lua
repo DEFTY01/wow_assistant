@@ -1,28 +1,36 @@
--- WoW Assistant: the main window (/wa). The web app's pages in game, page by page:
+-- WoW Assistant: the main window (/wa). The web app's pages in game:
 --   Haditerv     plan.ts        what to buy, learn, farm and craft with the gold you have
---   Harc         combat.ts      statistics and advice from the recorded fights
---   Felszerelés  gear.ts        dungeon upgrades for every slot, party buffs and consumables
+--   Harc         combat.ts      the recorded fights: score, abilities, advice
+--   Felszerelés  gear.ts        the next upgrade for every slot, buffs and consumables
 --   Mesterségek  planRoutes     the cheapest way to skill each profession
--- plus buttons for the vendor-crafting window, the session bar and the Chronicle panel.
 --
--- Every page is a list of blocks (heading, text, table, check boxes) drawn into one scrolling
--- area. Tables sort by clicking their header; the search box filters the rows of every table.
+-- Layout: a side menu (character, pages, the addon's other windows) and the page on the right.
+-- A page shows the few numbers that matter as cards, then sections. Only the important sections
+-- are open, tables show their key columns and first rows; the rest is one click away (open a
+-- section, "Több oszlop", "Mutasd mind"), and the search box filters every table of the page.
+-- Which sections are open and which show more columns is remembered.
 
 local _, WA = ...
 local UI = {}
 WA.UI = UI
 local G = WA.Game
 
-local W, H = 960, 620
-local CONTENT_W = W - 66 -- set by Build from the style's margins
-local ROW_H = 16
-local TABLE_LIMIT = 60
+local W, H = 1000, 640
+local NAV_W = 190
+local ROW_H = 20
+local GAP = 8          -- between table columns
+local ROWS_SHOWN = 8   -- rows before "Mutasd mind"
+local ROWS_MAX = 200
+local CONTENT_W = 700  -- set by Build
 
 ---------------------------------------------------------------------------
 -- formatting
 ---------------------------------------------------------------------------
+local HEX = WA.Style.HEX
+local function Color(hex, s) return "|cff" .. hex .. tostring(s) .. "|r" end
+local function Muted(s) return Color(HEX.muted, s) end
 local function Money(c)
-  if not c then return "|cff888888–|r" end
+  if not c then return Muted("–") end
   local neg = c < 0
   c = math.floor(math.abs(c) + 0.5)
   local g, s, k = math.floor(c / 10000), math.floor(c % 10000 / 100), c % 100
@@ -34,13 +42,12 @@ local function Money(c)
 end
 local function F1(n) return n and ("%.1f"):format(n) or "–" end
 local function Pct(n) return n and (("%.1f%%"):format(n)) or "–" end
-local function Gain(g) return g and ("|cff40ff40+%.1f|r"):format(g) or "–" end
+local function Gain(g) return g and Color(HEX.good, ("+%.1f"):format(g)) or "–" end
 local QCOLOR = { POOR = "9d9d9d", COMMON = "ffffff", UNCOMMON = "1eff00", RARE = "0070dd", EPIC = "a335ee", LEGENDARY = "ff8000" }
 local QNUM = { [0] = "POOR", "COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY" }
 local function Item(name, quality)
   if type(quality) == "number" then quality = QNUM[quality] end
-  local c = QCOLOR[quality or "COMMON"] or "ffffff"
-  return "|cff" .. c .. (name or "?") .. "|r"
+  return "|cff" .. (QCOLOR[quality or "COMMON"] or "ffffff") .. (name or "?") .. "|r"
 end
 local function Plain(s) return (tostring(s or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
 UI.Money, UI.Item = Money, Item
@@ -49,24 +56,46 @@ UI.Money, UI.Item = Money, Item
 local function Cell(text, value) return { text, value } end
 
 ---------------------------------------------------------------------------
--- window
+-- state
 ---------------------------------------------------------------------------
 local frame
 UI.tab = "plan"
 UI.filter = ""
 UI.sort = {}       -- table id -> { column, direction }
+UI.more = {}       -- table id -> true: every row (this session)
 UI.target = 300    -- profession route target
 UI.cache = {}      -- tab -> blocks (cleared by Refresh)
+UI.head = {}       -- tab -> { title, subtitle } (set by the page)
 
-local TABS = {
-  { "plan", "Haditerv" }, { "combat", "Harc" }, { "gear", "Felszerelés" }, { "prof", "Mesterségek" },
+local function State()
+  WA.db.ui = WA.db.ui or {}
+  local s = WA.db.ui
+  s.open, s.detail = s.open or {}, s.detail or {}
+  return s
+end
+
+local PAGES = {
+  { "plan", "Haditerv", "Interface\\Icons\\INV_Misc_Map_01" },
+  { "combat", "Harc", "Interface\\Icons\\Ability_Rogue_Eviscerate" },
+  { "gear", "Felszerelés", "Interface\\Icons\\INV_Chest_Leather_09" },
+  { "prof", "Mesterségek", "Interface\\Icons\\Trade_Engineering" },
+}
+local WINDOWS = {
+  { "Vendor gyártás", "Interface\\Icons\\INV_Misc_Coin_02", function() if WA.VC then WA.VC.Toggle() end end },
+  { "Session sáv", "Interface\\Icons\\INV_Misc_PocketWatch_01", function()
+    local hidden = WA.db.session and WA.db.session.hidden
+    if WA.Session then WA.Session.Command(hidden and "show" or "hide") end
+  end },
+  { "Chronicle", "Interface\\Icons\\INV_Misc_Book_09", function() if WA.Chronicle then WA.Chronicle.Command("") end end },
 }
 
-local pools = { text = {}, row = {}, head = {}, check = {}, button = {} }
-local used = { text = 0, row = 0, head = 0, check = 0, button = 0 }
-
+---------------------------------------------------------------------------
+-- pooled widgets (the page is redrawn from blocks; frames are reused)
+---------------------------------------------------------------------------
+local pools, used = {}, {}
 local function Acquire(kind, make)
-  used[kind] = used[kind] + 1
+  pools[kind] = pools[kind] or {}
+  used[kind] = (used[kind] or 0) + 1
   local o = pools[kind][used[kind]]
   if not o then
     o = make()
@@ -78,12 +107,15 @@ local function Acquire(kind, make)
 end
 
 local function Text(parent, font)
-  return Acquire("text", function()
-    local t = parent:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
-    t:SetJustifyH("LEFT")
-    t:SetJustifyV("TOP")
-    return t
+  local t = Acquire("text", function()
+    local fs = parent:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
+    fs:SetJustifyH("LEFT")
+    fs:SetJustifyV("TOP")
+    return fs
   end)
+  t:SetFontObject(font or "WowAssistantFontHighlightSmall")
+  t:SetWordWrap(true)
+  return t
 end
 
 local function Height(fs, fallback)
@@ -91,50 +123,127 @@ local function Height(fs, fallback)
   return (h and h > 0) and h or fallback
 end
 
+local function Fill(tex, r, g, b, a) tex:SetColorTexture(r, g, b, a) return tex end
+
+---------------------------------------------------------------------------
+-- the window
+---------------------------------------------------------------------------
+local function NavButton(parent, label, icon, onClick)
+  local b = CreateFrame("Button", nil, parent)
+  b:SetSize(NAV_W - 16, 34)
+  b.sel = Fill(b:CreateTexture(nil, "BACKGROUND"), 1, 0.82, 0, 0.13)
+  b.sel:SetAllPoints()
+  b.bar = Fill(b:CreateTexture(nil, "ARTWORK"), 1, 0.82, 0, 0.9)
+  b.bar:SetPoint("TOPLEFT")
+  b.bar:SetPoint("BOTTOMLEFT")
+  b.bar:SetWidth(3)
+  local hl = Fill(b:CreateTexture(nil, "HIGHLIGHT"), 1, 0.9, 0.7, 0.07)
+  hl:SetAllPoints()
+  b.icon = b:CreateTexture(nil, "ARTWORK")
+  b.icon:SetSize(24, 24)
+  b.icon:SetPoint("LEFT", 10, 0)
+  b.icon:SetTexture(icon)
+  b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  b.label = b:CreateFontString(nil, "OVERLAY", "WowAssistantFontNav")
+  b.label:SetPoint("LEFT", b.icon, "RIGHT", 10, 0)
+  b.label:SetPoint("RIGHT", -6, 0)
+  b.label:SetJustifyH("LEFT")
+  b.label:SetWordWrap(false)
+  b.label:SetText(label)
+  b:SetScript("OnClick", onClick)
+  function b:SetSelected(on)
+    self.sel:SetShown(on)
+    self.bar:SetShown(on)
+    self.label:SetFontObject(on and "WowAssistantFontHeader" or "WowAssistantFontNav")
+  end
+  b:SetSelected(false)
+  return b
+end
+
 local function Build()
   local St = WA.Style
   local f = St.Window("WowAssistantMainFrame", W, H, "WoW Assistant")
-  local inset = f.inset
-  CONTENT_W = W - 2 * inset - 30
-  f.who = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
-  if St.Wow() then f.who:SetPoint("TOPLEFT", inset + 4, -20) else f.who:SetPoint("LEFT", f.title, "RIGHT", 10, 0) end
+  local inset, top = f.inset, f.top
 
-  f.tabs = St.Tabs(f, TABS, function(id) UI.Show(id) end)
-  local y = -(f.top + f.tabs.height)
-  -- the other windows of the addon, left
-  local x = inset
-  for _, b in ipairs({
-    { "Vendor", 80, function() if WA.VC then WA.VC.Toggle() end end },
-    { "Session sáv", 104, function()
-      local hidden = WA.db.session and WA.db.session.hidden
-      if WA.Session then WA.Session.Command(hidden and "show" or "hide") end
-    end },
-    { "Chronicle", 96, function() if WA.Chronicle then WA.Chronicle.Command("") end end },
-  }) do
-    local btn = St.Button(f, b[1], b[2], b[3])
-    btn:SetPoint("TOPLEFT", x, y)
-    x = x + b[2] + 4
+  -- side menu: who, the pages, the other windows
+  local nav = CreateFrame("Frame", nil, f, "BackdropTemplate")
+  nav:SetPoint("TOPLEFT", inset, -top)
+  nav:SetPoint("BOTTOMLEFT", inset, inset)
+  nav:SetWidth(NAV_W)
+  St.Panel(nav, St.C.panel, St.C.edge, 0.3)
+  f.portrait = nav:CreateTexture(nil, "ARTWORK")
+  f.portrait:SetSize(46, 46)
+  f.portrait:SetPoint("TOPLEFT", 10, -12)
+  local ring = nav:CreateTexture(nil, "OVERLAY")
+  ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+  ring:SetSize(80, 80)
+  ring:SetPoint("TOPLEFT", f.portrait, "TOPLEFT", -6, 5)
+  f.name = nav:CreateFontString(nil, "OVERLAY", "WowAssistantFontHeader")
+  f.name:SetPoint("TOPLEFT", f.portrait, "TOPRIGHT", 10, -2)
+  f.name:SetPoint("RIGHT", -8, 0)
+  f.name:SetJustifyH("LEFT")
+  f.name:SetWordWrap(false)
+  f.level = nav:CreateFontString(nil, "OVERLAY", "WowAssistantFontMuted")
+  f.level:SetPoint("TOPLEFT", f.name, "BOTTOMLEFT", 0, -3)
+  f.money = nav:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
+  f.money:SetPoint("TOPLEFT", f.level, "BOTTOMLEFT", 0, -3)
+
+  local y = -76
+  local rule = Fill(nav:CreateTexture(nil, "ARTWORK"), 1, 0.82, 0, 0.25)
+  rule:SetHeight(1)
+  rule:SetPoint("TOPLEFT", 8, y)
+  rule:SetPoint("TOPRIGHT", -8, y)
+  y = y - 8
+  f.nav = {}
+  for _, p in ipairs(PAGES) do
+    local b = NavButton(nav, p[2], p[3], function() UI.Show(p[1]) end)
+    b:SetPoint("TOPLEFT", 8, y)
+    f.nav[p[1]] = b
+    y = y - 36
   end
-  -- filter and refresh, right
-  local refresh = St.Button(f, "Frissítés", 96, function() UI.Refresh() end)
-  refresh:SetPoint("TOPRIGHT", -inset, y)
-  local search = St.Search(f, "Szűrés:", 170, function(text) UI.filter = text UI.Draw() end)
-  search:SetPoint("RIGHT", refresh, "LEFT", -10, 0)
-
-  local top = f.top + f.tabs.height + 30
-  f.scroll, f.child = St.Scroll(f, inset, top, inset, 26, CONTENT_W)
-  f.note = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
-  f.note:SetPoint("BOTTOMLEFT", inset, St.Wow() and 14 or 7)
-  f.note:SetPoint("RIGHT", -inset, 0)
+  y = y - 10
+  local other = nav:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
+  other:SetPoint("TOPLEFT", 14, y)
+  other:SetText("ABLAKOK")
+  y = y - 18
+  for _, w in ipairs(WINDOWS) do
+    local b = NavButton(nav, w[1], w[2], w[3])
+    b:SetHeight(30)
+    b.icon:SetSize(20, 20)
+    b.label:SetFontObject("WowAssistantFontHighlightSmall")
+    b.SetSelected = function() end
+    b.sel:Hide() b.bar:Hide()
+    b:SetPoint("TOPLEFT", 8, y)
+    y = y - 32
+  end
+  f.note = nav:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
+  f.note:SetPoint("BOTTOMLEFT", 12, 10)
+  f.note:SetPoint("RIGHT", -10, 0)
   f.note:SetJustifyH("LEFT")
-  f.note:SetWordWrap(false)
+  f.note:SetJustifyV("BOTTOM")
+
+  -- page header: title, one line about the page, search
+  local left = inset + NAV_W + 18
+  f.pageTitle = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontPage")
+  f.pageTitle:SetPoint("TOPLEFT", left, -(top + 4))
+  f.pageSub = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontMuted")
+  f.pageSub:SetPoint("TOPLEFT", f.pageTitle, "BOTTOMLEFT", 0, -4)
+  f.pageSub:SetPoint("RIGHT", f, "RIGHT", -(inset + 260), 0)
+  f.pageSub:SetJustifyH("LEFT")
+  f.pageSub:SetWordWrap(false)
+  local search = St.Search(f, "Keresés", 170, function(text) UI.filter = text UI.Draw() end)
+  search:SetPoint("TOPRIGHT", -(inset + 6), -(top + 8))
+  f.search = search
+  local headRule = Fill(f:CreateTexture(nil, "ARTWORK"), 1, 0.82, 0, 0.3)
+  headRule:SetHeight(1)
+  headRule:SetPoint("TOPLEFT", left, -(top + 52))
+  headRule:SetPoint("TOPRIGHT", -(inset + 4), -(top + 52))
+
+  local scrollTop = top + 62
+  CONTENT_W = W - left - inset - 32
+  f.scroll, f.child = St.Scroll(f, left, scrollTop, inset + 4, inset + 2, CONTENT_W)
   f:Hide()
   return f
-end
-
-function UI.UpdateScrollNote()
-  if not frame then return end
-  frame.note:SetText(UI.status or "")
 end
 
 ---------------------------------------------------------------------------
@@ -142,7 +251,7 @@ end
 ---------------------------------------------------------------------------
 local function Matches(cells, needle)
   if needle == "" then return true end
-  for _, c in ipairs(cells) do
+  for _, c in pairs(cells) do
     local t = type(c) == "table" and c[1] or c
     if Plain(t):lower():find(needle, 1, true) then return true end
   end
@@ -163,7 +272,39 @@ local function Less(a, b)
   return a < b
 end
 
-local function DrawTable(child, b, y)
+-- Which columns show, and how wide: the extra ones only with "Több oszlop"; flex columns share
+-- what is left.
+local function Layout(cols, w, detail)
+  local vis, fixed, flex = {}, 0, 0
+  for i, c in ipairs(cols) do
+    if detail or not c.extra then
+      vis[#vis + 1] = { i = i, c = c }
+      if c.flex then flex = flex + 1 else fixed = fixed + c[2] end
+    end
+  end
+  local rest = math.max(80, w - fixed - (#vis - 1) * GAP)
+  for _, v in ipairs(vis) do v.w = v.c.flex and math.floor(rest / math.max(1, flex)) or v.c[2] end
+  return vis
+end
+
+local function HasExtra(cols)
+  for _, c in ipairs(cols) do if c.extra then return true end end
+  return false
+end
+
+local function MoreButton(child)
+  return Acquire("more", function()
+    local b = CreateFrame("Button", nil, child)
+    b:SetHeight(20)
+    b.text = b:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormalSmall")
+    b.text:SetPoint("LEFT", 4, 0)
+    local hl = Fill(b:CreateTexture(nil, "HIGHLIGHT"), 1, 0.9, 0.7, 0.06)
+    hl:SetAllPoints()
+    return b
+  end)
+end
+
+local function DrawTable(child, b, x, y, w, detail)
   local needle = UI.filter:lower()
   local rows = {}
   for _, r in ipairs(b.rows) do if Matches(r.cells or r, needle) then rows[#rows + 1] = r end end
@@ -171,108 +312,178 @@ local function DrawTable(child, b, y)
   if s then
     local idx = {}
     for i, r in ipairs(rows) do idx[r] = i end
-    table.sort(rows, function(x, z)
-      local va, vb = SortValue((x.cells or x)[s[1]]), SortValue((z.cells or z)[s[1]])
-      if va == vb then return idx[x] < idx[z] end
+    table.sort(rows, function(p, q)
+      local va, vb = SortValue((p.cells or p)[s[1]]), SortValue((q.cells or q)[s[1]])
+      if va == vb then return idx[p] < idx[q] end
       if s[2] > 0 then return Less(va, vb) end
       return Less(vb, va)
     end)
   end
-  -- header
-  local x = 0
-  for i, c in ipairs(b.cols) do
+  local vis = Layout(b.cols, w, detail)
+
+  -- header: click to sort
+  local cx = x
+  for _, v in ipairs(vis) do
+    local c, i = v.c, v.i
     local h = Acquire("head", function()
       local btn = CreateFrame("Button", nil, child)
-      btn:SetHeight(ROW_H)
-      btn.text = btn:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormalSmall")
+      btn:SetHeight(18)
+      btn.text = btn:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
       btn.text:SetAllPoints()
       btn.text:SetWordWrap(false)
       return btn
     end)
-    h:SetWidth(c[2])
-    h:SetPoint("TOPLEFT", child, "TOPLEFT", x, -y)
+    h:SetWidth(v.w)
+    h:SetPoint("TOPLEFT", child, "TOPLEFT", cx, -y)
     h.text:SetJustifyH(c[3] or "LEFT")
-    h.text:SetText(c[1] .. ((s and s[1] == i) and (s[2] > 0 and " ↑" or " ↓") or ""))
+    h.text:SetText(c[1]:upper() .. ((s and s[1] == i) and (s[2] > 0 and " ↑" or " ↓") or ""))
     h:SetScript("OnClick", function()
       local cur = UI.sort[b.id]
       if cur and cur[1] == i then cur[2] = -cur[2]
       else UI.sort[b.id] = { i, (c[3] == "RIGHT") and -1 or 1 } end
       UI.Draw()
     end)
-    x = x + c[2] + 6
+    cx = cx + v.w + GAP
   end
-  y = y + ROW_H + 2
-  local limit = b.limit or TABLE_LIMIT
+  y = y + 18
+  local line = Acquire("line", function() return Fill(child:CreateTexture(nil, "ARTWORK"), 1, 0.82, 0, 0.18) end)
+  line:SetHeight(1)
+  line:SetPoint("TOPLEFT", child, "TOPLEFT", x, -y)
+  line:SetWidth(w)
+  y = y + 3
+
+  local limit = UI.more[b.id] and ROWS_MAX or (b.limit or ROWS_SHOWN)
   for n, r in ipairs(rows) do
     if n > limit then break end
     local row = Acquire("row", function()
       local btn = CreateFrame("Button", nil, child)
       btn:SetHeight(ROW_H)
-      btn:SetHighlightTexture("Interface\\QuestFrame\\UI-QuestTitleHighlight", "ADD")
       btn.bg = btn:CreateTexture(nil, "BACKGROUND")
       btn.bg:SetAllPoints()
-      btn.bg:SetColorTexture(1, 0.85, 0.5, 0.04)
+      local hl = Fill(btn:CreateTexture(nil, "HIGHLIGHT"), 1, 0.9, 0.7, 0.08)
+      hl:SetAllPoints()
       btn.cells = {}
       btn:SetScript("OnEnter", function(self)
         if not self.itemId and not self.tip then return end
         GameTooltip:SetOwner(self, "ANCHOR_CURSOR")
         if self.itemId then pcall(GameTooltip.SetItemByID, GameTooltip, self.itemId) end
-        if self.tip then GameTooltip:AddLine(WA.Fix(self.tip), 1, 0.82, 0.5, true) end
+        if self.tip and self.tip ~= "" then GameTooltip:AddLine(WA.Fix(self.tip), 1, 0.82, 0.5, true) end
         GameTooltip:Show()
       end)
       btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
       return btn
     end)
-    row:SetWidth(CONTENT_W)
-    row:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -y)
-    row.bg:SetShown(n % 2 == 0 or r.selected == true)
-    row.bg:SetColorTexture(1, 0.85, 0.5, r.selected and 0.22 or 0.04)
+    row:SetWidth(w)
+    row:SetPoint("TOPLEFT", child, "TOPLEFT", x, -y)
+    if r.selected then Fill(row.bg, 1, 0.82, 0, 0.16) row.bg:Show()
+    else Fill(row.bg, 1, 0.9, 0.7, 0.035) row.bg:SetShown(n % 2 == 0) end
     row.itemId, row.tip = r.itemId, r.tip
     row:SetScript("OnClick", r.onClick)
     local cells = r.cells or r
-    local cx = 0
-    for i, c in ipairs(b.cols) do
-      local fs = row.cells[i]
+    local px = 0
+    for k, v in ipairs(vis) do
+      local fs = row.cells[k]
       if not fs then
         fs = row:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
         fs:SetWordWrap(false)
-        row.cells[i] = fs
+        row.cells[k] = fs
       end
       fs:ClearAllPoints()
-      fs:SetPoint("LEFT", row, "LEFT", cx, 0)
-      fs:SetWidth(c[2])
-      fs:SetJustifyH(c[3] or "LEFT")
-      local v = cells[i]
-      fs:SetText(type(v) == "table" and v[1] or v or "")
+      fs:SetPoint("LEFT", row, "LEFT", px + 2, 0)
+      fs:SetWidth(v.w - 2)
+      fs:SetJustifyH(v.c[3] or "LEFT")
+      local val = cells[v.i]
+      fs:SetText(type(val) == "table" and val[1] or val or "")
       fs:Show()
-      cx = cx + c[2] + 6
+      px = px + v.w + GAP
     end
-    for i = #b.cols + 1, #row.cells do row.cells[i]:Hide() end
+    for k = #vis + 1, #row.cells do row.cells[k]:Hide() end
     y = y + ROW_H
   end
   if #rows == 0 then
-    local t = Text(child)
-    t:SetWidth(CONTENT_W)
-    t:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -y)
-    t:SetText(needle ~= "" and "|cff888888(a szűrésnek egy sor sem felel meg)|r" or ("|cff888888" .. (b.empty or "nincs adat") .. "|r"))
-    y = y + 14
-  elseif #rows > limit then
-    local t = Text(child)
-    t:SetWidth(CONTENT_W)
-    t:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -y)
-    t:SetText(("|cff888888… és még %d sor: szűrj a keresőmezővel.|r"):format(#rows - limit))
-    y = y + 14
+    local t = Text(child, "WowAssistantFontMuted")
+    t:SetWidth(w)
+    t:SetPoint("TOPLEFT", child, "TOPLEFT", x + 2, -(y + 3))
+    t:SetText(needle ~= "" and "A keresésnek egy sor sem felel meg." or (b.empty or "Nincs adat."))
+    y = y + 22
+  elseif #rows > (b.limit or ROWS_SHOWN) then
+    local m = MoreButton(child)
+    m:SetWidth(w)
+    m:SetPoint("TOPLEFT", child, "TOPLEFT", x, -(y + 2))
+    if UI.more[b.id] then m.text:SetText("Kevesebb sor")
+    else m.text:SetText(("Mutasd mind (még %d)"):format(#rows - limit)) end
+    m:SetScript("OnClick", function() UI.more[b.id] = not UI.more[b.id] or nil UI.Draw() end)
+    y = y + 24
   end
-  return y + 8
+  return y + 6
 end
 
-local function DrawChecks(child, b, y)
+local function DrawCards(child, b, x, y, w)
+  local n = #b.cards
+  if n == 0 then return y end
+  local cw = math.floor((w - (n - 1) * 10) / n)
+  for i, c in ipairs(b.cards) do
+    local card = Acquire("card", function()
+      local fr = CreateFrame("Frame", nil, child, "BackdropTemplate")
+      WA.Style.Panel(fr, WA.Style.C.card, WA.Style.C.edge, 0.4)
+      fr:SetHeight(62)
+      fr.label = fr:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
+      fr.label:SetPoint("TOPLEFT", 10, -8)
+      fr.label:SetPoint("RIGHT", -8, 0)
+      fr.label:SetJustifyH("LEFT")
+      fr.label:SetWordWrap(false)
+      fr.value = fr:CreateFontString(nil, "OVERLAY", "WowAssistantFontBig")
+      fr.value:SetPoint("TOPLEFT", fr.label, "BOTTOMLEFT", 0, -3)
+      fr.value:SetPoint("RIGHT", -8, 0)
+      fr.value:SetJustifyH("LEFT")
+      fr.value:SetWordWrap(false)
+      fr.sub = fr:CreateFontString(nil, "OVERLAY", "WowAssistantFontMuted")
+      fr.sub:SetPoint("BOTTOMLEFT", 10, 7)
+      fr.sub:SetPoint("RIGHT", -8, 0)
+      fr.sub:SetJustifyH("LEFT")
+      fr.sub:SetWordWrap(false)
+      return fr
+    end)
+    card:SetWidth(cw)
+    card:SetPoint("TOPLEFT", child, "TOPLEFT", x + (i - 1) * (cw + 10), -y)
+    card.label:SetText((c.label or ""):upper())
+    card.value:SetText(c.value or "–")
+    card.sub:SetText(c.sub or "")
+    card.tip = c.tip
+    card:SetScript("OnEnter", c.tip and function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+      GameTooltip:AddLine(WA.Fix(self.tip), 1, 0.82, 0.5, true)
+      GameTooltip:Show()
+    end or nil)
+    card:SetScript("OnLeave", c.tip and function() GameTooltip:Hide() end or nil)
+  end
+  return y + 62 + 14
+end
+
+local TIP_COLOR = { fix = HEX.bad, warn = HEX.warn, tip = HEX.gold, info = HEX.muted, good = HEX.good }
+local function DrawTips(child, b, x, y, w)
+  for _, a in ipairs(b.tips) do
+    local mark = Acquire("mark", function() return child:CreateTexture(nil, "ARTWORK") end)
+    local c = TIP_COLOR[a.level] or HEX.gold
+    mark:SetColorTexture(tonumber(c:sub(1, 2), 16) / 255, tonumber(c:sub(3, 4), 16) / 255, tonumber(c:sub(5, 6), 16) / 255, 0.9)
+    mark:SetSize(3, 14)
+    mark:SetPoint("TOPLEFT", child, "TOPLEFT", x, -(y + 1))
+    local t = Text(child)
+    t:SetWidth(w - 12)
+    t:SetPoint("TOPLEFT", child, "TOPLEFT", x + 10, -y)
+    t:SetText(a.title and (Color(c, a.title) .. (a.text and a.text ~= "" and ("  " .. a.text) or "")) or a.text)
+    y = y + Height(t, 14) + 6
+  end
+  return y + 2
+end
+
+local function DrawChecks(child, b, x, y, w)
   local per = b.perRow or 3
-  local w = CONTENT_W / per
+  local cw = w / per
   for i, c in ipairs(b.checks) do
     local cb = Acquire("check", function()
       local btn = CreateFrame("CheckButton", nil, child, "UICheckButtonTemplate")
-      btn:SetSize(20, 20)
+      btn:SetSize(22, 22)
       btn.label = btn:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
       btn.label:SetPoint("LEFT", btn, "RIGHT", 2, 0)
       btn.label:SetJustifyH("LEFT")
@@ -280,30 +491,136 @@ local function DrawChecks(child, b, y)
       return btn
     end)
     local col, line = (i - 1) % per, math.floor((i - 1) / per)
-    cb:SetPoint("TOPLEFT", child, "TOPLEFT", col * w, -(y + line * 20))
-    cb.label:SetWidth(w - 26)
+    cb:SetPoint("TOPLEFT", child, "TOPLEFT", x + col * cw, -(y + line * 24))
+    cb.label:SetWidth(cw - 28)
     cb.label:SetText(c.label)
     cb:SetChecked(c.checked and true or false)
     cb:SetEnabled(not c.disabled)
     cb:SetScript("OnClick", function(self) c.onClick(self:GetChecked() and true or false) end)
   end
-  return y + math.ceil(#b.checks / per) * 20 + 6
+  return y + math.ceil(#b.checks / per) * 24 + 6
 end
 
-local function DrawButtons(child, b, y)
-  local x = 0
+local function DrawButtons(child, b, x, y)
   for _, c in ipairs(b.buttons) do
-    local btn = Acquire("button", function()
-      return WA.Style.Button(child, "", 120)
-    end)
-    btn:SetSize(c.width or 120, 20)
+    local btn = Acquire("button", function() return WA.Style.Button(child, "", 120) end)
+    btn:SetSize(c.width or 120, 22)
     btn:SetPoint("TOPLEFT", child, "TOPLEFT", x, -y)
     btn:SetText(c.label)
-    btn:SetEnabled(not c.disabled)
+    btn:SetEnabled(true)
+    if c.active then btn:LockHighlight() else btn:UnlockHighlight() end
     btn:SetScript("OnClick", c.onClick)
     x = x + (c.width or 120) + 6
   end
-  return y + 26
+  return y + 30
+end
+
+local DrawBlocks
+
+-- A section: a header bar (click: open/close; "Több oszlop" when its table has extra columns)
+-- and its blocks under it.
+local function DrawSection(child, s, x, y, w)
+  local st = State()
+  local open = st.open[s.id]
+  if open == nil then open = s.open and true or false end
+  if UI.filter ~= "" then open = true end
+  local detail = st.detail[s.id] and true or false
+  local hasExtra = false
+  for _, b in ipairs(s.blocks or {}) do if b.table and HasExtra(b.table.cols) then hasExtra = true end end
+
+  local h = Acquire("section", function()
+    local btn = CreateFrame("Button", nil, child)
+    btn:SetHeight(28)
+    btn.bg = Fill(btn:CreateTexture(nil, "BACKGROUND"), 0.14, 0.115, 0.08, 0.9)
+    btn.bg:SetAllPoints()
+    local hl = Fill(btn:CreateTexture(nil, "HIGHLIGHT"), 1, 0.9, 0.7, 0.06)
+    hl:SetAllPoints()
+    btn.edge = Fill(btn:CreateTexture(nil, "ARTWORK"), 1, 0.82, 0, 0.35)
+    btn.edge:SetPoint("BOTTOMLEFT")
+    btn.edge:SetPoint("BOTTOMRIGHT")
+    btn.edge:SetHeight(1)
+    btn.icon = btn:CreateTexture(nil, "ARTWORK")
+    btn.icon:SetSize(14, 14)
+    btn.icon:SetPoint("LEFT", 8, 0)
+    btn.title = btn:CreateFontString(nil, "OVERLAY", "WowAssistantFontHeader")
+    btn.title:SetPoint("LEFT", btn.icon, "RIGHT", 8, 0)
+    btn.title:SetJustifyH("LEFT")
+    btn.title:SetWordWrap(false)
+    btn.count = btn:CreateFontString(nil, "OVERLAY", "WowAssistantFontMuted")
+    btn.count:SetPoint("LEFT", btn.title, "RIGHT", 8, 0)
+    btn.detail = CreateFrame("Button", nil, btn)
+    btn.detail:SetSize(110, 22)
+    btn.detail:SetPoint("RIGHT", -6, 0)
+    btn.detail.text = btn.detail:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormalSmall")
+    btn.detail.text:SetPoint("RIGHT", -2, 0)
+    local dhl = Fill(btn.detail:CreateTexture(nil, "HIGHLIGHT"), 1, 0.9, 0.7, 0.08)
+    dhl:SetAllPoints()
+    return btn
+  end)
+  h:SetWidth(w)
+  h:SetPoint("TOPLEFT", child, "TOPLEFT", x, -y)
+  h.icon:SetTexture(open and "Interface\\Buttons\\UI-MinusButton-Up" or "Interface\\Buttons\\UI-PlusButton-Up")
+  h.title:SetText(s.title)
+  h.count:SetText(s.count and s.count > 0 and ("(" .. s.count .. ")") or "")
+  h:SetScript("OnClick", function()
+    st.open[s.id] = not open
+    UI.Draw()
+  end)
+  h.detail:SetShown(open and hasExtra)
+  h.detail.text:SetText(detail and "Kevesebb oszlop" or "Több oszlop")
+  h.detail:SetScript("OnClick", function()
+    st.detail[s.id] = not detail or nil
+    UI.Draw()
+  end)
+  y = y + 28 + 8
+  if open then
+    y = DrawBlocks(child, s.blocks or {}, x + 6, y, w - 6, detail)
+    y = y + 6
+  end
+  return y + 4
+end
+
+function DrawBlocks(child, blocks, x, y, w, detail)
+  for _, b in ipairs(blocks) do
+    if b.cards then
+      y = DrawCards(child, b, x, y, w)
+    elseif b.section then
+      y = DrawSection(child, b.section, x, y, w)
+    elseif b.h then
+      local t = Text(child, "WowAssistantFontNormal")
+      t:SetWidth(w)
+      t:SetPoint("TOPLEFT", child, "TOPLEFT", x, -(y + 2))
+      t:SetText(b.h)
+      y = y + 22
+    elseif b.p then
+      local t = Text(child, b.muted and "WowAssistantFontMuted" or "WowAssistantFontHighlightSmall")
+      t:SetWidth(w)
+      t:SetPoint("TOPLEFT", child, "TOPLEFT", x, -y)
+      t:SetText(b.p)
+      y = y + Height(t, 14) + 8
+    elseif b.tips then
+      y = DrawTips(child, b, x, y, w)
+    elseif b.table then
+      y = DrawTable(child, b.table, x, y, w, detail)
+    elseif b.checks then
+      y = DrawChecks(child, b, x, y, w)
+    elseif b.buttons then
+      y = DrawButtons(child, b, x, y)
+    elseif b.empty then
+      local t = Text(child, "WowAssistantFontHeader")
+      t:SetWidth(w)
+      t:SetPoint("TOPLEFT", child, "TOPLEFT", x, -(y + 30))
+      t:SetJustifyH("CENTER")
+      t:SetText(b.empty[1])
+      local t2 = Text(child, "WowAssistantFontMuted")
+      t2:SetWidth(w - 120)
+      t2:SetPoint("TOPLEFT", child, "TOPLEFT", x + 60, -(y + 56))
+      t2:SetJustifyH("CENTER")
+      t2:SetText(b.empty[2] or "")
+      y = y + 56 + Height(t2, 14) + 20
+    end
+  end
+  return y
 end
 
 function UI.Draw()
@@ -312,42 +629,27 @@ function UI.Draw()
   local blocks = UI.cache[UI.tab]
   if not blocks then
     local ok, res = pcall(UI.pages[UI.tab])
-    blocks = ok and res or { { h = "Hiba" }, { p = "|cffff5050" .. tostring(res) .. "|r" } }
+    blocks = ok and res or { { empty = { "Hiba", Color(HEX.bad, tostring(res)) } } }
     UI.cache[UI.tab] = blocks
   end
   local child = frame.child
-  local y = 0
-  for _, b in ipairs(blocks) do
-    if b.h then
-      local t = Text(child)
-      t:SetFontObject(b.small and "WowAssistantFontNormal" or "WowAssistantFontHeader")
-      t:SetWidth(CONTENT_W)
-      t:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -(y + (b.small and 2 or 6)))
-      t:SetText(b.h)
-      y = y + (b.small and 18 or 24)
-    elseif b.p then
-      local t = Text(child)
-      t:SetFontObject("WowAssistantFontHighlightSmall")
-      t:SetWidth(CONTENT_W)
-      t:SetPoint("TOPLEFT", child, "TOPLEFT", 0, -y)
-      t:SetText(b.p)
-      y = y + Height(t, 14) + 4
-    elseif b.table then
-      y = DrawTable(child, b.table, y)
-    elseif b.checks then
-      y = DrawChecks(child, b, y)
-    elseif b.buttons then
-      y = DrawButtons(child, b, y)
-    end
-  end
+  local y = DrawBlocks(child, blocks, 0, 4, CONTENT_W, false)
   for kind, list in pairs(pools) do
-    for i = used[kind] + 1, #list do list[i]:Hide() end
+    for i = (used[kind] or 0) + 1, #list do list[i]:Hide() end
   end
   child.h = y + 10
   child:SetHeight(math.max(10, y + 10))
-  frame.tabs.Select(UI.tab)
-  frame.who:SetText(("%s · %d. szint · %s"):format(WA.key or UnitName("player"), UnitLevel("player"), Money(GetMoney())))
-  UI.UpdateScrollNote()
+
+  for id, b in pairs(frame.nav) do b:SetSelected(id == UI.tab) end
+  local head = UI.head[UI.tab] or {}
+  frame.pageTitle:SetText(head[1] or "")
+  frame.pageSub:SetText(head[2] or "")
+  pcall(SetPortraitTexture, frame.portrait, "player")
+  frame.name:SetText(UnitName("player") or "")
+  local class = UnitClass and UnitClass("player")
+  frame.level:SetText(("%d. szint%s"):format(UnitLevel("player") or 0, class and (" · " .. class) or ""))
+  frame.money:SetText(Money(GetMoney()))
+  frame.note:SetText(UI.status or "")
 end
 
 -- Recomputes the current page (new prices, fights, gear...).
@@ -385,16 +687,20 @@ end
 -- pages
 ---------------------------------------------------------------------------
 UI.pages = {}
-local function Warn(out, list)
-  for _, w in ipairs(list or {}) do out[#out + 1] = { p = "|cffff9933! " .. w .. "|r" } end
+local function Section(id, title, blocks, open, count)
+  return { section = { id = id, title = title, blocks = blocks, open = open, count = count } }
 end
+local function Warnings(list)
+  local tips = {}
+  for _, w in ipairs(list or {}) do tips[#tips + 1] = { level = "warn", text = w } end
+  return #tips > 0 and { tips = tips } or nil
+end
+local function Add(out, b) if b then out[#out + 1] = b end end
 
-local function NotRogue()
-  return {
-    { h = "Csak rogue-ra" },
-    { p = "A sebzésmodell (és vele a haditerv és a felszerelés oldal) a rogue-ra készült, ahogy a webappban is. " ..
-      "A Mesterségek és a Vendor ablak minden karakteren működik." },
-  }
+local function NotRogue(tab, title)
+  UI.head[tab] = { title, "A sebzésmodell a rogue-ra készült" }
+  return { { empty = { "Csak rogue-ra", "A sebzésmodell (és vele a Haditerv és a Felszerelés) a rogue-ra készült, ahogy a webappban is. " ..
+    "A Mesterségek és a Vendor gyártás minden karakteren működik." } } }
 end
 
 local SOURCE_HU = { ah = "AH", craft = "gyártás", trainer = "trainer", owned = "megvan", quest = "quest" }
@@ -403,70 +709,58 @@ local function OptionRows(list, withCost)
   local rows = {}
   for _, o in ipairs(list) do
     local cells = {
-      Cell(o.itemId and Item(o.title, o.quality) or o.title, o.title), SOURCE_HU[o.source] or o.source,
-      Cell(Gain(o.gain), o.gain), Cell(Pct(o.gainPct), o.gainPct),
+      Cell(o.itemId and Item(o.title, o.quality) or o.title, o.title), Cell(Gain(o.gain), o.gain),
+      withCost and Cell(Money(o.cost), o.cost) or "",
+      (o.where or "") .. (o.req and Color(HEX.warn, (" (" .. o.req .. ". szinttől)")) or ""),
+      SOURCE_HU[o.source] or o.source, Cell(Pct(o.gainPct), o.gainPct),
     }
-    if withCost then cells[#cells + 1] = Cell(Money(o.cost), o.cost) end
-    cells[#cells + 1] = (o.where or "") .. (o.req and (" |cffff9933(" .. o.req .. ". szinttől)|r") or "")
     rows[#rows + 1] = { cells = cells, itemId = o.itemId,
       tip = (o.detail or "") .. (o.warning and ("\n" .. o.warning) or "") .. (o.estimated and "\n(becsült érték)" or "") }
   end
   return rows
 end
-
 local function OptionCols(withCost)
-  local cols = { { "Mit", 230 }, { "Honnan", 60 }, { "DPS", 50, "RIGHT" }, { "%", 48, "RIGHT" } }
-  if withCost then cols[#cols + 1] = { "Ár", 90, "RIGHT" } end
-  cols[#cols + 1] = { "Hol / megjegyzés", withCost and 360 or 456 }
-  return cols
+  return { { "Mit", 0, flex = true }, { "DPS", 56, "RIGHT" }, { "Ár", 92, "RIGHT", extra = not withCost },
+    { "Hol", 220 }, { "Honnan", 70, extra = true }, { "%", 52, "RIGHT", extra = true } }
 end
 
 function UI.pages.plan()
-  if not G.IsRogue() then return NotRogue() end
+  if not G.IsRogue() then return NotRogue("plan", "Haditerv") end
   local ctx = G.Context()
   local p = WA.Plan.Build(G.PlanInput(ctx))
+  UI.head.plan = { "Haditerv", "Mit vegyél, tanulj és hol farmolj abból, amid most van" }
   local out = {}
-  out[#out + 1] = { h = ("Haditerv – %s, %d. szint, %s"):format(p.name, p.level, Money(p.gold)) }
-  out[#out + 1] = { p = ("Becsült DPS most: |cffffffff%s|r (buffok nélkül %s)%s · a terv után: |cff40ff40%s|r")
-    :format(F1(p.baseline), F1(p.unbuffed), p.measuredDps and (" · mért: " .. F1(p.measuredDps)) or "", F1(p.projected)) }
-  Warn(out, p.warnings)
-
-  out[#out + 1] = { h = "Ezt vedd meg most", small = true }
-  out[#out + 1] = { p = ("Elköltve %s, marad %s. A sor fölé húzva az egeret: részletek."):format(Money(p.spent), Money(p.left)) }
-  out[#out + 1] = { table = { id = "plan.buy", cols = OptionCols(true), rows = OptionRows(p.buy, true),
-    empty = "Ebből az aranyból most nincs érdemi fejlesztés." } }
+  out[#out + 1] = { cards = {
+    { label = "Becsült DPS most", value = F1(p.baseline), sub = "buffok nélkül " .. F1(p.unbuffed) .. (p.measuredDps and (" · mért " .. F1(p.measuredDps)) or "") },
+    { label = "A terv után", value = Color(HEX.good, F1(p.projected)), sub = (p.projected and p.baseline) and (Gain(p.projected - p.baseline) .. " DPS") or "" },
+    { label = "Elköltendő", value = Money(p.spent), sub = "ennyiből jön ki a terv" },
+    { label = "Marad", value = Money(p.left), sub = "az aranyadból: " .. Money(p.gold) },
+  } }
+  Add(out, Warnings(p.warnings))
+  out[#out + 1] = Section("plan.buy", "Vedd meg most", { { table = { id = "plan.buy", cols = OptionCols(true), rows = OptionRows(p.buy, true),
+    empty = "Ebből az aranyból most nincs érdemi fejlesztés." } } }, true, #p.buy)
   if #p.free > 0 then
-    out[#out + 1] = { h = "Ingyen: már nálad van vagy le tudod gyártani", small = true }
-    out[#out + 1] = { table = { id = "plan.free", cols = OptionCols(false), rows = OptionRows(p.free, false) } }
-  end
-  if #p.wishlist > 0 then
-    out[#out + 1] = { h = "Ha több aranyad lenne", small = true }
-    out[#out + 1] = { table = { id = "plan.wish", cols = OptionCols(true), rows = OptionRows(p.wishlist, true) } }
-  end
-  if #p.quests > 0 then
-    out[#out + 1] = { h = "Quest-jutalmak", small = true }
-    out[#out + 1] = { table = { id = "plan.quest", cols = OptionCols(false), rows = OptionRows(p.quests, false) } }
-  end
-  if #p.combat > 0 then
-    out[#out + 1] = { h = "A harcaid alapján", small = true }
-    for _, a in ipairs(p.combat) do
-      out[#out + 1] = { p = ("|cffffd100%s|r – %s"):format(a.title, a.text) }
-    end
+    out[#out + 1] = Section("plan.free", "Ingyen: nálad van vagy le tudod gyártani",
+      { { table = { id = "plan.free", cols = OptionCols(false), rows = OptionRows(p.free, false) } } }, true, #p.free)
   end
   if #p.skills > 0 then
-    out[#out + 1] = { h = "Trainer", small = true }
-    local TIER = { dps = "|cff40ff40DPS|r", core = "|cffffd100alap|r", situational = "helyzeti", skip = "|cff888888kihagyható|r" }
+    local TIER = { dps = Color(HEX.good, "DPS"), core = Color(HEX.gold, "alap"), situational = "helyzeti", skip = Muted("kihagyható") }
     local TIER_N = { dps = 0, core = 1, situational = 2, skip = 3 }
     local rows = {}
     for _, s in ipairs(p.skills) do
-      rows[#rows + 1] = { Cell(s.name, s.name), Cell(TIER[s.tier] or s.tier, TIER_N[s.tier]), Cell(Money(s.cost), s.cost),
-        Cell(s.gain > 0 and Gain(s.gain) or "", s.gain), s.why }
+      rows[#rows + 1] = { cells = { Cell(s.name, s.name), Cell(TIER[s.tier] or s.tier, TIER_N[s.tier]), Cell(Money(s.cost), s.cost),
+        Cell(s.gain > 0 and Gain(s.gain) or "", s.gain), s.why }, tip = s.why }
     end
-    out[#out + 1] = { table = { id = "plan.skills", cols = { { "Képesség", 170 }, { "Fontos", 70 }, { "Ár", 90, "RIGHT" },
-      { "DPS", 50, "RIGHT" }, { "Miért", 470 } }, rows = rows } }
+    out[#out + 1] = Section("plan.skills", "Tanuld meg a trainernél", { { table = { id = "plan.skills",
+      cols = { { "Képesség", 0, flex = true }, { "Fontos", 80 }, { "Ár", 92, "RIGHT" }, { "DPS", 56, "RIGHT" }, { "Miért", 330, extra = true } },
+      rows = rows } } }, true, #p.skills)
+  end
+  if #p.combat > 0 then
+    local tips = {}
+    for _, a in ipairs(p.combat) do tips[#tips + 1] = { level = "tip", title = a.title, text = a.text } end
+    out[#out + 1] = Section("plan.combat", "Tanácsok a harcaid alapján", { { tips = tips } }, true, #tips)
   end
   if #p.farm > 0 then
-    out[#out + 1] = { h = "Hova menj farmolni", small = true }
     local rows = {}
     for _, d in ipairs(p.farm) do
       local names = {}
@@ -474,38 +768,45 @@ function UI.pages.plan()
       rows[#rows + 1] = { d.name, d.levels, Cell(Gain(d.gain), d.gain), Cell(d.perRun and Gain(d.perRun) or "–", d.perRun or 0),
         table.concat(names, ", ") }
     end
-    out[#out + 1] = { table = { id = "plan.farm", cols = { { "Dungeon", 170 }, { "Szint", 50 }, { "Összes DPS", 70, "RIGHT" },
-      { "Futásonként", 76, "RIGHT" }, { "Legjobb tárgyak", 480 } }, rows = rows } }
+    out[#out + 1] = Section("plan.farm", "Hova menj farmolni", { { table = { id = "plan.farm", cols = { { "Dungeon", 0, flex = true },
+      { "Szint", 60 }, { "Összes DPS", 80, "RIGHT" }, { "Futásonként", 84, "RIGHT" }, { "Legjobb tárgyak", 0, flex = true, extra = true } },
+      rows = rows } } }, false, #p.farm)
+  end
+  if #p.wishlist > 0 then
+    out[#out + 1] = Section("plan.wish", "Ha több aranyad lenne",
+      { { table = { id = "plan.wish", cols = OptionCols(true), rows = OptionRows(p.wishlist, true) } } }, false, #p.wishlist)
+  end
+  if #p.quests > 0 then
+    out[#out + 1] = Section("plan.quest", "Quest-jutalmak",
+      { { table = { id = "plan.quest", cols = OptionCols(false), rows = OptionRows(p.quests, false) } } }, false, #p.quests)
   end
   if #p.professions > 0 then
-    out[#out + 1] = { h = "Mesterségek", small = true }
     local rows = {}
     for _, r in ipairs(p.professions) do
       rows[#rows + 1] = { r.name, Cell(r.skill .. " / " .. r.cap, r.skill), r.next or "–", Cell(Money(r.cost), r.cost), r.note or "" }
     end
-    out[#out + 1] = { table = { id = "plan.prof", cols = { { "Szakma", 110 }, { "Skill", 60 }, { "Következő lépés", 300 },
-      { "Ára", 90, "RIGHT" }, { "Megjegyzés", 300 } }, rows = rows } }
+    out[#out + 1] = Section("plan.prof", "Mesterségek", { { table = { id = "plan.prof", cols = { { "Szakma", 120 }, { "Skill", 70 },
+      { "Következő lépés", 0, flex = true }, { "Ára", 92, "RIGHT" }, { "Megjegyzés", 0, flex = true, extra = true } }, rows = rows } } }, false, #p.professions)
   end
   if #p.consumables > 0 then
-    out[#out + 1] = { h = "Fogyóeszközök (óránkénti ár az AH-ban)", small = true }
     local rows = {}
     for _, c in ipairs(p.consumables) do
-      rows[#rows + 1] = { cells = { c.name, c.summary, Cell(Gain(c.gain), c.gain), Cell(Money(c.perHour), c.perHour or math.huge),
-        Cell(Money(c.price), c.price or math.huge) }, itemId = c.itemId }
+      rows[#rows + 1] = { cells = { c.name, Cell(Gain(c.gain), c.gain), Cell(Money(c.perHour), c.perHour or math.huge), c.summary,
+        Cell(Money(c.price), c.price or math.huge) }, itemId = c.itemId, tip = c.summary }
     end
-    out[#out + 1] = { table = { id = "plan.cons", cols = { { "Mi", 200 }, { "Hatás", 280 }, { "DPS", 50, "RIGHT" },
-      { "Óránként", 90, "RIGHT" }, { "Darabja", 90, "RIGHT" } }, rows = rows } }
+    out[#out + 1] = Section("plan.cons", "Fogyóeszközök", { { table = { id = "plan.cons", cols = { { "Mi", 0, flex = true },
+      { "DPS", 56, "RIGHT" }, { "Óránként", 92, "RIGHT" }, { "Hatás", 260, extra = true }, { "Darabja", 92, "RIGHT", extra = true } },
+      rows = rows } } }, false, #p.consumables)
   end
   if #p.roadmap > 0 then
-    out[#out + 1] = { h = "A következő szintek", small = true }
     local rows = {}
     for _, r in ipairs(p.roadmap) do
       local gear = {}
       for _, g in ipairs(r.gear) do gear[#gear + 1] = Item(g.title, g.quality) .. " " .. Gain(g.gain) end
       rows[#rows + 1] = { Cell(r.level, r.level), table.concat(r.skills, ", "), Cell(Money(r.skillCost), r.skillCost), table.concat(gear, ", ") }
     end
-    out[#out + 1] = { table = { id = "plan.road", cols = { { "Szint", 40 }, { "Új képességek", 300 }, { "Ára", 90, "RIGHT" },
-      { "Felszerelés", 440 } }, rows = rows } }
+    out[#out + 1] = Section("plan.road", "A következő szintek", { { table = { id = "plan.road", cols = { { "Szint", 50 },
+      { "Új képességek", 0, flex = true }, { "Ára", 92, "RIGHT" }, { "Felszerelés", 0, flex = true, extra = true } }, rows = rows } } }, false, #p.roadmap)
   end
   UI.status = ("%d AH-ajánlat · %d harc a modellben"):format(#(G.Offers()), ctx.combat and ctx.combat.fights or 0)
   return out
@@ -515,6 +816,9 @@ local GRADE_COLOR = { S = "ff8000", A = "a335ee", B = "0070dd", C = "1eff00", D 
 local function Grade(sc)
   if not sc then return "–" end
   return ("|cff%s%d (%s)|r"):format(GRADE_COLOR[sc.grade] or "ffffff", sc.total, sc.grade)
+end
+local function TargetName(x)
+  return (x.target and x.target ~= "?" and x.target ~= "") and x.target or Muted("ismeretlen célpont")
 end
 local SOURCE_NAME = { log = "harcnapló", live = "játékban", meter = "damage meter" }
 local function Clock(ds) -- deciseconds -> m:ss.d
@@ -528,110 +832,124 @@ local function AbilityRows(list, damage)
     local n = tonumber(a.n) or 0
     local landed = (a.hit or 0) + (a.crit or 0) + (a.glance or 0)
     local function R(x) return n > 0 and (x or 0) / n * 100 or nil end
+    local avoided = n > 0 and R((a.miss or 0) + (a.dodge or 0) + (a.parry or 0)) or nil
     rows[#rows + 1] = { a.name, Cell(Pct(damage > 0 and a.dmg / damage * 100 or 0), a.dmg), Cell(a.dmg, a.dmg), Cell(n, n),
-      Cell(landed > 0 and math.floor(a.dmg / landed + 0.5) or "–", landed > 0 and a.dmg / landed or 0), Cell(a.max or 0, a.max or 0),
       Cell(landed > 0 and Pct(a.crit / landed * 100) or "–", landed > 0 and a.crit / landed or -1),
+      Cell(avoided and Pct(avoided) or "–", avoided or -1),
+      Cell(landed > 0 and math.floor(a.dmg / landed + 0.5) or "–", landed > 0 and a.dmg / landed or 0), Cell(a.max or 0, a.max or 0),
       Cell(n > 0 and Pct(R(a.miss)) or "–", R(a.miss) or -1), Cell(n > 0 and Pct(R(a.dodge)) or "–", R(a.dodge) or -1),
       Cell(n > 0 and Pct(R(a.parry)) or "–", R(a.parry) or -1), Cell(n > 0 and Pct(R(a.glance)) or "–", R(a.glance) or -1) }
   end
   return rows
 end
-local ABILITY_COLS = { { "Képesség", 180 }, { "Arány", 56, "RIGHT" }, { "Sebzés", 66, "RIGHT" },
-  { "Db", 44, "RIGHT" }, { "Átlag", 50, "RIGHT" }, { "Max", 50, "RIGHT" }, { "Crit", 56, "RIGHT" }, { "Miss", 56, "RIGHT" },
-  { "Dodge", 56, "RIGHT" }, { "Parry", 56, "RIGHT" }, { "Glancing", 60, "RIGHT" } }
+local ABILITY_COLS = { { "Képesség", 0, flex = true }, { "Arány", 60, "RIGHT" }, { "Sebzés", 70, "RIGHT" },
+  { "Db", 44, "RIGHT" }, { "Crit", 56, "RIGHT" }, { "Elkerülve", 70, "RIGHT" },
+  { "Átlag", 54, "RIGHT", extra = true }, { "Max", 54, "RIGHT", extra = true }, { "Miss", 52, "RIGHT", extra = true },
+  { "Dodge", 54, "RIGHT", extra = true }, { "Parry", 52, "RIGHT", extra = true }, { "Glancing", 64, "RIGHT", extra = true } }
 
 function UI.pages.combat()
   local all = G.Fights()
   table.sort(all, function(a, b) return a.start > b.start end)
-  local out = {}
   local counts = { log = 0, live = 0, meter = 0 }
   for _, f in ipairs(all) do counts[f.source or "log"] = (counts[f.source or "log"] or 0) + 1 end
   UI.status = ("%d harc: %d játékban rögzítve, %d a harcnaplóból"):format(#all, counts.live + counts.meter, counts.log)
+  UI.head.combat = { "Harc", "Minden harc magától rögzül; válassz egyet a listából a részleteihez" }
   if #all == 0 then
-    out[#out + 1] = { h = "Harc" }
-    out[#out + 1] = { p = "Még nincs rögzített harc. Az addon minden harcot magától rögzít: üss meg egy mobot, és a harc vége után itt lesz." }
-    return out
+    return { { empty = { "Még nincs rögzített harc", "Az addon minden harcot magától rögzít: üss meg egy mobot, és a harc vége után itt lesz." } } }
   end
   local ctx = G.IsRogue() and G.Context() or nil
   local baseline = ctx and ctx.baseline or nil
+  local out = {}
 
-  -- the selected fight (the newest by default)
   local f = all[1]
   for _, x in ipairs(all) do if x.start == UI.selFight then f = x end end
   local sc = WA.Combat.Score(f, baseline)
-  out[#out + 1] = { h = ("%s%s – %s, %s mp"):format(f.target or "?", (f.targetLevel or 0) > 0 and (" (" .. f.targetLevel .. ")") or "",
-    date("%m.%d %H:%M", f.start), F1(f.dur)) }
-  out[#out + 1] = { p = ("Pontszám: %s   ·   %s DPS   ·   %d sebzés   ·   forrás: %s%s"):format(Grade(sc), F1(f.dur > 0 and f.dmg / f.dur or 0),
-    f.dmg or 0, SOURCE_NAME[f.source or "log"] or "?", (f.source == "live" and not f.detailed) and
-      " |cff888888(találati arányok nélkül: a célpont ütéseit csak egyedül játszva számolja)|r" or "") }
+  local dps = f.dur > 0 and f.dmg / f.dur or 0
+  UI.head.combat[2] = ("%s%s · %s · forrás: %s"):format(TargetName(f), (f.targetLevel or 0) > 0 and (" (" .. f.targetLevel .. ")") or "",
+    date("%m.%d %H:%M", f.start), SOURCE_NAME[f.source or "log"] or "?")
+  out[#out + 1] = { cards = {
+    { label = "Pontszám", value = Grade(sc), sub = sc and "0–100, S a legjobb" or "nincs elég adat",
+      tip = "DPS a felszerelésedtől várthoz képest, kárba ment energia, Eviscerate combo pontjai, Slice and Dice uptime, képességek percenként." },
+    { label = "DPS", value = F1(dps), sub = baseline and ("várt " .. F1(baseline)) or "" },
+    { label = "Sebzés", value = tostring(f.dmg or 0), sub = (f.ab and #f.ab or 0) .. " képesség" },
+    { label = "Hossz", value = F1(f.dur) .. " mp", sub = f.casts and (#f.casts .. " használat") or "" },
+  } }
+  if f.source == "live" and not f.detailed then
+    out[#out + 1] = { tips = { { level = "info", text = "Ebben a harcban nincs találati arány: a célpont ütéseit az addon csak egyedül játszva számolja." } } }
+  end
+
+  local list = {}
+  for i = 1, math.min(60, #all) do
+    local x = all[i]
+    local s2 = WA.Combat.Score(x, baseline)
+    list[#list + 1] = { cells = { Cell(date("%m.%d %H:%M", x.start), x.start), TargetName(x) .. ((x.targetLevel or 0) > 0 and (" (" .. x.targetLevel .. ")") or ""),
+      Cell(F1(x.dur > 0 and x.dmg / x.dur or 0), x.dur > 0 and x.dmg / x.dur or 0), Cell(Grade(s2), s2 and s2.total or -1),
+      Cell(F1(x.dur) .. " mp", x.dur), SOURCE_NAME[x.source or "log"] or "?" },
+      selected = x == f, onClick = function() UI.selFight = x.start UI.cache.combat = nil UI.Draw() end }
+  end
+  out[#out + 1] = Section("combat.list", "Harcok", { { table = { id = "combat.list", cols = { { "Mikor", 90 }, { "Célpont", 0, flex = true },
+    { "DPS", 64, "RIGHT" }, { "Pont", 74, "RIGHT" }, { "Hossz", 70, "RIGHT", extra = true }, { "Forrás", 96, extra = true } }, rows = list, limit = 6 } } }, true, #all)
+
   if sc then
     local rows = {}
     for _, p in ipairs(sc.parts) do
-      rows[#rows + 1] = { p.label, Cell(("%d / %d"):format(math.floor(p.points + 0.5), p.max), p.points / p.max), p.text }
+      local pct = p.max > 0 and p.points / p.max or 0
+      local col = pct >= 0.8 and HEX.good or (pct >= 0.5 and HEX.gold or HEX.warn)
+      rows[#rows + 1] = { p.label, Cell(Color(col, ("%d / %d"):format(math.floor(p.points + 0.5), p.max)), pct), p.text }
     end
-    out[#out + 1] = { table = { id = "combat.score", cols = { { "Mi számít", 200 }, { "Pont", 70, "RIGHT" }, { "Részletek", 560 } }, rows = rows } }
+    out[#out + 1] = Section("combat.score", "Mitől ennyi a pontszám", { { table = { id = "combat.score",
+      cols = { { "Mi számít", 210 }, { "Pont", 70, "RIGHT" }, { "Részletek", 0, flex = true } }, rows = rows } } }, true)
   end
+
   local ab = {}
   for _, a in ipairs(f.ab or {}) do ab[#ab + 1] = a end
   WA.Model.Stable(ab, function(a, b) return (a.dmg or 0) > (b.dmg or 0) end)
-  out[#out + 1] = { h = "Képességek ebben a harcban", small = true }
-  out[#out + 1] = { table = { id = "combat.fab", cols = ABILITY_COLS, rows = AbilityRows(ab, f.dmg or 0) } }
+  out[#out + 1] = Section("combat.fab", "Képességek ebben a harcban", { { table = { id = "combat.fab", cols = ABILITY_COLS,
+    rows = AbilityRows(ab, f.dmg or 0) } } }, true, #ab)
+
   if f.casts and #f.casts > 0 then
-    out[#out + 1] = { h = "Mikor mit használtál", small = true }
     local rows = {}
     for i, c in ipairs(f.casts) do
       rows[#rows + 1] = { Cell(Clock(c[1]), c[1]), c[2], Cell((c[3] or -1) >= 0 and c[3] or "–", c[3] or -1),
         Cell((c[4] or 0) > 0 and c[4] or "", c[4] or 0), Cell(i, i) }
     end
-    out[#out + 1] = { table = { id = "combat.casts", cols = { { "Idő", 70 }, { "Képesség", 200 }, { "Energia", 70, "RIGHT" },
-      { "Combo", 60, "RIGHT" }, { "#", 40, "RIGHT" } }, rows = rows, limit = 80 } }
+    out[#out + 1] = Section("combat.casts", "Mikor mit használtál", { { table = { id = "combat.casts", cols = { { "Idő", 70 },
+      { "Képesség", 0, flex = true }, { "Energia", 70, "RIGHT" }, { "Combo", 60, "RIGHT" }, { "#", 40, "RIGHT", extra = true } }, rows = rows, limit = 12 } } },
+      false, #f.casts)
   end
-
-  -- every fight
-  out[#out + 1] = { h = "Harcok (kattints egyre a részleteihez)" }
-  local list = {}
-  for i = 1, math.min(40, #all) do
-    local x = all[i]
-    local s2 = WA.Combat.Score(x, baseline)
-    list[#list + 1] = { cells = { Cell(date("%m.%d %H:%M", x.start), x.start), (x.target or "?") .. ((x.targetLevel or 0) > 0 and (" (" .. x.targetLevel .. ")") or ""),
-      Cell(F1(x.dur) .. " mp", x.dur), Cell(F1(x.dur > 0 and x.dmg / x.dur or 0), x.dur > 0 and x.dmg / x.dur or 0),
-      Cell(Grade(s2), s2 and s2.total or -1), SOURCE_NAME[x.source or "log"] or "?" },
-      selected = x == f, onClick = function() UI.selFight = x.start UI.cache.combat = nil UI.Draw() end }
-  end
-  out[#out + 1] = { table = { id = "combat.list", cols = { { "Mikor", 90 }, { "Célpont", 220 }, { "Hossz", 70, "RIGHT" },
-    { "DPS", 60, "RIGHT" }, { "Pont", 70, "RIGHT" }, { "Forrás", 100 } }, rows = list } }
 
   -- all fights together (the web app's combat page)
   local r = WA.Combat.Report(all)
   if not r then return out end
-  out[#out + 1] = { h = ("Összesítve – %d harc, %d perc, átlag %s DPS"):format(r.fights, math.floor(r.seconds / 60 + 0.5), F1(r.dps)) }
-  if r.energyCappedPct then out[#out + 1] = { p = ("Energiaplafonon töltött idő: %s"):format(Pct(r.energyCappedPct)) } end
   if #r.advice > 0 then
-    local COLOR = { fix = "ff6060", tip = "ffd100", info = "aaaaaa" }
-    for _, a in ipairs(r.advice) do
-      out[#out + 1] = { p = ("|cff%s%s|r – %s"):format(COLOR[a.level] or "ffffff", a.title, a.text) }
-    end
+    local tips = {}
+    for _, a in ipairs(r.advice) do tips[#tips + 1] = { level = a.level, title = a.title, text = a.text } end
+    out[#out + 1] = Section("combat.advice", "Tanácsok az összes harcod alapján", { { tips = tips } }, true, #tips)
   end
-  out[#out + 1] = { h = "Képességek, minden harc", small = true }
-  out[#out + 1] = { table = { id = "combat.ab", cols = ABILITY_COLS, rows = AbilityRows(r.abilities, r.damage) } }
-  out[#out + 1] = { p = ("Auto-attack: %s miss, %s dodge, %s glancing, %s crit · képességek: %s miss, %s crit")
-    :format(Pct(r.white.miss), Pct(r.white.dodge), Pct(r.white.glance), Pct(r.white.crit), Pct(r.yellow.miss), Pct(r.yellow.crit)) }
+  local blocks = {
+    { p = ("%d harc, %d perc, átlag %s DPS%s"):format(r.fights, math.floor(r.seconds / 60 + 0.5), F1(r.dps),
+      r.energyCappedPct and (" · energiaplafonon " .. Pct(r.energyCappedPct)) or "") },
+    { p = ("Auto-attack: %s miss, %s dodge, %s glancing, %s crit · képességek: %s miss, %s crit")
+      :format(Pct(r.white.miss), Pct(r.white.dodge), Pct(r.white.glance), Pct(r.white.crit), Pct(r.yellow.miss), Pct(r.yellow.crit)), muted = true },
+    { table = { id = "combat.ab", cols = ABILITY_COLS, rows = AbilityRows(r.abilities, r.damage) } },
+  }
   if #r.finishers > 0 or #r.auras > 0 then
-    out[#out + 1] = { h = "Finisherek és buffok", small = true }
     local rows2 = {}
     for _, x in ipairs(r.finishers) do rows2[#rows2 + 1] = { x.name, "finisher", Cell(x.casts .. " ×, átlag " .. F1(x.avgCp) .. " CP", x.casts) } end
     for _, x in ipairs(r.auras) do rows2[#rows2 + 1] = { x.name, "buff", Cell(Pct(x.uptimePct) .. " uptime", x.uptimePct) } end
-    out[#out + 1] = { table = { id = "combat.fin", cols = { { "Név", 200 }, { "Fajta", 80 }, { "Érték", 200 } }, rows = rows2 } }
+    blocks[#blocks + 1] = { h = "Finisherek és buffok" }
+    blocks[#blocks + 1] = { table = { id = "combat.fin", cols = { { "Név", 0, flex = true }, { "Fajta", 90 }, { "Érték", 220 } }, rows = rows2 } }
   end
   if #r.byLevel > 0 then
-    out[#out + 1] = { h = "Célpont szintje szerint", small = true }
     local rows3 = {}
     for _, x in ipairs(r.byLevel) do
       rows3[#rows3 + 1] = { Cell((x.diff > 0 and "+" or "") .. x.diff, x.diff), Cell(x.fights, x.fights), Cell(F1(x.dps), x.dps), Cell(Pct(x.missPct), x.missPct) }
     end
-    out[#out + 1] = { table = { id = "combat.lvl", cols = { { "Szintkülönbség", 110 }, { "Harc", 60, "RIGHT" }, { "DPS", 70, "RIGHT" },
-      { "Fehér miss", 80, "RIGHT" } }, rows = rows3 } }
+    blocks[#blocks + 1] = { h = "Célpont szintje szerint" }
+    blocks[#blocks + 1] = { table = { id = "combat.lvl", cols = { { "Szintkülönbség", 0, flex = true }, { "Harc", 70, "RIGHT" },
+      { "DPS", 80, "RIGHT" }, { "Fehér miss", 90, "RIGHT" } }, rows = rows3 } }
   end
+  out[#out + 1] = Section("combat.all", "Összesítés, minden harc", blocks, false, r.fights)
   return out
 end
 
@@ -641,46 +959,55 @@ local function Weapon(w)
 end
 
 function UI.pages.gear()
-  if not G.IsRogue() then return NotRogue() end
+  if not G.IsRogue() then return NotRogue("gear", "Felszerelés") end
   local ctx = G.Context()
   local g = WA.Model.GearReport(ctx, 3)
-  local out = {}
-  out[#out + 1] = { h = ("Felszerelés – becsült DPS %s (buffok nélkül %s)%s"):format(F1(g.baseline), F1(g.unbuffed),
-    g.measuredDps and (", mért " .. F1(g.measuredDps)) or "") }
   local sh = g.sheet
-  out[#out + 1] = { p = ("AP %d · crit %s · hit %s · főkéz %s · balkéz %s"):format(sh.ap or 0, Pct(sh.crit), Pct(sh.hit),
-    Weapon(sh.mh), Weapon(sh.oh)) }
-  if not WowAssistantData then Warn(out, { "Hiányzik a GameData.lua (dungeon loot): node scripts/build-addon-recipes.mjs --install" }) end
+  UI.head.gear = { "Felszerelés", "A következő fejlesztés minden helyre: mennyit ad és honnan szerzed" }
+  local out = {}
+  out[#out + 1] = { cards = {
+    { label = "Becsült DPS", value = F1(g.baseline), sub = "buffok nélkül " .. F1(g.unbuffed) .. (g.measuredDps and (" · mért " .. F1(g.measuredDps)) or "") },
+    { label = "Attack power", value = tostring(sh.ap or 0), sub = "főkéz " .. Weapon(sh.mh) },
+    { label = "Crit", value = Pct(sh.crit), sub = "balkéz " .. Weapon(sh.oh) },
+    { label = "Hit", value = Pct(sh.hit), sub = "" },
+  } }
+  if not WowAssistantData then
+    out[#out + 1] = { tips = { { level = "warn", text = "Hiányzik a GameData.lua (dungeon loot): node scripts/build-addon-recipes.mjs --install" } } }
+  end
 
-  out[#out + 1] = { h = "Buffok és fogyóeszközök a számításban", small = true }
-  local checks = {}
+  -- the best upgrade for each slot first; the next ones with "Több oszlop"
+  local rows = {}
+  for _, s in ipairs(g.bySlot) do
+    for i, u in ipairs(s.best) do
+      rows[#rows + 1] = { cells = { Cell(WA.Model.SLOT_HU[s.slot] or s.slot, s.slot .. i), Cell(Item(u.name, u.quality), u.name),
+        Cell(Gain(u.gain), u.gain), u.dungeon .. (u.boss and (" · " .. u.boss) or ""), i == 1 and (s.current or "–") or "",
+        Cell(Pct(u.gainPct), u.gainPct), Cell(u.dropPct and Pct(u.dropPct) or "–", u.dropPct or 0) },
+        itemId = u.itemId, tip = u.detail .. (u.warning and ("\n" .. u.warning) or ""), first = i == 1 }
+    end
+  end
+  local firsts = {}
+  for _, r in ipairs(rows) do if r.first then firsts[#firsts + 1] = r end end
+  table.sort(firsts, function(a, b) return (a.cells[3][2] or 0) > (b.cells[3][2] or 0) end)
+  local detail = State().detail["gear.best"]
+  out[#out + 1] = Section("gear.best", "Legjobb fejlesztések", { { table = { id = "gear.best", cols = { { "Hely", 92 },
+    { "Tárgy", 0, flex = true }, { "DPS", 56, "RIGHT" }, { "Honnan", 230 }, { "Most", 150, extra = true }, { "%", 52, "RIGHT", extra = true },
+    { "Esés", 52, "RIGHT", extra = true } }, rows = detail and rows or firsts, limit = 10 } } }, true, #firsts)
+
+  local checks, on = {}, 0
   for _, b in ipairs(g.buffs) do
+    if b.selected then on = on + 1 end
     checks[#checks + 1] = {
-      label = b.name .. " |cff888888" .. (b.summary or "") .. "|r", checked = b.selected, disabled = not b.effect,
-      onClick = function(on)
+      label = b.name .. " " .. Muted(b.summary or ""), checked = b.selected, disabled = not b.effect,
+      onClick = function(v)
         WA.charDB.buffs = WA.charDB.buffs or {}
-        WA.charDB.buffs[b.id] = on or nil
+        WA.charDB.buffs[b.id] = v or nil
         UI.cache = {}
         UI.Draw()
       end,
     }
   end
-  out[#out + 1] = { checks = checks, perRow = 3 }
+  out[#out + 1] = Section("gear.buffs", "Buffok és fogyóeszközök a számításban", { { checks = checks, perRow = 2 } }, false, on)
 
-  out[#out + 1] = { h = "Helyenként a legjobb (most felvehető, 3 szinten belül)", small = true }
-  local rows = {}
-  for _, s in ipairs(g.bySlot) do
-    for i, u in ipairs(s.best) do
-      rows[#rows + 1] = { cells = { Cell(i == 1 and (WA.Model.SLOT_HU[s.slot] or s.slot) or "", s.slot .. i), i == 1 and (s.current or "–") or "",
-        Cell(Item(u.name, u.quality), u.name), Cell(Gain(u.gain), u.gain), Cell(Pct(u.gainPct), u.gainPct),
-        u.dungeon .. (u.boss and (" · " .. u.boss) or ""), Cell(u.dropPct and Pct(u.dropPct) or "–", u.dropPct or 0) },
-        itemId = u.itemId, tip = u.detail .. (u.warning and ("\n" .. u.warning) or "") }
-    end
-  end
-  out[#out + 1] = { table = { id = "gear.slot", cols = { { "Hely", 80 }, { "Most", 160 }, { "Jobb", 190 }, { "DPS", 50, "RIGHT" },
-    { "%", 48, "RIGHT" }, { "Honnan", 250 }, { "Esés", 50, "RIGHT" } }, rows = rows, limit = 80 } }
-
-  out[#out + 1] = { h = "Dungeonok", small = true }
   local drows = {}
   for _, d in ipairs(g.dungeons) do
     local names = {}
@@ -688,71 +1015,82 @@ function UI.pages.gear()
     drows[#drows + 1] = { d.name, d.levels, Cell(Gain(d.gain), d.gain), Cell(d.perRun and Gain(d.perRun) or "–", d.perRun or 0),
       Cell(#d.upgrades, #d.upgrades), table.concat(names, ", ") }
   end
-  out[#out + 1] = { table = { id = "gear.dungeons", cols = { { "Dungeon", 170 }, { "Szint", 50 }, { "Összes DPS", 70, "RIGHT" },
-    { "Futásonként", 76, "RIGHT" }, { "Tárgy", 40, "RIGHT" }, { "Legjobbak", 440 } }, rows = drows } }
+  out[#out + 1] = Section("gear.dungeons", "Dungeonok", { { table = { id = "gear.dungeons", cols = { { "Dungeon", 0, flex = true },
+    { "Szint", 60 }, { "Összes DPS", 80, "RIGHT" }, { "Futásonként", 84, "RIGHT" }, { "Tárgy", 50, "RIGHT", extra = true },
+    { "Legjobbak", 0, flex = true, extra = true } }, rows = drows } } }, false, #drows)
 
   if #g.later > 0 then
-    out[#out + 1] = { h = "Pár szinttel később", small = true }
     local lrows = {}
     for _, u in ipairs(g.later) do
       lrows[#lrows + 1] = { cells = { Cell(u.reqLevel, u.reqLevel), Cell(Item(u.name, u.quality), u.name), WA.Model.SLOT_HU[u.slot] or u.slot,
         Cell(Gain(u.gain), u.gain), u.dungeon .. (u.boss and (" · " .. u.boss) or "") }, itemId = u.itemId, tip = u.detail }
     end
-    out[#out + 1] = { table = { id = "gear.later", cols = { { "Szint", 40 }, { "Tárgy", 220 }, { "Hely", 90 }, { "DPS", 50, "RIGHT" },
-      { "Honnan", 400 } }, rows = lrows } }
+    out[#out + 1] = Section("gear.later", "Pár szinttel később", { { table = { id = "gear.later", cols = { { "Szint", 50 },
+      { "Tárgy", 0, flex = true }, { "Hely", 100 }, { "DPS", 56, "RIGHT" }, { "Honnan", 240, extra = true } }, rows = lrows } } }, false, #lrows)
   end
-  out[#out + 1] = { h = "A modell", small = true }
-  for _, n in ipairs(g.params.notes or {}) do out[#out + 1] = { p = "|cffaaaaaa" .. n .. "|r" } end
+  local notes = {}
+  for _, n in ipairs(g.params.notes or {}) do notes[#notes + 1] = { p = n, muted = true } end
+  if #notes > 0 then out[#out + 1] = Section("gear.model", "Hogyan számol a modell", notes, false) end
   UI.status = ("%d harc kalibrálja a modellt"):format(ctx.combat and ctx.combat.fights or 0)
   return out
 end
 
 function UI.pages.prof()
   local out = {}
-  out[#out + 1] = { h = "Mesterségek – a legolcsóbb út a célig" }
+  UI.head.prof = { "Mesterségek", ("A legolcsóbb út %d-ig, bevásárlólistával"):format(UI.target) }
   out[#out + 1] = { buttons = {
-    { label = "Cél: 225", width = 90, disabled = UI.target == 225, onClick = function() UI.target = 225 UI.cache.prof = nil UI.Draw() end },
-    { label = "Cél: 300", width = 90, disabled = UI.target == 300, onClick = function() UI.target = 300 UI.cache.prof = nil UI.Draw() end },
+    { label = "Cél: 225", width = 96, active = UI.target == 225, onClick = function() UI.target = 225 UI.cache.prof = nil UI.Draw() end },
+    { label = "Cél: 300", width = 96, active = UI.target == 300, onClick = function() UI.target = 300 UI.cache.prof = nil UI.Draw() end },
   } }
   if not WowAssistantRecipes then
-    Warn(out, { "Hiányzik a receptadat (Recipes.lua): node scripts/build-addon-recipes.mjs --install" })
+    out[#out + 1] = { tips = { { level = "warn", text = "Hiányzik a receptadat (Recipes.lua): node scripts/build-addon-recipes.mjs --install" } } }
     return out
   end
   local routes = G.Routes(UI.target)
   if #routes == 0 then
-    out[#out + 1] = { p = "Nincs gyártó szakmád, vagy a kliens még nem adta meg a szintjét." }
+    out[#out + 1] = { empty = { "Nincs gyártó szakmád", "Vagy a kliens még nem adta meg a szintjét: nyisd meg egyszer a szakma ablakát." } }
     return out
   end
   local market = WowAssistantDB and WowAssistantDB.market
-  out[#out + 1] = { p = ("Árak: teljes AH-szken %s. A szerzett recepteket a szakma ablakának megnyitása frissíti.")
-    :format(market and market.at and date("%m.%d %H:%M", market.at) or "|cffff9933nincs (/wa ah az aukciósháznál)|r") }
-  for _, r in ipairs(routes) do
-    out[#out + 1] = { h = ("%s %d → %d (most max %d)"):format(r.profession, r.skill, r.target, r.cap), small = true }
-    out[#out + 1] = { p = ("Alapanyag %s (ebből már nálad: %s) · tanítás %s · vendor visszaad %s%s"):format(Money(r.totalMats), Money(r.ownedValue),
-      Money(r.totalTraining), Money(r.totalVendorBack),
-      r.unreachableFrom and ("|cffff9933 · %d fölött nincs ismert recept|r"):format(r.unreachableFrom) or "") }
-    for _, n in ipairs(r.notes or {}) do out[#out + 1] = { p = "|cffaaaaaa" .. n .. "|r" } end
+  local cards = {}
+  for i, r in ipairs(routes) do
+    if i <= 4 then
+      cards[#cards + 1] = { label = r.profession, value = ("%d → %d"):format(r.skill, r.target),
+        sub = Money(r.totalMats + r.totalTraining) .. " összesen" }
+    end
+  end
+  out[#out + 1] = { cards = cards }
+  for i, r in ipairs(routes) do
+    local blocks = {}
+    blocks[#blocks + 1] = { p = ("Alapanyag %s (ebből már nálad: %s) · tanítás %s · a vendor visszaad %s"):format(Money(r.totalMats), Money(r.ownedValue),
+      Money(r.totalTraining), Money(r.totalVendorBack)) }
+    if r.unreachableFrom then
+      blocks[#blocks + 1] = { tips = { { level = "warn", text = ("%d fölött nincs ismert recept (most max %d)."):format(r.unreachableFrom, r.cap) } } }
+    end
+    for _, n in ipairs(r.notes or {}) do blocks[#blocks + 1] = { p = n, muted = true } end
     local rows = {}
     for _, s in ipairs(r.steps) do
       local reag = {}
       for _, rg in ipairs(s.reagents) do reag[#reag + 1] = rg.qty .. "× " .. rg.name end
-      rows[#rows + 1] = { cells = { Cell(s.from .. " → " .. s.to, s.from), s.recipe .. (s.known and "" or " |cffff9933(tanulni)|r"), Cell(s.crafts, s.crafts),
+      rows[#rows + 1] = { cells = { Cell(s.from .. " → " .. s.to, s.from), s.recipe .. (s.known and "" or Color(HEX.warn, " (tanulni)")), Cell(s.crafts, s.crafts),
         Cell(Money(s.matsCost), s.matsCost), Cell(s.trainingCost > 0 and Money(s.trainingCost) or "", s.trainingCost),
         Cell(s.vendorBack > 0 and Money(s.vendorBack) or "", s.vendorBack) }, tip = table.concat(reag, ", ") }
     end
-    out[#out + 1] = { table = { id = "prof.steps." .. r.professionId, cols = { { "Skill", 70 }, { "Recept", 300 }, { "Db", 40, "RIGHT" },
-      { "Alapanyag", 90, "RIGHT" }, { "Tanítás", 90, "RIGHT" }, { "Vendor vissza", 90, "RIGHT" } }, rows = rows } }
+    blocks[#blocks + 1] = { table = { id = "prof.steps." .. r.professionId, cols = { { "Skill", 80 }, { "Recept", 0, flex = true },
+      { "Db", 44, "RIGHT" }, { "Alapanyag", 92, "RIGHT" }, { "Tanítás", 92, "RIGHT", extra = true }, { "Vendor vissza", 100, "RIGHT", extra = true } },
+      rows = rows, limit = 12 } }
+    out[#out + 1] = Section("prof.route." .. r.professionId, ("%s: %d → %d"):format(r.profession, r.skill, r.target), blocks, i == 1, #r.steps)
     local shop = {}
     for _, x in ipairs(r.shopping) do
-      shop[#shop + 1] = { cells = { Cell(x.name, x.name), Cell(x.qty, x.qty), Cell(x.owned > 0 and x.owned or "", x.owned),
-        Cell(Money(x.unit), x.unit or 0), Cell(Money(x.total), x.total), x.source == "vendor" and "kereskedő" or (x.source == "AH" and "AH" or "|cffff9933nincs ár|r") },
-        itemId = x.itemId }
+      shop[#shop + 1] = { cells = { Cell(x.name, x.name), Cell(x.qty, x.qty), Cell(Money(x.total), x.total),
+        Cell(x.owned > 0 and x.owned or "", x.owned), Cell(Money(x.unit), x.unit or 0),
+        x.source == "vendor" and "kereskedő" or (x.source == "AH" and "AH" or Color(HEX.warn, "nincs ár")) }, itemId = x.itemId }
     end
-    out[#out + 1] = { h = "Bevásárlólista", small = true }
-    out[#out + 1] = { table = { id = "prof.shop." .. r.professionId, cols = { { "Alapanyag", 220 }, { "Kell", 50, "RIGHT" },
-      { "Megvan", 56, "RIGHT" }, { "Egységár", 90, "RIGHT" }, { "Összesen", 90, "RIGHT" }, { "Honnan", 100 } }, rows = shop } }
+    out[#out + 1] = Section("prof.shop." .. r.professionId, "Bevásárlólista – " .. r.profession, { { table = { id = "prof.shop." .. r.professionId,
+      cols = { { "Alapanyag", 0, flex = true }, { "Kell", 56, "RIGHT" }, { "Összesen", 92, "RIGHT" }, { "Megvan", 64, "RIGHT", extra = true },
+      { "Egységár", 92, "RIGHT", extra = true }, { "Honnan", 96, extra = true } }, rows = shop, limit = 12 } } }, false, #shop)
   end
-  UI.status = ("Cél: %d · %d szakma"):format(UI.target, #routes)
+  UI.status = ("Árak: %s"):format(market and market.at and ("AH-szken " .. date("%m.%d %H:%M", market.at)) or "nincs AH-szken (/wa ah)")
   return out
 end
 
