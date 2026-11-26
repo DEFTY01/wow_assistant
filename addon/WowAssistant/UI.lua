@@ -253,8 +253,29 @@ local function Matches(cells, needle)
   if needle == "" then return true end
   for _, c in pairs(cells) do
     local t = type(c) == "table" and c[1] or c
-    if Plain(t):lower():find(needle, 1, true) then return true end
+    if WA.Style.Lower(Plain(t)):find(needle, 1, true) then return true end
   end
+  return false
+end
+
+-- While searching, a section is shown only when something in it matches.
+local SectionHits
+local function BlockHits(b, needle)
+  if b.table then
+    for _, r in ipairs(b.table.rows or {}) do if Matches(r.cells or r, needle) then return true end end
+  elseif b.p then return Matches({ b.p }, needle)
+  elseif b.h then return Matches({ b.h }, needle)
+  elseif b.tips then
+    for _, a in ipairs(b.tips) do if Matches({ a.title or "", a.text or "" }, needle) then return true end end
+  elseif b.checks then
+    for _, c in ipairs(b.checks) do if Matches({ c.label or "" }, needle) then return true end end
+  elseif b.section then return SectionHits(b.section, needle)
+  end
+  return false
+end
+function SectionHits(s, needle)
+  if Matches({ s.title or "" }, needle) then return true end
+  for _, b in ipairs(s.blocks or {}) do if BlockHits(b, needle) then return true end end
   return false
 end
 
@@ -305,7 +326,7 @@ local function MoreButton(child)
 end
 
 local function DrawTable(child, b, x, y, w, detail)
-  local needle = UI.filter:lower()
+  local needle = WA.Style.Lower(UI.filter)
   local rows = {}
   for _, r in ipairs(b.rows) do if Matches(r.cells or r, needle) then rows[#rows + 1] = r end end
   local s = UI.sort[b.id]
@@ -336,7 +357,7 @@ local function DrawTable(child, b, x, y, w, detail)
     h:SetWidth(v.w)
     h:SetPoint("TOPLEFT", child, "TOPLEFT", cx, -y)
     h.text:SetJustifyH(c[3] or "LEFT")
-    h.text:SetText(c[1]:upper() .. ((s and s[1] == i) and (s[2] > 0 and " ↑" or " ↓") or ""))
+    h.text:SetText(WA.Style.Upper(c[1]) .. ((s and s[1] == i) and (s[2] > 0 and " ↑" or " ↓") or ""))
     h:SetScript("OnClick", function()
       local cur = UI.sort[b.id]
       if cur and cur[1] == i then cur[2] = -cur[2]
@@ -426,7 +447,7 @@ local function DrawCards(child, b, x, y, w)
     local card = Acquire("card", function()
       local fr = CreateFrame("Frame", nil, child, "BackdropTemplate")
       WA.Style.Panel(fr, WA.Style.C.card, WA.Style.C.edge, 0.4)
-      fr:SetHeight(62)
+      fr:SetHeight(70)
       fr.label = fr:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
       fr.label:SetPoint("TOPLEFT", 10, -8)
       fr.label:SetPoint("RIGHT", -8, 0)
@@ -446,7 +467,7 @@ local function DrawCards(child, b, x, y, w)
     end)
     card:SetWidth(cw)
     card:SetPoint("TOPLEFT", child, "TOPLEFT", x + (i - 1) * (cw + 10), -y)
-    card.label:SetText((c.label or ""):upper())
+    card.label:SetText(WA.Style.Upper(c.label))
     card.value:SetText(c.value or "–")
     card.sub:SetText(c.sub or "")
     card.tip = c.tip
@@ -457,12 +478,14 @@ local function DrawCards(child, b, x, y, w)
     end or nil)
     card:SetScript("OnLeave", c.tip and function() GameTooltip:Hide() end or nil)
   end
-  return y + 62 + 14
+  return y + 70 + 14
 end
 
 local TIP_COLOR = { fix = HEX.bad, warn = HEX.warn, tip = HEX.gold, info = HEX.muted, good = HEX.good }
 local function DrawTips(child, b, x, y, w)
+  local needle = WA.Style.Lower(UI.filter or "")
   for _, a in ipairs(b.tips) do
+    if Matches({ a.title or "", a.text or "" }, needle) then
     local mark = Acquire("mark", function() return child:CreateTexture(nil, "ARTWORK") end)
     local c = TIP_COLOR[a.level] or HEX.gold
     mark:SetColorTexture(tonumber(c:sub(1, 2), 16) / 255, tonumber(c:sub(3, 4), 16) / 255, tonumber(c:sub(5, 6), 16) / 255, 0.9)
@@ -473,6 +496,7 @@ local function DrawTips(child, b, x, y, w)
     t:SetPoint("TOPLEFT", child, "TOPLEFT", x + 10, -y)
     t:SetText(a.title and (Color(c, a.title) .. (a.text and a.text ~= "" and ("  " .. a.text) or "")) or a.text)
     y = y + Height(t, 14) + 6
+    end
   end
   return y + 2
 end
@@ -523,7 +547,11 @@ local function DrawSection(child, s, x, y, w)
   local st = State()
   local open = st.open[s.id]
   if open == nil then open = s.open and true or false end
-  if UI.filter ~= "" then open = true end
+  if UI.filter ~= "" then
+    if not SectionHits(s, WA.Style.Lower(UI.filter)) then return y end
+    open = true
+    UI.hits = (UI.hits or 0) + 1
+  end
   local detail = st.detail[s.id] and true or false
   local hasExtra = false
   for _, b in ipairs(s.blocks or {}) do if b.table and HasExtra(b.table.cols) then hasExtra = true end end
@@ -633,7 +661,11 @@ function UI.Draw()
     UI.cache[UI.tab] = blocks
   end
   local child = frame.child
+  UI.hits = 0
   local y = DrawBlocks(child, blocks, 0, 4, CONTENT_W, false)
+  if UI.filter ~= "" and UI.hits == 0 then
+    y = DrawBlocks(child, { { empty = { "Nincs találat", ("Ezen az oldalon semmi sem tartalmazza ezt: „%s”."):format(UI.filter) } } }, 0, y, CONTENT_W, false)
+  end
   for kind, list in pairs(pools) do
     for i = (used[kind] or 0) + 1, #list do list[i]:Hide() end
   end

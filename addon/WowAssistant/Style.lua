@@ -60,6 +60,19 @@ function S.Fix(s)
 end
 WA.Fix = S.Fix
 
+-- string.upper works on bytes, so it leaves the accented letters lower case (BECSüLT).
+local UPPER = { ["á"] = "Á", ["é"] = "É", ["í"] = "Í", ["ó"] = "Ó", ["ö"] = "Ö", ["ő"] = "Ő", ["ú"] = "Ú", ["ü"] = "Ü", ["ű"] = "Ű" }
+function S.Upper(s)
+  s = tostring(s or ""):upper()
+  return (s:gsub("[\195\197][\128-\191]", function(c) return UPPER[c] end))
+end
+local LOWER = {}
+for k, v in pairs(UPPER) do LOWER[v] = k end
+function S.Lower(s)
+  s = tostring(s or ""):lower()
+  return (s:gsub("[\195\197][\128-\191]", function(c) return LOWER[c] end))
+end
+
 ---------------------------------------------------------------------------
 -- style
 ---------------------------------------------------------------------------

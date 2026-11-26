@@ -497,7 +497,7 @@ local function Build()
   local f = St.Window("WowAssistantVendorFrame", W, 0, "Mit érdemes legyártani vendornak")
   local inset = f.inset
   local y0 = -f.top
-  f:SetHeight(f.top + 130 + ROWS * ROW_H + 124)
+  f:SetHeight(f.top + 136 + ROWS * ROW_H + 124)
   f.offset, f.sel = 0, nil
 
   -- filters: profession, skill, known only, search
@@ -525,7 +525,7 @@ local function Build()
   for i = 1, 3 do
     local c = CreateFrame("Frame", nil, f, "BackdropTemplate")
     St.Panel(c, St.C.card, St.C.edge, 0.4)
-    c:SetSize(cw, 54)
+    c:SetSize(cw, 60)
     c:SetPoint("TOPLEFT", inset + (i - 1) * (cw + 10), y0 - 34)
     c.label = c:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
     c.label:SetPoint("TOPLEFT", 10, -7)
@@ -543,14 +543,14 @@ local function Build()
   end
 
   f.status = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
-  f.status:SetPoint("TOPLEFT", inset, y0 - 98)
+  f.status:SetPoint("TOPLEFT", inset, y0 - 104)
   f.status:SetPoint("RIGHT", -inset, 0)
   f.status:SetJustifyH("LEFT")
   f.status:SetWordWrap(false)
 
   -- column headers: click to sort
   local x = inset
-  local headY = y0 - 116
+  local headY = y0 - 122
   f.heads = {}
   for i, c in ipairs(COLS) do
     local h = CreateFrame("Button", nil, f)
@@ -665,7 +665,7 @@ function VC.Refresh()
   frame.prof:Refresh()
   frame.skill:Refresh()
   for i, h in ipairs(frame.heads) do
-    h.text:SetText(COLS[i][1]:upper() .. (f.sort == i and (f.dir > 0 and " ↑" or " ↓") or ""))
+    h.text:SetText(WA.Style.Upper(COLS[i][1]) .. (f.sort == i and (f.dir > 0 and " ↑" or " ↓") or ""))
   end
   local m = Market()
   local live = 0

@@ -278,7 +278,9 @@ local function Finish()
     if a.n > 0 or a.dmg > 0 then ab[#ab + 1] = a total = total + a.dmg end
   end
   local dmg = (m and m.total and m.total > 0) and m.total or total
-  if dmg <= 0 and #f.casts == 0 then return end
+  -- no damage dealt (running away, a potion and Evasion): nothing to score, and it would only push
+  -- a 0 DPS "D" to the top of the list
+  if dmg <= 0 then return end
   local auras = {}
   for _, name in ipairs(f.auraOrder) do auras[#auras + 1] = { name, f.auras[name] } end
   local list = WA.charDB.meterFights
@@ -325,6 +327,9 @@ end)
 
 table.insert(WA.onLoad, function()
   WA.charDB.meterFights = WA.charDB.meterFights or {}
+  -- fights saved before 2.2.1 could have no damage at all
+  local list = WA.charDB.meterFights
+  for i = #list, 1, -1 do if (tonumber(list[i].dmg) or 0) <= 0 then table.remove(list, i) end end
   for _, e in ipairs({ "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED", "UNIT_SPELLCAST_SUCCEEDED", "UNIT_POWER_FREQUENT", "UNIT_COMBAT", "PLAYER_TARGET_CHANGED" }) do
     pcall(frame.RegisterEvent, frame, e)
   end
