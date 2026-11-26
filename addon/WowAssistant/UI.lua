@@ -1454,8 +1454,72 @@ local function Weapon(w)
   return ("%d–%d / %.1f"):format(w.min, w.max or w.min, w.speed or 0)
 end
 
+-- Enchants for what you wear, for your role (Enchant.lua); every class, with or without a damage model.
+local function EnchantBlocks(ctx)
+  local r = G.EnchantReport(ctx)
+  local out = {}
+  local cur = WA.charDB and WA.charDB.role or nil
+  local function Pick(role)
+    return function()
+      WA.charDB.role = role
+      UI.cache = {}
+      UI.Draw()
+    end
+  end
+  out[#out + 1] = { buttons = {
+    { label = "Szerep: automatikus", width = 150, active = cur == nil, onClick = Pick(nil) },
+    { label = "DPS", width = 70, active = cur == "dps", onClick = Pick("dps") },
+    { label = "Tank", width = 70, active = cur == "tank", onClick = Pick("tank") },
+    { label = "Gyógyító", width = 90, active = cur == "healer", onClick = Pick("healer") },
+  } }
+  local how
+  if r.useModel then how = "az érték a sebzésmodell DPS-e a jelenlegi tárgyaddal"
+  elseif r.profile then how = ("az érték a %s súlya (EP, %s %s)"):format(r.profile.name, WA.Enchant.SIM, r.profile.source)
+  else how = "erre a kasztra még nincs sebzésmodell és súlytábla: az enchantok pontozás nélkül nem rangsorolhatók" end
+  out[#out + 1] = { p = ("%s: %s. %s."):format(Color(HEX.gold, WA.Enchant.ROLE_HU[r.role]), r.reason, how) .. (r.borrowed and (" " .. Color(HEX.warn, r.borrowed .. ".")) or "") }
+  if r.missing then
+    out[#out + 1] = { tips = { { level = "warn", text = "Hiányzik az Enchants.lua: node scripts/build-enchants.mjs --install" } } }
+    return out, 0
+  end
+  local rows, n = {}, 0
+  for _, s in ipairs(r.slots) do
+    for i, b in ipairs(s.best) do
+      if i == 1 then n = n + 1 end
+      local now = i == 1 and ((s.current or "–") .. " · " .. (s.enchant and Color(HEX.good, "van rajta enchant") or Color(HEX.warn, "nincs enchant"))) or ""
+      local value = r.useModel and Gain(b.value) or Color(HEX.good, F1(b.value))
+      rows[#rows + 1] = { cells = { Cell(i == 1 and (WA.Model.SLOT_HU[(s.slot:gsub("_[12]$", ""))] or s.slot) or "", s.slot .. i),
+        Cell(b.name:gsub("^Enchant ", ""), b.name), Cell(value, b.value), b.effect,
+        Cell(b.cost and (Money(b.cost) .. (b.partial and "+?" or "")) or "?", b.cost or math.huge),
+        Cell(b.skill .. (b.trainer and "" or Muted(" recept")), b.skill), now },
+        tip = b.detail .. (b.partial and "\n(egy reagens ára nem ismert)" or ""), first = i == 1 }
+    end
+  end
+  local detail = State().detail["gear.enchant"]
+  local shown = {}
+  for _, row in ipairs(rows) do if detail or row.first then shown[#shown + 1] = row end end
+  out[#out + 1] = { table = { id = "gear.enchant", cols = { { "Hely", 92 }, { "Enchant", 0, flex = true }, { r.unit, 56, "RIGHT" },
+    { "Mit ad", 170 }, { "Reagens", 92, "RIGHT" }, { "Skill", 70, "RIGHT", extra = true }, { "Most", 230, extra = true } },
+    rows = shown, empty = "Erre a szerepre egyik viselt tárgyadra sincs pontozható enchant." } }
+  if #r.procs > 0 then
+    out[#out + 1] = { p = Muted("Proc enchantok, pontozás nélkül (a gyakoriságuk nincs megadva): " .. table.concat(r.procs, ", "):gsub("Enchant ", "")) }
+  end
+  if r.profile then
+    local bits = {}
+    for k, v in pairs(r.profile.w) do if v ~= 0 then bits[#bits + 1] = ("%s %s"):format(k, v) end end
+    table.sort(bits)
+    out[#out + 1] = { p = Muted(("Súlyok (%s, %s): %s. Egységek: crit/hit/haste/dodge/block ratingben (14/10/10/12/5 = 1%%), defense = rating, mhDps = fegyver-DPS."):format(
+      r.profile.name, r.profile.source, table.concat(bits, ", "))), muted = true }
+  end
+  return out, n
+end
+
 function UI.pages.gear()
-  if not G.Supported() then return NotSupported("gear", "Felszerelés") end
+  if not G.Supported() then
+    local out = NotSupported("gear", "Felszerelés")
+    local blocks, n = EnchantBlocks(nil)
+    out[#out + 1] = Section("gear.enchant", "Enchantok a szerepedre", blocks, true, n)
+    return out
+  end
   local ctx = G.Context()
   local g = WA.Model.GearReport(ctx, 3)
   local sh = g.sheet
@@ -1520,6 +1584,9 @@ function UI.pages.gear()
   out[#out + 1] = Section("gear.best", "Legjobb fejlesztések", { { table = { id = "gear.best", cols = { { "Hely", 92 },
     { "Tárgy", 0, flex = true }, { "DPS", 56, "RIGHT" }, { "Honnan", 230 }, { "Most", 150, extra = true }, { "%", 52, "RIGHT", extra = true },
     { "Esés", 52, "RIGHT", extra = true } }, rows = detail and rows or firsts, limit = 10 } } }, true, #firsts)
+
+  local eblocks, en = EnchantBlocks(ctx)
+  out[#out + 1] = Section("gear.enchant", "Enchantok a szerepedre", eblocks, true, en)
 
   local checks, on = {}, 0
   for _, b in ipairs(g.buffs) do

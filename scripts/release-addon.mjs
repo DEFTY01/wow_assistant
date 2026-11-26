@@ -38,7 +38,7 @@ if (existsSync(envFile)) {
 // Files written on this machine only: the uploader's AH prices and fight log.
 const PERSONAL = new Set(["Market.lua", "Fights.lua"]);
 // Data the addon cannot work without; generated, so missing ones stop the release.
-const REQUIRED = ["Recipes.lua", "GameData.lua"];
+const REQUIRED = ["Recipes.lua", "GameData.lua", "Enchants.lua"];
 
 function token() {
   const t = process.env.CF_API_KEY;

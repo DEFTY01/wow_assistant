@@ -14,3 +14,4 @@ addon/WowAssistant/GameData.lua
 addon/WowAssistant/PetData.lua
 addon/WowAssistant/Fights.lua
 addon/WowAssistant/Market.lua
+addon/WowAssistant/Enchants.lua

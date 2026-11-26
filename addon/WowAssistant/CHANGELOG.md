@@ -1,3 +1,18 @@
+## 2.13.0
+
+Enchantok a szerepedre, minden kasztnak.
+
+- A Felszerelés oldalon új rész: "Enchantok a szerepedre". Minden viselt tárgyadhoz a legjobb enchantok, a szerepedhez mérve: sebzőnek a sebzés, tanknak a túlélés, gyógyítónak a gyógyítás számít.
+- A szerepet a tehetségfáidból olvassa (ahol a legtöbb pontod van): gyógyító a Restoration Druid és Shaman, a Holy Paladin, a Discipline és a Holy Priest; tank a Protection Warrior és Paladin, és a Feral Druid, ha Bear Formban vagy. Gombbal kézzel is választhatsz: automatikus, DPS, Tank, Gyógyító.
+- Hogyan pontoz:
+  - sebző, akinek a kasztját a sebzésmodell ismeri (rogue, hunter, shaman, druid, warlock): a modell DPS-e a jelenlegi tárgyaddal és az enchanttal;
+  - minden más esetben a WoWSims Forever motor saját súlytáblája (EP) arra a specre: Bear tank, Protection Warrior, Holy és Discipline Priest, Shadow Priest, Retribution Paladin, Fury és Arms Warrior. Ahol a motornak nincs saját táblája (Protection Paladin, Holy Paladin, Restoration Druid és Shaman), a legközelebbi specét használja, és ezt ki is írja;
+  - az enchant számait a motor saját átváltásaival számolja (14 crit rating = 1% crit, 12 dodge rating = 1% dodge, 10 életerő / Stamina);
+  - a proc enchantok (Crusader, Fiery Weapon) listán vannak, de pontszám nélkül: a gyakoriságuk nincs megadva.
+- Látszik, melyik tárgyadon van már enchant (a tárgylinkből), mennyibe kerülnek a reagensek (AH vagy vendor), és mekkora enchanting skill kell hozzá.
+- Az enchantok a kasztmodell nélküli kasztoknál (mage, warrior, paladin, priest) is megjelennek a Felszerelés oldalon.
+- Az enchantok adatai a Wowhead Forever leírásaiból jönnek (a Forever értékei eltérnek a Classicétól): node scripts/build-enchants.mjs --install. Az Enchants.lua generált fájl, nincs a repóban.
+
 ## 2.12.1
 
 - A Felszerelés oldal most pálcát is ajánl (warlock). A Wowhead Forever a pálcáknak csak a DPS-ét és a sebességét adja, sebzéstartományt nem, ezért eddig a pálcák sebzés nélkül kerültek a játékadatba, és az oldal kihagyta őket. Most az átlagos ütés a DPS × sebesség, így a pálca DPS-e pontos.

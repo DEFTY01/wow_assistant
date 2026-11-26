@@ -2,7 +2,7 @@
 ## Title: Waystone
 ## Notes: Adventurer's companion: plan, combat, gear, professions, vendor crafting, session bar and chronicle in one window. /wa
 ## Author: Defty
-## Version: 2.12.1
+## Version: 2.13.0
 ## SavedVariables: WowAssistantDB
 ## SavedVariablesPerCharacter: WowAssistantCharDB
 ## OptionalDeps: SessionBar, AzerothChronicle
@@ -22,6 +22,8 @@ Hunter.lua
 Shaman.lua
 Druid.lua
 Warlock.lua
+Enchants.lua
+Enchant.lua
 Pets.lua
 Combat.lua
 Routes.lua

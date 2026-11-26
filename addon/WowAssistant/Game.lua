@@ -83,9 +83,16 @@ function G.Equipped()
       local id = tonumber(link:match("item:(%d+)"))
       local st = getStats and getStats(link) or nil
       local dmg = (s[1] == "MAIN_HAND" or s[1] == "OFF_HAND" or s[1] == "RANGED") and WA.WeaponNumbers and WA.WeaponNumbers(link) or nil
-      local sub = GetItemInfoInstant and select(7, GetItemInfoInstant(link)) or nil
+      local sub, classID, equipLoc
+      if GetItemInfoInstant then
+        local _, _, _, loc, _, cls, sc = GetItemInfoInstant(link)
+        sub, classID, equipLoc = sc, cls, loc
+      end
+      -- the enchant on it: the second field of the item link (item:id:enchant:...), 0 or empty when none
+      local enchant = tonumber(link:match("item:%d+:(%d*)") or "")
       equipped[s[1]] = { id = id, name = (GetItemInfo(link)) or link:match("%[(.-)%]") or ("Item #" .. tostring(id)), stats = M.GameStats(st, dmg),
-        link = link, sub = sub }
+        link = link, sub = sub, item = { classID = classID, sub = sub, equipLoc = equipLoc },
+        enchant = enchant and enchant > 0 and enchant or nil }
       order[#order + 1] = s[1]
     end
   end
@@ -374,6 +381,21 @@ function G.ModelInput()
     input.spellHit = GetSpellHitModifier and (GetSpellHitModifier() or 0) or 0
   end
   return input
+end
+
+-- Enchants for what you wear, for your role (Enchant.lua). ctx: the damage model's context, nil
+-- for a class it does not know yet.
+function G.EnchantReport(ctx)
+  local equipped, order = G.Equipped()
+  local form
+  if G.Class() == "DRUID" and GetShapeshiftFormID then
+    local id = GetShapeshiftFormID()
+    form = (id == 5 or id == 8) and "bear" or id == 1 and "cat" or nil
+  end
+  return WA.Enchant.Report({
+    class = G.Class(), level = UnitLevel("player"), tab = (G.MainTalentTab()), form = form,
+    override = WA.charDB and WA.charDB.role or nil, equipped = equipped, slotOrder = order, ctx = ctx, book = G.Book(),
+  })
 end
 
 function G.Context()
