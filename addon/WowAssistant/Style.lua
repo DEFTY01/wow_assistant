@@ -112,6 +112,7 @@ end
 -- wow: dark stone with the gold dialog border and the title banner on the top edge.
 function S.Window(name, w, h, title)
   local f = CreateFrame("Frame", name, UIParent, "BackdropTemplate")
+  local banner
   f:SetSize(w, h)
   f:SetPoint("CENTER")
   f:SetFrameStrata("HIGH")
@@ -135,7 +136,7 @@ function S.Window(name, w, h, title)
     glow:SetHeight(120)
     glow:SetColorTexture(0.55, 0.4, 0.18, 0.08)
     -- the title banner sits on the top edge
-    local banner = f:CreateTexture(nil, "ARTWORK")
+    banner = f:CreateTexture(nil, "ARTWORK")
     banner:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
     banner:SetPoint("TOP", 0, 12)
     f.banner = banner
@@ -154,12 +155,12 @@ function S.Window(name, w, h, title)
     f.top = 26
   end
   f.title:SetText(title or "")
-  if f.banner then
+  if banner then
     -- Only the middle ~55% of the banner texture is the plate the text sits on (the rest is the
     -- curled ends), so size it from the measured text and never wider than the window.
     local bw = math.max(256, f.title:GetStringWidth() / 0.55 + 20)
     if w and w > 0 then bw = math.min(bw, w - 20) end
-    f.banner:SetSize(bw, 64)
+    banner:SetSize(bw, 64)
   end
   f.close = close
   return f
