@@ -179,7 +179,8 @@ function E.Report(input)
               local add = {}
               for k, v in pairs(it.stats or WA.Model.ZERO) do add[k] = v end
               for k in pairs(WA.Model.ZERO) do add[k] = (add[k] or 0) + (e.stats[k] or 0) end
-              local school = SCHOOL[input.class] and e.stats["sp_" .. SCHOOL[input.class]]
+              local sname = SCHOOL[input.class] or (ctx.params and ctx.params.school)
+              local school = sname and e.stats["sp_" .. sname]
               if school then add.sp = add.sp + school end
               local w = it.stats and it.stats.weapon
               if w then add.weapon = { min = w.min + (e.stats.dmg or 0), max = w.max + (e.stats.dmg or 0), speed = w.speed } end

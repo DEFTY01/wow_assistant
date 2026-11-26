@@ -62,7 +62,12 @@ local NO_HIT = { ["Slice and Dice"] = true, Stealth = true, Vanish = true, Sprin
   -- warrior: shouts, stances, rage, defensive cooldowns
   ["Battle Shout"] = true, ["Battle Stance"] = true, ["Defensive Stance"] = true, ["Berserker Stance"] = true, Bloodrage = true,
   ["Berserker Rage"] = true, ["Shield Block"] = true, ["Shield Wall"] = true, Recklessness = true, Retaliation = true,
-  ["Sweeping Strikes"] = true, ["Death Wish"] = true, ["Last Stand"] = true }
+  ["Sweeping Strikes"] = true, ["Death Wish"] = true, ["Last Stand"] = true,
+  -- priest: buffs, shields, heals, Fade, Shadowform
+  ["Power Word: Fortitude"] = true, ["Prayer of Fortitude"] = true, ["Inner Fire"] = true, ["Power Word: Shield"] = true, Renew = true,
+  ["Lesser Heal"] = true, Heal = true, ["Flash Heal"] = true, ["Greater Heal"] = true, ["Prayer of Healing"] = true, Fade = true,
+  Shadowform = true, ["Inner Focus"] = true, ["Power Infusion"] = true, ["Shadow Protection"] = true, ["Divine Spirit"] = true,
+  ["Psychic Scream"] = true, ["Cure Disease"] = true, ["Abolish Disease"] = true, Levitate = true, ["Fear Ward"] = true }
 
 -- Hunter pet abilities that do damage (the damage meter may list them under the owner).
 local PET_SPELL = { Claw = true, Bite = true, ["Lightning Breath"] = true, ["Scorpid Poison"] = true, Screech = true,

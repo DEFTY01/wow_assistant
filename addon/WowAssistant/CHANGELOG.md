@@ -1,3 +1,21 @@
+## 2.16.0
+
+Priest: saját modell, harcoldal és Haditerv.
+
+- A priestnek saját sebzésmodellje van (Priest.lua), a Wowhead Forever adatai alapján:
+  - Smite, Mind Blast (8 mp cooldown), Shadow Word: Pain (18 mp, 3 mp-enként tick), Mind Flay (3 mp csatornázás, másodpercenként tick) és Holy Fire (direkt + DoT), rangonként a Forever tooltipjeiből;
+  - a spell power együtthatók a Wowhead Forever Spell Details táblájából: Smite cast idő / 3,5 (0,429–0,714), Mind Blast 0,429, Shadow Word: Pain tickenként 0,2, Mind Flay tickenként 0,167, Holy Fire 0,75 és tickenként 0,05;
+  - a harcnapló szerint Foreveren a DoT-tickek is critelnek (Shadow Word: Pain, Holy Fire), ezért a modell a tickekre is számol critet;
+  - holy és shadow spell power külön (Smite és Holy Fire a holyt, a többi a shadow-t használja);
+  - Shadow talentfán a töltelék a Mind Flay, egyébként a Smite; a harcaid felülírják, mit mennyit használsz;
+  - szövet; tőr, egykezes buzogány, bot és pálca.
+- Harcoldal priestnek:
+  - pontszám: DPS a várthoz képest, folyamatos castolás (pálcával együtt), Shadow Word: Pain a 15 mp-nél hosszabb harcban (a tickekből), kárba ment manaital;
+  - "Priest összesítő": a direkt varázslatok, a Mind Flay, a DoT-ok és a pálca aránya; Mind Blast percenként a 8 mp-es cooldownhoz képest; Shadow Word: Pain a harcidő arányában.
+- Tanácsok priestnek: a teli manánál ivott manaital hiba, ha a harcnapló igazolja (ugyanaz a szabály, mint a mage-nél); a Mind Blast használata mért adat.
+- A gyógyítást a modell nem számolja: Discipline és Holy talentfán az enchant rész a gyógyító súlyokat használja.
+- Haditerv: a priest trainer képességei fontosság szerint.
+
 ## 2.15.0
 
 Warrior: saját modell, harcoldal és Haditerv.

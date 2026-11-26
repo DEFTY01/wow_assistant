@@ -224,6 +224,7 @@ local USABLE = {
   DRUID = { armor = { [0] = true, [1] = true, [2] = true }, weapon = { [4] = true, [5] = true, [10] = true, [13] = true, [15] = true } },
   WARLOCK = { armor = { [0] = true, [1] = true }, weapon = { [7] = true, [10] = true, [15] = true, [19] = true } },
   MAGE = { armor = { [0] = true, [1] = true }, weapon = { [7] = true, [10] = true, [15] = true, [19] = true } },
+  PRIEST = { armor = { [0] = true, [1] = true }, weapon = { [4] = true, [10] = true, [15] = true, [19] = true } },
   WARRIOR = { armor = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [6] = true }, weapon = { [0] = true, [1] = true, [2] = true,
     [3] = true, [4] = true, [5] = true, [6] = true, [7] = true, [8] = true, [10] = true, [13] = true, [15] = true, [16] = true, [18] = true } },
 }

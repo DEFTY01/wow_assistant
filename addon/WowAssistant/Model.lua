@@ -192,6 +192,12 @@ M.CLASSES = {
       [10] = true, [13] = true, [15] = true, [16] = true, [18] = true },
     slots = { "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
   },
+  -- cloth; daggers, one-hand maces, staves, and a wand in the ranged slot (Priest.lua)
+  PRIEST = {
+    armor = { [0] = true, [1] = true },
+    weapon = { [4] = true, [10] = true, [15] = true, [19] = true },
+    slots = { "RANGED", "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
+  },
   -- cloth; daggers, one-hand swords, staves, and a wand in the ranged slot (Mage.lua)
   MAGE = {
     armor = { [0] = true, [1] = true },
@@ -311,6 +317,7 @@ function M.Context(input)
   if input.class == "WARLOCK" and WA.Warlock then return WA.Warlock.Context(input) end
   if input.class == "MAGE" and WA.Mage then return WA.Mage.Context(input) end
   if input.class == "WARRIOR" and WA.Warrior then return WA.Warrior.Context(input) end
+  if input.class == "PRIEST" and WA.Priest then return WA.Priest.Context(input) end
   return M.RogueContext(input)
 end
 
