@@ -1,3 +1,23 @@
+## 2.14.0
+
+Mage: saját modell, harcoldal és Haditerv.
+
+- A mage-nek saját sebzésmodellje van (Mage.lua), a Wowhead Forever és a WoWSims Forever adatai alapján:
+  - a fő varázslat a Frostbolt vagy a Fireball: amelyiket a harcaidban többször használod, harcok nélkül a tehetségfád szerint (Fire fa: Fireball);
+  - a szintedhez tartozó rang a Wowhead Forever táblájából: a Frostbolt 1,5 mp-től 3 mp-ig, a Fireball 1,5 mp-től 3,5 mp-ig nő rangonként;
+  - spell power-együttható: Frostbolt 0,407 (1,5 mp) és 0,814 (3 mp), Fire Blast és Scorch 0,429, Arcane Missiles 0,286 rakétánként (Wowhead Forever). A Fireballnál a Wowhead nem mutat együtthatót: a modell a Frostbolt mintáját követi (cast idő / 3,5), és ezt ki is írja;
+  - a felszerelésnél a spell power és az intellect számít, a strength és az agility nem; a pálca a távolsági helyre megy, a sebzése nem nő a spell powerrel;
+  - szövetpáncél; tőr, egykezes kard, bot és pálca.
+- Harcoldal mage-nek:
+  - pontszám: folyamatos castolás (a fő varázslat a rangja szerinti cast idővel, pálcalövésekkel együtt), kárba ment manaital vagy mana gem;
+  - "Mage összesítő": honnan jön a sebzés (direkt varázslat, DoT, AoE, pálca), a fő varázslat percenként, crit és miss aránya, manaitalok.
+- Tanácsok mage-nek:
+  - a manaital vagy mana gem teli manánál hiba, ha a harcnapló igazolja: a mana-esemény maga mondja meg, mennyi ment a maximum fölé. Hiba, ha legalább a fele elveszett; a kisebb túlcsordulás csak mért adat;
+  - sok pálcázás (nem megállapítható: a manád a harc alatt nem látszik).
+- A harcnapló-feldolgozó a harc közbeni manaitalokat és mana gemeket is rögzíti ("Restore Mana", "Replenish Mana"), a kapott manával és a maximum fölötti résszel.
+- Haditerv: a mage trainer képességei fontosság szerint (alap, helyzeti, kihagyható: Slow Fall, teleportok, portálok).
+- Az enchant-ajánló mage-nél is a sebzésmodell DPS-ét használja.
+
 ## 2.13.0
 
 Enchantok a szerepedre, minden kasztnak.

@@ -25,7 +25,8 @@
 //
 // Every Life Tap during a fight is kept (fight.taps): the mana it gave and the part over the
 // maximum, which the energize event states itself (its overEnergize field). That part was paid for
-// with health and lost.
+// with health and lost. Mana potions and mana gems ("Restore Mana", "Replenish Mana") are kept the
+// same way (fight.gems): the part over the maximum is lost.
 
 // Everything lives inside the function on purpose: the web app serves this function's own
 // source to the browser (Function.prototype.toString), so it must not lean on module scope.
@@ -126,6 +127,7 @@ export function parseCombatLog(text, character, opts = {}) {
       overkill: f.overkill,
       evis: evis.length ? evis : undefined,
       taps: f.taps.length ? f.taps : undefined,
+      gems: f.gems.length ? f.gems : undefined,
       basis: { dmg: "effective", dur: "own-events", pet: "owner-flags" },
     });
   };
@@ -134,7 +136,7 @@ export function parseCombatLog(text, character, opts = {}) {
     if (fight && t - fight.last > FIGHT_GAP) close();
     if (!fight) {
       fight = { t0: t, last: t, ab: {}, casts: [], targets: {}, levels: {}, auras: {}, auraOn: {}, capped: 0, samples: 0, energyAt: null, overkill: 0,
-        evis: [], evisPending: null, taps: [] };
+        evis: [], evisPending: null, taps: [], gems: [] };
       // Buffs that were already running when the fight began.
       for (const name of activeAuras) fight.auraOn[name] = t;
       cp = 0; // combo points sit on the target, so a new fight starts from zero
@@ -293,6 +295,10 @@ export function parseCombatLog(text, character, opts = {}) {
         const gain = Number(f[31]) || 0;
         const over = Number(f[32]) || 0;
         fight.taps.push({ t: Math.round((t - fight.t0) * 10), gain: Math.round(gain), over: Math.round(over), max: Number(f[34]) || null });
+      }
+      // a mana potion or gem of ours during a fight, the same way
+      if (mine && (f[10] === "Restore Mana" || f[10] === "Replenish Mana") && f[33] === MANA && fight && t - fight.last <= FIGHT_GAP) {
+        fight.gems.push({ t: Math.round((t - fight.t0) * 10), gain: Math.round(Number(f[31]) || 0), over: Math.round(Number(f[32]) || 0), max: Number(f[34]) || null });
       }
     } else if (ev === "SPELL_CAST_SUCCESS") {
       const name = f[10];

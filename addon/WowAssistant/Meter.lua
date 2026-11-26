@@ -52,7 +52,13 @@ local NO_HIT = { ["Slice and Dice"] = true, Stealth = true, Vanish = true, Sprin
   ["Demon Skin"] = true, ["Demon Armor"] = true, ["Life Tap"] = true, ["Summon Imp"] = true, ["Summon Voidwalker"] = true,
   ["Summon Succubus"] = true, ["Summon Felhunter"] = true, ["Health Funnel"] = true, ["Create Healthstone"] = true,
   ["Create Soulstone"] = true, ["Unending Breath"] = true, ["Shadow Ward"] = true, ["Fel Domination"] = true,
-  ["Demonic Sacrifice"] = true, ["Amplify Curse"] = true }
+  ["Demonic Sacrifice"] = true, ["Amplify Curse"] = true,
+  -- mage: armors, buffs, conjures, Evocation, Blink, wards, Ice Block
+  ["Frost Armor"] = true, ["Ice Armor"] = true, ["Mage Armor"] = true, ["Arcane Intellect"] = true, ["Arcane Brilliance"] = true,
+  ["Dampen Magic"] = true, ["Amplify Magic"] = true, ["Conjure Water"] = true, ["Conjure Food"] = true, ["Conjure Mana Agate"] = true,
+  ["Conjure Mana Jade"] = true, ["Conjure Mana Citrine"] = true, ["Conjure Mana Ruby"] = true, Evocation = true, Blink = true,
+  ["Fire Ward"] = true, ["Frost Ward"] = true, ["Mana Shield"] = true, ["Ice Barrier"] = true, ["Ice Block"] = true, ["Slow Fall"] = true,
+  ["Presence of Mind"] = true, ["Arcane Power"] = true, Combustion = true, ["Cold Snap"] = true }
 
 -- Hunter pet abilities that do damage (the damage meter may list them under the owner).
 local PET_SPELL = { Claw = true, Bite = true, ["Lightning Breath"] = true, ["Scorpid Poison"] = true, Screech = true,

@@ -379,6 +379,15 @@ function G.ModelInput()
     input.sp = GetSpellBonusDamage and (GetSpellBonusDamage(6) or 0) or 0
     input.spellCrit = GetSpellCritChance and (GetSpellCritChance(6) or 0) or 0
     input.spellHit = GetSpellHitModifier and (GetSpellHitModifier() or 0) or 0
+  elseif input.class == "MAGE" then
+    local _, int = UnitStat("player", 4)
+    input.int = int or 0
+    -- fire (school 3): Fireball; frost (school 5): Frostbolt. Mage.lua picks the main nuke's.
+    input.spFire = GetSpellBonusDamage and (GetSpellBonusDamage(3) or 0) or 0
+    input.spFrost = GetSpellBonusDamage and (GetSpellBonusDamage(5) or 0) or 0
+    input.spellCrit = GetSpellCritChance and math.max(GetSpellCritChance(3) or 0, GetSpellCritChance(5) or 0) or 0
+    input.spellHit = GetSpellHitModifier and (GetSpellHitModifier() or 0) or 0
+    input.tab = (G.MainTalentTab())
   end
   return input
 end
@@ -499,7 +508,7 @@ function G.PlanInput(ctx)
   local warnings = {}
   local c = WA.char or {}
   if not c.bankAt then warnings[#warnings + 1] = "A bank tartalma ismeretlen: nyisd meg egyszer a bankot." end
-  local classHu = ({ ROGUE = "rogue", HUNTER = "hunter", SHAMAN = "shaman", DRUID = "druid", WARLOCK = "warlock" })[ctx.class] or "class"
+  local classHu = ({ ROGUE = "rogue", HUNTER = "hunter", SHAMAN = "shaman", DRUID = "druid", WARLOCK = "warlock", MAGE = "mage" })[ctx.class] or "class"
   if #trainer == 0 then warnings[#warnings + 1] = ("Nincs trainer-adat: nyisd meg a %s trainer ablakát minden szűrővel."):format(classHu) end
   if ctx.class == "HUNTER" and not (WA.char and WA.char.spells and #WA.char.spells > 0) then
     warnings[#warnings + 1] = "A varázskönyved még nincs beolvasva: /reload után az addon megnézi, mit tudsz (Aimed Shot, Multi-Shot, pet)."

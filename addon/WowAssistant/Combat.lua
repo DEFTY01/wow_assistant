@@ -234,14 +234,14 @@ end
 -- healer specs, which plan gear only - no HPS or rotation score can be proven from them. The
 -- engine builds a level 60 character only (sim/core/constants.go CharacterLevel = 60). "waystone"
 -- marks the classes the addon's own levelling model covers (Model.lua, Hunter.lua, Shaman.lua, Druid.lua,
--- Warlock.lua).
+-- Warlock.lua, Mage.lua).
 -- tabs: the talent tabs in the game's order, each with the engine's spec for it.
 C.SIM_SOURCE = "WoWSims Forever d5144855 sim/register_all.go"
 C.CLASS_MODELS = {
   DRUID = { name = "Druid", waystone = true, tabs = { { "Balance", "Alpha" }, { "Feral (Cat, Bear)", "Alpha" }, { "Restoration", "GearPlanner" } } },
   HUNTER = { name = "Hunter", waystone = true, tabs = { { "Beast Mastery", "Alpha" }, { "Marksmanship", "Alpha" }, { "Survival", "Alpha" } },
     shared = "egy közös Hunter-modul" },
-  MAGE = { name = "Mage", tabs = { { "Arcane", "Alpha" }, { "Fire", "Alpha" }, { "Frost", "Alpha" } }, shared = "egy közös Mage-modul" },
+  MAGE = { name = "Mage", waystone = true, tabs = { { "Arcane", "Alpha" }, { "Fire", "Alpha" }, { "Frost", "Alpha" } }, shared = "egy közös Mage-modul" },
   PALADIN = { name = "Paladin", tabs = { { "Holy", "GearPlanner" }, { "Protection", "Alpha" }, { "Retribution", "Alpha" } } },
   PRIEST = { name = "Priest", tabs = { { "Discipline", "GearPlanner" }, { "Holy", "GearPlanner" }, { "Shadow", "Alpha" } },
     note = "Discipline és Holy: a gyógyító (Healer) modell; Shadow: a DPS-modell" },
@@ -348,6 +348,10 @@ C.RULES = {
     source = WH .. "172; " .. WH .. "980; " .. SIM .. "sim/warlock/corruption.go, agony.go" },
   demonInherit = { text = "a démon a te spell damage-edből örököl (AP 0,17 × S, spell damage 0,10 × S)", verified = true,
     source = SIM .. "sim/warlock/pets.go (petStatInheritance)" },
+  manaItemCap = { text = "a manaital és a mana gem manát ad, és a maximum fölé adott mana elvész", verified = true,
+    source = SIM .. "sim/core/mana.go AddMana (új mana = min(jelenlegi + kapott, maximum)); a harcnapló mana-eseménye kiírja a maximum fölötti részt" },
+  wandFlat = { text = "a pálca sebzése nem nő a spell powerrel", verified = true,
+    source = SIM .. "sim/core/wand.go" },
   lightningShield = { text = "a Lightning Shield megsebzi azt, aki megüt (8-tól)", verified = true,
     source = WH .. "324" },
 }

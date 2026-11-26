@@ -184,6 +184,12 @@ M.CLASSES = {
     weapon = { [7] = true, [10] = true, [15] = true, [19] = true },
     slots = { "RANGED", "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
   },
+  -- cloth; daggers, one-hand swords, staves, and a wand in the ranged slot (Mage.lua)
+  MAGE = {
+    armor = { [0] = true, [1] = true },
+    weapon = { [7] = true, [10] = true, [15] = true, [19] = true },
+    slots = { "RANGED", "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
+  },
 }
 -- Kept for code that still asks about the rogue's list.
 M.ARMOR_SUBS = M.CLASSES.ROGUE.armor
@@ -294,6 +300,7 @@ function M.Context(input)
   if input.class == "SHAMAN" and WA.Shaman then return WA.Shaman.Context(input) end
   if input.class == "DRUID" and WA.Druid then return WA.Druid.Context(input) end
   if input.class == "WARLOCK" and WA.Warlock then return WA.Warlock.Context(input) end
+  if input.class == "MAGE" and WA.Mage then return WA.Mage.Context(input) end
   return M.RogueContext(input)
 end
 
