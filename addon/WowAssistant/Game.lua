@@ -353,7 +353,9 @@ function G.Ammo(currentId)
       elseif classID == 6 and AMMO_KIND[subID] then
         local dps = AmmoDps(link)
         if dps then
-          out[#out + 1] = { itemId = id, name = name, kind = AMMO_KIND[subID], reqLevel = minLevel or 0, dps = dps, current = id == currentId }
+          local price, source = G.AmmoPrice(id)
+          out[#out + 1] = { itemId = id, name = name, kind = AMMO_KIND[subID], reqLevel = minLevel or 0, dps = dps, current = id == currentId,
+            price = price, priceSource = source }
         end
       end
     end
@@ -443,4 +445,112 @@ function G.PlanInput(ctx)
     trainer = trainer, questLoot = quest, routes = routes, warnings = warnings, name = UnitName("player"),
     ammo = ctx.class == "HUNTER" and G.Ammo(ctx.ammoId) or nil,
   }
+end
+
+---------------------------------------------------------------------------
+-- hunter: the pet, Beast Training and ammo prices
+---------------------------------------------------------------------------
+local function Try(fn, ...)
+  if type(fn) ~= "function" then return nil end
+  local r = { n = 0 }
+  local function Pack(...) r.n = select("#", ...) for i = 1, r.n do r[i] = (select(i, ...)) end end
+  Pack(pcall(fn, ...))
+  if not r[1] then return nil end
+  return unpack(r, 2, r.n)
+end
+
+-- Name and rank of the i-th spell in the pet's spellbook, whichever API this client has.
+local function PetSpell(i)
+  local bank = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Pet) or BOOKTYPE_PET or "pet"
+  local name, sub
+  if C_SpellBook and C_SpellBook.GetSpellBookItemName then name, sub = Try(C_SpellBook.GetSpellBookItemName, i, bank) end
+  if not name then name, sub = Try(GetSpellBookItemName, i, BOOKTYPE_PET or "pet") end
+  if not name then name, sub = Try(GetSpellName, i, BOOKTYPE_PET or "pet") end
+  return name, sub and tonumber(tostring(sub):match("(%d+)")) or nil
+end
+
+-- The pet out now: { name, family, level, tp, tpSpent, loyalty, happiness, known, at }; it is
+-- also saved (char.pet) so the page works with the pet dismissed.
+function G.Pet()
+  local c = WA.char
+  if not Try(UnitExists, "pet") or G.Class() ~= "HUNTER" then return c and c.pet or nil end
+  local pet = { name = Try(UnitName, "pet"), family = Try(UnitCreatureFamily, "pet"), level = Try(UnitLevel, "pet"), known = {}, at = time() }
+  pet.tp, pet.tpSpent = Try(GetPetTrainingPoints)
+  pet.loyalty = Try(GetPetLoyalty)
+  pet.happiness = Try(GetPetHappiness)
+  local n = Try(HasPetSpells) or 0
+  if C_SpellBook and C_SpellBook.HasPetSpells then n = Try(C_SpellBook.HasPetSpells) or n end
+  for i = 1, math.min(tonumber(n) or 0, 40) do
+    local name, rank = PetSpell(i)
+    if name then pet.known[name] = math.max(pet.known[name] or 0, rank or 1) end
+  end
+  if c then c.pet = pet end
+  return pet
+end
+
+-- Beast Training (the hunter's craft window): the highest rank you can teach of each ability.
+local function ScanBeastTraining()
+  local line = Try(GetCraftDisplaySkillLine) or Try(GetCraftName)
+  if line ~= "Beast Training" or not WA.char then return end
+  local taught = {}
+  for i = 1, Try(GetNumCrafts) or 0 do
+    local name, sub, kind = Try(GetCraftInfo, i)
+    if name and kind ~= "header" then
+      local rank = sub and tonumber(tostring(sub):match("(%d+)")) or 1
+      taught[name] = math.max(taught[name] or 0, rank)
+    end
+  end
+  if next(taught) then WA.char.beastTraining = { ranks = taught, at = time() } end
+end
+function G.Taught()
+  local t = WA.char and WA.char.beastTraining
+  return t and t.ranks or nil
+end
+
+-- Ammo prices from the vendors you visit: db.ammoPrices[item] = copper per piece.
+local function ScanMerchant()
+  local n = Try(GetMerchantNumItems) or 0
+  WA.db.ammoPrices = WA.db.ammoPrices or {}
+  for i = 1, n do
+    local link = Try(GetMerchantItemLink, i)
+    local id = link and tonumber(link:match("item:(%d+)"))
+    if id then
+      local _, _, _, _, _, classID = Try(GetItemInfoInstant, id)
+      if classID == 6 then
+        local price, quantity
+        if C_MerchantFrame and C_MerchantFrame.GetItemInfo then
+          local info = Try(C_MerchantFrame.GetItemInfo, i)
+          if type(info) == "table" then price, quantity = info.price, info.stackCount end
+        end
+        if not price then
+          local _, _, p, q = Try(GetMerchantItemInfo, i)
+          price, quantity = p, q
+        end
+        if price and price > 0 then WA.db.ammoPrices[id] = price / math.max(1, quantity or 1) end
+      end
+    end
+  end
+end
+
+-- Price of one piece of ammo: { price, source } from a vendor you visited, the auction house,
+-- or an estimate from the vendor sell price (vendors sell for 4 × what they pay).
+function G.AmmoPrice(id)
+  local seen = WA.db and WA.db.ammoPrices and WA.db.ammoPrices[id]
+  if seen then return seen, "vendor" end
+  local book = G.Book().unit(id)
+  if book then return book.price, book.source end
+  local sell = select(11, GetItemInfo(id))
+  if sell and sell > 0 then return sell * 4, "becslés" end
+  return nil, nil
+end
+
+local hunterFrame = CreateFrame("Frame")
+hunterFrame:SetScript("OnEvent", function(_, event)
+  if not WA.char then return end
+  if event == "CRAFT_SHOW" or event == "CRAFT_UPDATE" then pcall(ScanBeastTraining)
+  elseif event == "MERCHANT_SHOW" or event == "MERCHANT_UPDATE" then pcall(ScanMerchant)
+  else pcall(G.Pet) end
+end)
+for _, e in ipairs({ "CRAFT_SHOW", "CRAFT_UPDATE", "MERCHANT_SHOW", "MERCHANT_UPDATE", "UNIT_PET", "PET_BAR_UPDATE", "PLAYER_ENTERING_WORLD" }) do
+  pcall(hunterFrame.RegisterEvent, hunterFrame, e)
 end

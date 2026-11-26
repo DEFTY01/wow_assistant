@@ -45,6 +45,15 @@ Which craft brings the most gold when you sell it to a vendor?
   a **combat score** (S to D).
 - Fights with no damage dealt (a potion and a vanish) are left out.
 - Look back at your recent fights to see whether a new rotation or item really helped.
+- Hunters: your pet's damage counts as yours, with a raid-log style breakdown (ranged, pet, melee,
+  DoT), casts per minute, Auto Shot and Serpent Sting uptime, and hunter advice.
+
+### Hunter pets
+- **Your pet**: family, level, training points, happiness and the ranks it knows.
+- **What to teach next**: the next rank of every ability, its training point cost, and which beast to
+  tame to learn it (where and at what level).
+- **Best pet for your level**: family damage × attack speed, including Forever's fast beasts.
+- **Bestiary**: every tameable beast from Wowhead Forever, searchable by name, family, zone or ability.
 
 ### Plan and gear *(Rogue and Hunter for now)*
 - **Plan**: what to buy and what to do next, worked out from your level, gold and skills.
@@ -72,7 +81,7 @@ A journal of your character's milestones, week by week.
 | Command | What it does |
 |---|---|
 | `/wa` or `/waystone` | Main window |
-| `/wa plan`, `/wa combat`, `/wa gear`, `/wa prof` | Open one page |
+| `/wa plan`, `/wa combat`, `/wa gear`, `/wa prof`, `/wa pet` | Open one page |
 | `/wa vendor` | Vendor crafting |
 | `/wa ah` | Full auction house scan (at the auction house) |
 | `/wa sbar ...` | Session bar: goal, summary, history, lock, scale, hide, show |

@@ -460,7 +460,8 @@ function P.Build(input)
         local gain = ctx.ammoGain(a.dps)
         -- what you have, and only the ammo that is better than it
         if a.current or gain > 0.05 then ammo[#ammo + 1] = { name = a.name, itemId = a.itemId, dps = a.dps, reqLevel = a.reqLevel, gain = gain,
-          gainPct = gain / baseline * 100, current = a.current } end
+          gainPct = gain / baseline * 100, current = a.current, price = a.price, priceSource = a.priceSource,
+          perHour = a.price and (ctx.shotsPerSec or 0) > 0 and a.price * ctx.shotsPerSec * 3600 or nil } end
       end
     end
     M.Stable(ammo, function(a, b) return a.dps > b.dps end)
@@ -472,5 +473,6 @@ function P.Build(input)
     buy = buy, spent = spent, left = gold and (gold - spent) or nil, wishlist = wishlist, free = freeList,
     quests = quests, combat = combat, skills = skills, farm = farm, professions = professions, roadmap = roadmap,
     consumables = consumables, warnings = input.warnings or {}, ammo = ammo, class = ctx.class,
+    shotsPerHour = (ctx.shotsPerSec or 0) * 3600,
   }
 end

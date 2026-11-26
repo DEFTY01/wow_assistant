@@ -11,5 +11,6 @@ data/
 # Generated: build-addon-recipes.mjs (Wowhead data, local app database) and the uploader (Fights.lua)
 addon/WowAssistant/Recipes.lua
 addon/WowAssistant/GameData.lua
+addon/WowAssistant/PetData.lua
 addon/WowAssistant/Fights.lua
 addon/WowAssistant/Market.lua

@@ -192,7 +192,7 @@ function H.Context(input)
     for _, a in ipairs(combat.abilities) do
       local base = a.name:gsub(" %(dot%)$", "")
       if base == "Serpent Sting" then sting = sting + a.dmg
-      elseif H.PET[base] then pet = pet + a.dmg
+      elseif H.PET[base] or base:sub(1, 5) == "Pet: " then pet = pet + a.dmg
       elseif not SHOTS[a.name] then other = other + a.dmg end
     end
     params.stingDps = mix(params.stingDps, sting / secs, secs, 120)
@@ -303,6 +303,9 @@ function H.Context(input)
     return H.Dps(sh, params) - baseline
   end
   ctx.ammoKind = input.ammoKind or (rangedSub and H.AMMO_SUBS[rangedSub]) or nil
+  -- ammo used per second of combat: every Auto Shot and every special shot takes one
+  ctx.shotsPerSec = (ranged and ranged.ammo) and (params.rangedUptime * sheet.haste / ranged.speed
+    + params.arcanePerSec + params.multiPerSec + params.aimedPerSec) or 0
 
   local skills = input.skills
   function ctx.weaponWarning(itemClass, sub)
@@ -332,4 +335,183 @@ function H.Context(input)
   end
   ctx.advice = advice
   return ctx
+end
+
+---------------------------------------------------------------------------
+-- the combat page: score, breakdown and advice for hunters
+---------------------------------------------------------------------------
+local RANGED = { ["Auto Shot"] = true, ["Arcane Shot"] = true, ["Multi-Shot"] = true, ["Aimed Shot"] = true,
+  ["Scatter Shot"] = true, ["Volley"] = true }
+local MELEE = { Melee = true, ["Raptor Strike"] = true, ["Wing Clip"] = true, ["Mongoose Bite"] = true, ["Counterattack"] = true }
+local SPECIALS = { "Arcane Shot", "Multi-Shot", "Aimed Shot" }
+
+local function IsPet(name)
+  local base = name:gsub(" %(dot%)$", "")
+  return base:sub(1, 5) == "Pet: " or H.PET[base] == true
+end
+H.IsPet = IsPet
+
+-- Where the damage came from: ranged, melee, pet, dot, other (each { dmg, share }).
+function H.Sources(abilities, total)
+  local out = { ranged = 0, melee = 0, pet = 0, dot = 0, other = 0 }
+  for _, a in ipairs(abilities or {}) do
+    local name, dmg = a.name or "", a.dmg or 0
+    if IsPet(name) then out.pet = out.pet + dmg
+    elseif name:sub(-6) == " (dot)" then out.dot = out.dot + dmg
+    elseif RANGED[name] then out.ranged = out.ranged + dmg
+    elseif MELEE[name] then out.melee = out.melee + dmg
+    else out.other = out.other + dmg end
+  end
+  local sum = total and total > 0 and total or (out.ranged + out.melee + out.pet + out.dot + out.other)
+  local shares = {}
+  for k, v in pairs(out) do shares[k] = sum > 0 and v / sum * 100 or 0 end
+  return out, shares
+end
+
+local function Find(list, name)
+  for _, a in ipairs(list or {}) do if a.name == name then return a end end
+  return nil
+end
+
+-- Auto Shot activity: shots fired against what the weapon could fire in that time (0-1).
+function H.AutoUptime(shots, seconds, ranged, haste)
+  if not ranged or not seconds or seconds <= 0 then return nil end
+  local possible = seconds * (haste or 1) / ranged.speed
+  return possible > 0 and math.min(1, shots / possible) or nil
+end
+
+-- Score of one fight, 0-100, from what a hunter controls. ctx is the hunter model (for the
+-- expected DPS and the weapon speed); parts: { key, label, points, max, text }.
+local GRADES = { { 90, "S" }, { 80, "A" }, { 65, "B" }, { 50, "C" }, { 0, "D" } }
+function H.Score(f, ctx)
+  local parts = {}
+  local function Part(key, label, got, max, text) parts[#parts + 1] = { key = key, label = label, points = got, max = max, text = text } end
+  local dur = f.dur or 0
+  local dps = dur > 0 and (f.dmg or 0) / dur or 0
+  local level = f.level or (ctx and ctx.level) or 0
+  local baseline = ctx and ctx.baseline
+  if baseline and baseline > 0 then
+    local ratio = dps / baseline
+    Part("dps", "DPS a várthoz képest", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS, a felszerelésedtől és petedtől várt %d %d%%-a"):format(
+      Round(dps), Round(baseline), Round(ratio * 100)))
+  end
+  local ab = f.ab or {}
+  local ranged = ctx and ctx.sheet and ctx.sheet.ranged
+  local auto = Find(ab, "Auto Shot")
+  if ranged and dur >= 6 then
+    local up = H.AutoUptime(auto and auto.n or 0, dur, ranged, ctx.sheet.haste) or 0
+    Part("auto", "Auto Shot folyamatosan megy", math.min(up / 0.85, 1) * 20, 20,
+      ("%d lövés, a lehetséges %d%%-a"):format(auto and auto.n or 0, Round(up * 100)))
+  end
+  local src, share = H.Sources(ab, f.dmg)
+  if level >= 10 then
+    Part("pet", "A pet sebez", math.min(share.pet / 25, 1) * 15, 15, ("a sebzés %d%%-a a peté (jó: 25%% fölött)"):format(Round(share.pet)))
+    local own = src.ranged + src.melee
+    if own > 0 then
+      local r = src.ranged / own
+      Part("range", "Távolról harcolsz", math.min(r / 0.8, 1) * 5, 5, ("a saját sebzésed %d%%-a távolsági"):format(Round(r * 100)))
+    end
+  end
+  if dur >= 15 and level >= 4 then
+    local used = Find(ab, "Serpent Sting (dot)") ~= nil
+    for _, c in ipairs(f.casts or {}) do if c[2] == "Serpent Sting" then used = true end end
+    Part("sting", "Serpent Sting a hosszú harcban", used and 10 or 0, 10, used and "fent volt" or "nem használtad (15 mp-nél hosszabb harc)")
+  end
+  if dur >= 10 and level >= 6 then
+    local n = 0
+    for _, name in ipairs(SPECIALS) do local a = Find(ab, name) n = n + (a and a.n or 0) end
+    for _, c in ipairs(f.casts or {}) do if c[2] == "Rapid Fire" or c[2] == "Bestial Wrath" then n = n + 1 end end
+    local perMin = n / dur * 60
+    Part("shots", "Lövések az Auto Shot mellett", math.min(perMin / 3, 1) * 10, 10, ("%s Arcane / Multi / Aimed percenként"):format(F1(perMin)))
+  end
+  local got, max = 0, 0
+  for _, p in ipairs(parts) do got, max = got + p.points, max + p.max end
+  if max == 0 then return nil end
+  local total = math.floor(got / max * 100 + 0.5)
+  local grade = "D"
+  for _, g in ipairs(GRADES) do if total >= g[1] then grade = g[2] break end end
+  return { total = total, grade = grade, parts = parts, dps = dps }
+end
+
+-- The raid-log style summary of many fights (r = WA.Combat.Report): damage sources, Auto Shot
+-- activity, casts per minute and damage per cast, Serpent Sting and Aspect of the Hawk uptime.
+function H.Summary(r, ctx)
+  if not r then return nil end
+  local src, share = H.Sources(r.abilities, r.damage)
+  local secs = r.seconds
+  local auto = Find(r.abilities, "Auto Shot")
+  local ranged = ctx and ctx.sheet and ctx.sheet.ranged
+  local s = {
+    sources = src, shares = share, seconds = secs, dps = r.dps,
+    autoUptime = auto and H.AutoUptime(auto.n, secs, ranged, ctx.sheet.haste) or nil,
+    autoMiss = auto and auto.n > 0 and ((auto.miss or 0) + (auto.dodge or 0)) / auto.n * 100 or nil,
+    autoCrit = auto and (auto.hit + auto.crit) > 0 and auto.crit / (auto.hit + auto.crit) * 100 or nil,
+    rows = {},
+  }
+  local sting = Find(r.abilities, "Serpent Sting (dot)")
+  -- a Serpent Sting ticks every 3 seconds
+  s.stingUptime = sting and math.min(100, sting.n * 3 / secs * 100) or 0
+  for _, a in ipairs(r.auras or {}) do
+    if a.name == "Aspect of the Hawk" then s.hawk = a.uptimePct end
+    if a.name == "Aspect of the Monkey" then s.monkey = a.uptimePct end
+  end
+  for _, a in ipairs(r.abilities) do
+    local landed = (a.hit or 0) + (a.crit or 0) + (a.glance or 0)
+    s.rows[#s.rows + 1] = { name = a.name, dmg = a.dmg, share = a.share, n = a.n, cpm = a.n / secs * 60,
+      perCast = a.n > 0 and a.dmg / a.n or 0, avg = landed > 0 and a.dmg / landed or 0,
+      kind = IsPet(a.name) and "pet" or (a.name:sub(-6) == " (dot)" and "dot") or (RANGED[a.name] and "ranged") or (MELEE[a.name] and "melee") or "other" }
+  end
+  return s
+end
+
+-- Advice from all the recorded fights (instead of the rogue's).
+function H.Advise(r, fights)
+  local out = {}
+  local function Push(level, title, text) out[#out + 1] = { level = level, title = title, text = text } end
+  local auto = Find(r.abilities, "Auto Shot")
+  local level = fights[1] and fights[1].level or 0
+  if r.seconds < 300 or not auto or auto.n < 100 then
+    Push("info", "Kevés még az adat", ("Eddig %d harc, %d másodperc és %d Auto Shot van rögzítve. Az arányok kb. 10 perc harc után megbízhatóak.")
+      :format(r.fights, Round(r.seconds), auto and auto.n or 0))
+  end
+  local src, share = H.Sources(r.abilities, r.damage)
+  if level >= 10 and r.seconds >= 120 and share.pet < 15 then
+    Push("fix", "A pet alig sebez", ("A sebzésed csak %d%%-a a peté (jó esetben 25–40%%). Nézd meg a Pet oldalt: tanítsd meg a Claw/Bite legújabb rangját, "):format(Round(share.pet)) ..
+      "etesd boldogra (a boldog pet +25% sebzés), és ha a családja gyenge, szelídíts macskát vagy raptort.")
+  end
+  local own = src.ranged + src.melee
+  if level >= 10 and own > 0 and src.melee / own > 0.25 then
+    Push("fix", "Sokat harcolsz közelről", ("A saját sebzésed %d%%-a közelharc. A hunter ereje a távolság: hagyd, hogy a pet fogja meg a mobot, "):format(Round(src.melee / own * 100)) ..
+      "és csak akkor üss Raptor Strike-ot, ha a mob rajtad van.")
+  end
+  if auto and auto.n >= 50 then
+    local miss = ((auto.miss or 0) + (auto.dodge or 0)) / auto.n * 100
+    if miss > 9 then
+      Push("tip", "Sok lövés megy mellé", ("Az Auto Shotjaid %s%%-a miss vagy dodge. A +hit tárgyak (és a magasabb szintű mobok kerülése) itt sokat hoznak."):format(F1(miss)))
+    end
+  end
+  local avgFight = r.seconds / math.max(1, r.fights)
+  local sting = Find(r.abilities, "Serpent Sting (dot)")
+  if level >= 4 and avgFight >= 15 and not sting then
+    Push("tip", "Nincs Serpent Sting", ("Az átlagos harcod %d mp, de egyetlen Serpent Sting tick sincs. Hosszabb harcban a Sting nyitásként sok ingyen sebzés."):format(Round(avgFight)))
+  end
+  local special = 0
+  for _, name in ipairs(SPECIALS) do local a = Find(r.abilities, name) special = special + (a and a.n or 0) end
+  if level >= 6 and r.seconds >= 120 and special / r.seconds * 60 < 1 then
+    Push("tip", "Ritkán lősz Arcane Shotot", ("Percenként csak %s Arcane/Multi/Aimed Shotot lősz. Ha van manád, az Arcane Shot minden 6. másodpercben plusz sebzés.")
+      :format(F1(special / r.seconds * 60)))
+  end
+  local hawk
+  for _, a in ipairs(r.auras or {}) do if a.name == "Aspect of the Hawk" then hawk = a.uptimePct end end
+  if level >= 10 and r.seconds >= 120 and (hawk or 0) < 50 then
+    Push("tip", "Aspect of the Hawk ritkán van fent", ("A harcidő %d%%-ában van fent az Aspect of the Hawk. Távolról lőve ez a +ranged attack power aspektus.")
+      :format(Round(hawk or 0)))
+  end
+  if auto and auto.n >= 100 then
+    local landed = auto.hit + auto.crit
+    Push("info", "Mért arányok", ("Auto Shot: %s%% miss, %s%% dodge, %s%% crit. Sebzés: távolsági %d%%, pet %d%%, közelharc %d%%, DoT %d%%.")
+      :format(F1((auto.miss or 0) / auto.n * 100), F1((auto.dodge or 0) / auto.n * 100), F1(landed > 0 and auto.crit / landed * 100 or 0),
+        Round(share.ranged), Round(share.pet), Round(share.melee), Round(share.dot)))
+  end
+  return out
 end

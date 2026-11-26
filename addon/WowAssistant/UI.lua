@@ -78,6 +78,7 @@ local PAGES = {
   { "plan", "Haditerv", "Interface\\Icons\\INV_Misc_Map_01" },
   { "combat", "Harc", "Interface\\Icons\\Ability_Rogue_Eviscerate" },
   { "gear", "Felszerelés", "Interface\\Icons\\INV_Chest_Leather_09" },
+  { "pet", "Pet", "Interface\\Icons\\Ability_Hunter_BeastTaming", class = "HUNTER" },
   { "prof", "Mesterségek", "Interface\\Icons\\Trade_Engineering" },
 }
 local WINDOWS = {
@@ -196,10 +197,12 @@ local function Build()
   y = y - 8
   f.nav = {}
   for _, p in ipairs(PAGES) do
-    local b = NavButton(nav, p[2], p[3], function() UI.Show(p[1]) end)
-    b:SetPoint("TOPLEFT", 8, y)
-    f.nav[p[1]] = b
-    y = y - 36
+    if not p.class or p.class == G.Class() then
+      local b = NavButton(nav, p[2], p[3], function() UI.Show(p[1]) end)
+      b:SetPoint("TOPLEFT", 8, y)
+      f.nav[p[1]] = b
+      y = y - 36
+    end
   end
   y = y - 10
   local other = nav:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
@@ -795,12 +798,20 @@ function UI.pages.plan()
   if p.ammo and #p.ammo > 0 then
     local rows = {}
     for _, a in ipairs(p.ammo) do
+      local src = a.priceSource == "vendor" and "kereskedőnél láttad" or (a.priceSource == "becslés" and "becslés az eladási árból" or a.priceSource)
       rows[#rows + 1] = { cells = { Cell(Item(a.name, "COMMON") .. (a.current and Muted(" (most ez van nálad)") or ""), a.name),
-        Cell(F1(a.dps), a.dps), Cell(a.current and "–" or Gain(a.gain), a.gain), Cell(a.reqLevel, a.reqLevel) }, itemId = a.itemId,
-        tip = "Lőszer: a kereskedőnél (General Goods, Bowyer, Gunsmith) kapod. Minden Auto Shot és lövés hozzáadja a sebzését." }
+        Cell(F1(a.dps), a.dps), Cell(a.current and "–" or Gain(a.gain), a.gain),
+        Cell(a.price and Money(a.price * 200) or Muted("?"), a.price or math.huge),
+        Cell(a.perHour and Money(a.perHour) or Muted("?"), a.perHour or math.huge), Cell(a.reqLevel, a.reqLevel) }, itemId = a.itemId,
+        tip = "Lőszer: a kereskedőnél (General Goods, Bowyer, Gunsmith) kapod. Minden Auto Shot és lövés hozzáadja a sebzését." ..
+          (a.price and ("\nÁr: " .. Plain(Money(a.price)) .. "/db (" .. (src or "?") .. ")") or "\nÁr: nyisd meg egy lőszert árusító kereskedő ablakát.") ..
+          (a.perHour and ("\nÓránként: " .. math.floor(p.shotsPerHour + 0.5) .. " lövés folyamatos harcban.") or "") }
     end
-    out[#out + 1] = Section("plan.ammo", "Lőszer", { { table = { id = "plan.ammo", cols = { { "Lőszer", 0, flex = true },
-      { "DPS-e", 60, "RIGHT" }, { "Neked", 60, "RIGHT" }, { "Szint", 50, "RIGHT" } }, rows = rows } } }, true, #p.ammo)
+    out[#out + 1] = Section("plan.ammo", "Lőszer", { { p = ("Folyamatos harcban kb. %d lövés óránként (%s percenként); az ár 200 darabra szól.")
+      :format(math.floor((p.shotsPerHour or 0) + 0.5), F1((p.shotsPerHour or 0) / 60)), muted = true },
+      { table = { id = "plan.ammo", cols = { { "Lőszer", 0, flex = true },
+      { "DPS-e", 60, "RIGHT" }, { "Neked", 60, "RIGHT" }, { "200 db", 80, "RIGHT" }, { "Óránként", 80, "RIGHT" }, { "Szint", 50, "RIGHT", extra = true } },
+      rows = rows } } }, true, #p.ammo)
   end
   if #p.farm > 0 then
     local rows = {}
@@ -889,6 +900,45 @@ local ABILITY_COLS = { { "Képesség", 0, flex = true }, { "Arány", 60, "RIGHT"
   { "Átlag", 54, "RIGHT", extra = true }, { "Max", 54, "RIGHT", extra = true }, { "Miss", 52, "RIGHT", extra = true },
   { "Dodge", 54, "RIGHT", extra = true }, { "Parry", 52, "RIGHT", extra = true }, { "Glancing", 64, "RIGHT", extra = true } }
 
+-- Hunters: the raid-log style summary of every fight (damage sources, Auto Shot activity,
+-- casts per minute and damage per cast, sting and aspect uptime).
+local KIND_HU = { ranged = "távolsági", melee = "közelharc", pet = "pet", dot = "DoT", other = "egyéb" }
+local function HunterSummary(r, ctx)
+  local s = WA.Hunter.Summary(r, ctx)
+  local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
+  local blocks = {
+    { cards = {
+      { label = "Átlag DPS", value = F1(s.dps), sub = ("%d harc, %d perc"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = "Auto Shot", value = s.autoUptime and Pct(s.autoUptime * 100) or "–", sub = "a lehetséges lövésekből",
+        tip = "Hány lövést adtál le ahhoz képest, amennyit a fegyvered (a tegezzel) ennyi idő alatt lőhetett volna." },
+      { label = "Serpent Sting", value = Pct(s.stingUptime), sub = "uptime a harcidőben" },
+      { label = "Aspect of the Hawk", value = s.hawk and Pct(s.hawk) or "–", sub = "uptime" },
+    } },
+  }
+  local srcRows = {}
+  for _, k in ipairs({ "ranged", "pet", "melee", "dot", "other" }) do
+    if (s.sources[k] or 0) > 0 then
+      srcRows[#srcRows + 1] = { KIND_HU[k], Cell(Bar(s.shares[k]), s.shares[k]), Cell(s.sources[k], s.sources[k]),
+        Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
+    end
+  end
+  blocks[#blocks + 1] = { h = "Honnan jön a sebzés" }
+  blocks[#blocks + 1] = { table = { id = "combat.hsrc", cols = { { "Forrás", 110 }, { "Arány", 0, flex = true }, { "Sebzés", 80, "RIGHT" },
+    { "DPS", 64, "RIGHT" } }, rows = srcRows } }
+  local rows = {}
+  for _, a in ipairs(s.rows) do
+    rows[#rows + 1] = { a.name, KIND_HU[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
+      Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
+  end
+  blocks[#blocks + 1] = { h = "Képességek: használat percenként és sebzés használatonként" }
+  blocks[#blocks + 1] = { table = { id = "combat.hcpm", cols = { { "Képesség", 0, flex = true }, { "Fajta", 80 }, { "Arány", 60, "RIGHT" },
+    { "Db", 50, "RIGHT" }, { "Percenként", 76, "RIGHT" }, { "Használatonként", 104, "RIGHT" }, { "Átlag találat", 90, "RIGHT", extra = true } }, rows = rows } }
+  if s.autoMiss then
+    blocks[#blocks + 1] = { p = ("Auto Shot: %s miss/dodge, %s crit."):format(Pct(s.autoMiss), Pct(s.autoCrit)), muted = true }
+  end
+  return Section("combat.hunter", "Hunter összesítő (minden harc)", blocks, true, r.fights)
+end
+
 function UI.pages.combat()
   local all = G.Fights()
   table.sort(all, function(a, b) return a.start > b.start end)
@@ -899,21 +949,27 @@ function UI.pages.combat()
   if #all == 0 then
     return { { empty = { "Még nincs rögzített harc", "Az addon minden harcot magától rögzít: üss meg egy mobot, és a harc vége után itt lesz." } } }
   end
-  local ctx = G.IsRogue() and G.Context() or nil
+  local hunter = G.Class() == "HUNTER"
+  local ctx = G.Supported() and G.Context() or nil
   local baseline = ctx and ctx.baseline or nil
+  local function Score(x) if hunter then return WA.Hunter.Score(x, ctx) end return WA.Combat.Score(x, baseline) end
   local out = {}
 
   local f = all[1]
   for _, x in ipairs(all) do if x.start == UI.selFight then f = x end end
-  local sc = WA.Combat.Score(f, baseline)
+  local sc = Score(f)
   local dps = f.dur > 0 and f.dmg / f.dur or 0
   UI.head.combat[2] = ("%s%s · %s · forrás: %s"):format(TargetName(f), (f.targetLevel or 0) > 0 and (" (" .. f.targetLevel .. ")") or "",
     date("%m.%d %H:%M", f.start), SOURCE_NAME[f.source or "log"] or "?")
   out[#out + 1] = { cards = {
     { label = "Pontszám", value = Grade(sc), sub = sc and "0–100, S a legjobb" or "nincs elég adat",
-      tip = "DPS a felszerelésedtől várthoz képest, kárba ment energia, Eviscerate combo pontjai, Slice and Dice uptime, képességek percenként." },
+      tip = hunter and "DPS a várthoz képest, Auto Shot folyamatossága, a pet része, távolság, Serpent Sting, lövések percenként."
+        or "DPS a felszerelésedtől várthoz képest, kárba ment energia, Eviscerate combo pontjai, Slice and Dice uptime, képességek percenként." },
     { label = "DPS", value = F1(dps), sub = baseline and ("várt " .. F1(baseline)) or "" },
-    { label = "Sebzés", value = tostring(f.dmg or 0), sub = (f.ab and #f.ab or 0) .. " képesség" },
+    hunter and (function()
+      local _, sh = WA.Hunter.Sources(f.ab, f.dmg)
+      return { label = "Pet része", value = Pct(sh.pet), sub = ("távolsági %d%%, közel %d%%"):format(math.floor(sh.ranged + 0.5), math.floor(sh.melee + 0.5)) }
+    end)() or { label = "Sebzés", value = tostring(f.dmg or 0), sub = (f.ab and #f.ab or 0) .. " képesség" },
     { label = "Hossz", value = F1(f.dur) .. " mp", sub = f.casts and (#f.casts .. " használat") or "" },
   } }
   if f.source == "live" and not f.detailed then
@@ -923,7 +979,7 @@ function UI.pages.combat()
   local list = {}
   for i = 1, math.min(60, #all) do
     local x = all[i]
-    local s2 = WA.Combat.Score(x, baseline)
+    local s2 = Score(x)
     list[#list + 1] = { cells = { Cell(date("%m.%d %H:%M", x.start), x.start), TargetName(x) .. ((x.targetLevel or 0) > 0 and (" (" .. x.targetLevel .. ")") or ""),
       Cell(F1(x.dur > 0 and x.dmg / x.dur or 0), x.dur > 0 and x.dmg / x.dur or 0), Cell(Grade(s2), s2 and s2.total or -1),
       Cell(F1(x.dur) .. " mp", x.dur), SOURCE_NAME[x.source or "log"] or "?" },
@@ -961,8 +1017,9 @@ function UI.pages.combat()
   end
 
   -- all fights together (the web app's combat page)
-  local r = WA.Combat.Report(all)
+  local r = WA.Combat.Report(all, nil, hunter and WA.Hunter.Advise or nil)
   if not r then return out end
+  if hunter then out[#out + 1] = HunterSummary(r, ctx) end
   if #r.advice > 0 then
     local tips = {}
     for _, a in ipairs(r.advice) do tips[#tips + 1] = { level = a.level, title = a.title, text = a.text } end
@@ -992,6 +1049,173 @@ function UI.pages.combat()
       { "DPS", 80, "RIGHT" }, { "Fehér miss", 90, "RIGHT" } }, rows = rows3 } }
   end
   out[#out + 1] = Section("combat.all", "Összesítés, minden harc", blocks, false, r.fights)
+  return out
+end
+
+---------------------------------------------------------------------------
+-- Pet (hunters): your pet, what to teach it, the best beasts for your level, the bestiary
+---------------------------------------------------------------------------
+local HAPPY = { "|cffff5555elégedetlen|r", "|cffffd100elégedett|r", "|cff55ff55boldog|r" }
+local function FamilyHu(name)
+  local f = WA.Pets.FAMILY[name]
+  return f and (f.hu .. Muted(" (" .. name .. ")")) or (name or "?")
+end
+local function Teaches(b)
+  local list = {}
+  for name, rank in pairs(b.teaches) do list[#list + 1] = name .. " " .. rank end
+  table.sort(list)
+  return table.concat(list, ", ")
+end
+local function BeastRow(e, level)
+  local b = e.beast or e
+  local factor = e.factor or WA.Pets.DpsFactor(b)
+  local name = b.name .. (b.rare and Color(HEX.gold, " ★") or "")
+  local taught = Teaches(b)
+  return { cells = { Cell(name, b.name), Cell(FamilyHu(b.family), b.family),
+    Cell(b.speed < 200 and Color(HEX.good, WA.Pets.SpeedLabel(b)) or WA.Pets.SpeedLabel(b), b.speed),
+    Cell(("%.2f×"):format(factor), factor),
+    Cell(WA.Pets.Where(b) .. ((level and b.elite) and Color(HEX.warn, " – csoporttal") or ""), b.min),
+    taught },
+    tip = ("%s – %s\nTámadási sebesség: %s\nTanít: %s"):format(b.name, Plain(FamilyHu(b.family)), WA.Pets.SpeedLabel(b),
+      taught ~= "" and taught or "semmit") }
+end
+local BEAST_COLS = { { "Állat", 0, flex = true }, { "Család", 150 }, { "Támadás", 96, "RIGHT" }, { "Sebzés", 60, "RIGHT" },
+  { "Hol", 230 }, { "Tanít", 0, flex = true, extra = true } }
+
+-- Pet share of your damage in the recorded fights (the newest 50).
+local function PetShare()
+  local fights = G.Fights()
+  table.sort(fights, function(a, b) return a.start > b.start end)
+  local pet, total, n = 0, 0, 0
+  for i = 1, math.min(50, #fights) do
+    local f = fights[i]
+    for _, a in ipairs(f.ab or {}) do
+      local base = (a.name or ""):gsub(" %(dot%)$", "")
+      if base:sub(1, 5) == "Pet: " or WA.Hunter.PET[base] then pet = pet + (a.dmg or 0) end
+    end
+    total, n = total + (f.dmg or 0), n + 1
+  end
+  return total > 0 and pet / total * 100 or nil, n
+end
+
+function UI.pages.pet()
+  UI.head.pet = { "Pet", "Mit taníts a petednek, hol szelídíts jobbat, és mire jó melyik család" }
+  if G.Class() ~= "HUNTER" then
+    return { { empty = { "Csak huntereknek", "A pet oldal a hunter petjéről szól." } } }
+  end
+  local PT = WA.Pets
+  local level = UnitLevel("player") or 1
+  local pet = G.Pet()
+  local out = {}
+  local share, nFights = PetShare()
+  local tr = pet and PT.HasData() and PT.Training({ level = level, pet = pet, taught = G.Taught() }) or nil
+  out[#out + 1] = { cards = {
+    { label = "Pet", value = pet and (pet.name or "?") or Muted("nincs"),
+      sub = pet and ("%s, %s. szint"):format(Plain(FamilyHu(pet.family)), tostring(pet.level or "?")) or "Call Pet / Tame Beast" },
+    { label = "Training point", value = tr and tostring(tr.left) or "–", sub = pet and pet.tp and ("összesen " .. pet.tp) or "" },
+    { label = "Hangulat", value = pet and pet.happiness and HAPPY[pet.happiness] or "–",
+      sub = pet and pet.loyalty and tostring(pet.loyalty) or "etesd, hogy boldog maradjon" },
+    { label = "Pet a sebzésedből", value = share and Pct(share) or "–", sub = nFights > 0 and (nFights .. " harc alapján") or "nincs rögzített harc",
+      tip = "Leveling közben egy jó pet a sebzésed 25–40%-át adja." },
+  } }
+  local warn = {}
+  if not PT.HasData() then warn[#warn + 1] = "Hiányzik a PetData.lua (az állatok listája): node scripts/build-pets.mjs --install" end
+  if not G.Taught() then warn[#warn + 1] = "Nyisd meg egyszer a Beast Training ablakot: abból látja az addon, mely rangokat tudod már tanítani." end
+  if pet and not UnitExists("pet") then warn[#warn + 1] = "A pet most nincs kint: a legutóbb látott állapotát mutatom." end
+  Add(out, Warnings(warn))
+
+  if tr then
+    local STATUS = { teach = Color(HEX.good, "taníts"), tame = Color(HEX.gold, "szelídíts"), done = Muted("megvan"),
+      later = Muted("később"), skip = Muted("ne tanítsd") }
+    local ORDER = { teach = 1, tame = 2, done = 3, later = 4, skip = 5 }
+    local rows = {}
+    for _, r in ipairs(tr.rows) do
+      local how
+      if r.status == "teach" then
+        how = "Beast Training ablakban" .. (r.fits == false and Color(HEX.warn, " (nincs elég training point)") or "")
+      elseif r.status == "tame" then
+        local t = {}
+        for _, b in ipairs(r.teachers or {}) do t[#t + 1] = b.name .. Muted(" – " .. PT.Where(b)) end
+        if #t > 0 then how = "Szelídítsd: " .. table.concat(t, "; ")
+        elseif r.laterTeacher then how = Muted(("%d. szinttől: "):format(r.laterTeacher.min)) .. r.laterTeacher.name .. Muted(" – " .. PT.Where(r.laterTeacher))
+        else how = Muted("egyik szelídíthető állat sem tanítja") end
+      elseif r.status == "later" then
+        how = r.petLevel and (r.petLevel .. ". pet-szinttől") or ""
+      elseif r.status == "skip" then
+        how = r.hu
+      else
+        how = r.next and Muted(("következő rang: %d. pet-szinttől"):format(r.next.level)) or Muted("a legmagasabb rang")
+      end
+      local rank = r.status == "done" and tostring(r.have) or ((r.have > 0 and (r.have .. " → ") or "") .. tostring(r.rank or "?"))
+      rows[#rows + 1] = { cells = { r.ability, Cell(STATUS[r.status] or r.status, ORDER[r.status] or 9), rank,
+        Cell((r.tp and r.status ~= "done") and r.tp or "", r.tp or 0), how },
+        tip = r.ability .. ": " .. (r.hu or "") .. (r.desc and ("\n" .. r.desc) or "") }
+    end
+    out[#out + 1] = Section("pet.train", "Mit taníts a petednek", { { p = ("%s, %d. szint, %d szabad training point. A pet csak olyan rangot tanulhat, " ..
+      "amit egy szelídített állattól már elsajátítottál (Beast Training); az új rang visszaadja a régi pontjait."):format(Plain(FamilyHu(tr.family)), pet.level or 0, tr.left),
+      muted = true },
+      { table = { id = "pet.train", cols = { { "Képesség", 130 }, { "Teendő", 80 }, { "Rang", 60 }, { "TP", 40, "RIGHT" }, { "Hogyan", 0, flex = true } },
+        rows = rows } } }, true, #rows)
+  elseif pet then
+    Add(out, { tips = { { level = "info", text = ("A pet családja (%s) nincs az adatban."):format(tostring(pet.family)) } } })
+  end
+
+  if PT.HasData() then
+    local best = PT.Best(level, 8)
+    local rows = {}
+    for _, e in ipairs(best.dps) do rows[#rows + 1] = BeastRow(e, level) end
+    out[#out + 1] = Section("pet.best", "Legjobb sebző pet a szintedhez", { { p = "Sebzés = a család szorzója × a támadási sebesség " ..
+      "(a normál, 2.0 mp-es pet 1.00×). Classic szabály szerint a pet ütésenként ugyanannyit sebez, ezért a gyorsabb állat több DPS. " ..
+      "Elöl a hozzád szintben közeli állatok; ★ ritka.", muted = true },
+      { table = { id = "pet.best", cols = BEAST_COLS, rows = rows } } }, true, #rows)
+    local tank = {}
+    for _, e in ipairs(best.tank) do
+      local row = BeastRow(e, level)
+      row.cells[4] = Cell(("%.2f×"):format(e.factor), e.factor)
+      tank[#tank + 1] = row
+    end
+    out[#out + 1] = Section("pet.tank", "Legjobb tank pet (elitekhez, sok mobhoz)", { { p = "Strapabírás = a család páncél × élet szorzója.", muted = true },
+      { table = { id = "pet.tank", cols = { BEAST_COLS[1], BEAST_COLS[2], BEAST_COLS[3], { "Strapa", 60, "RIGHT" }, BEAST_COLS[5], BEAST_COLS[6] },
+        rows = tank } } }, false, #tank)
+
+    local fams = {}
+    for name, info in pairs(PT.Families()) do
+      local f = PT.FAMILY[name] or {}
+      local ab = {}
+      for a, rank in pairs(info.abilities) do ab[#ab + 1] = a .. " " .. rank end
+      table.sort(ab)
+      fams[#fams + 1] = { cells = { Cell(FamilyHu(name), name), Cell(f.dmg and ("%.2f"):format(f.dmg) or "?", f.dmg or 1),
+        Cell(f.armor and ("%.2f"):format(f.armor) or "?", f.armor or 1), Cell(f.hp and ("%.2f"):format(f.hp) or "?", f.hp or 1),
+        Cell(info.fastest < 200 and Color(HEX.good, ("%.1f mp"):format(info.fastest / 100)) or "2.0 mp", info.fastest),
+        f.diet and table.concat(f.diet, ", ") or Muted("?"), f.role or "", table.concat(ab, ", ") },
+        tip = (f.role or "") .. "\nKülönleges: " .. (f.sig or "?") .. "\n" .. info.count .. " szelídíthető állat, " .. info.minLevel .. ". szinttől" }
+    end
+    WA.Model.Stable(fams, function(a, b)
+      if a.cells[2][2] ~= b.cells[2][2] then return a.cells[2][2] > b.cells[2][2] end
+      return a.cells[5][2] < b.cells[5][2]
+    end)
+    out[#out + 1] = Section("pet.fam", "Családok (a legerősebb sebzőtől)", { { table = { id = "pet.fam", limit = 20, cols = { { "Család", 170 }, { "Sebzés", 56, "RIGHT" },
+      { "Páncél", 56, "RIGHT" }, { "Élet", 50, "RIGHT" }, { "Leggyorsabb", 80, "RIGHT" }, { "Eszik", 120, extra = true },
+      { "Mire jó", 0, flex = true }, { "Képességek", 220, extra = true } }, rows = fams } } }, true, #fams)
+
+    local all = {}
+    for _, b in ipairs(PT.Beasts()) do
+      if b.min > 0 then all[#all + 1] = BeastRow({ beast = b }, nil) end
+    end
+    out[#out + 1] = Section("pet.all", "Bestiárium: minden szelídíthető állat", { { p = "Keress névre, családra, zónára vagy képességre " ..
+      "(például \"Claw 6\", \"Wetlands\", \"Cat\").", muted = true },
+      { table = { id = "pet.all", cols = BEAST_COLS, rows = all, limit = 15 } } }, false, #all)
+
+    local abRows = {}
+    for name in pairs(PT.ABILITY) do
+      for _, r in ipairs(PT.Ranks(name)) do
+        abRows[#abRows + 1] = { cells = { name, Cell(r.rank, r.rank), Cell(r.level, r.level), Cell(r.tp, r.tp), r.desc or "" }, tip = PT.ABILITY[name].hu }
+      end
+    end
+    out[#out + 1] = Section("pet.ranks", "Képességek rangonként", { { table = { id = "pet.ranks", cols = { { "Képesség", 130 }, { "Rang", 44, "RIGHT" },
+      { "Pet-szint", 64, "RIGHT" }, { "TP", 40, "RIGHT" }, { "Mit csinál (Wowhead)", 0, flex = true } }, rows = abRows, limit = 12 } } }, false, #abRows)
+  end
+  UI.status = pet and ("%s · %d. szint"):format(pet.name or "pet", pet.level or 0) or "nincs pet"
   return out
 end
 
@@ -1172,8 +1396,9 @@ for _, e in ipairs({ "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP", "CHARACTER_P
   pcall(ev.RegisterEvent, ev, e)
 end
 
-WA.Command("plan", function() UI.Show("plan") end, "/wa – főablak · /wa plan | combat | gear | prof – egy oldala")
+WA.Command("plan", function() UI.Show("plan") end, "/wa – főablak · /wa plan | combat | gear | prof | pet – egy oldala")
 WA.Command("combat", function() UI.Show("combat") end)
 WA.Command("harc", function() UI.Show("combat") end) -- old name
 WA.Command("gear", function() UI.Show("gear") end)
 WA.Command("prof", function() UI.Show("prof") end)
+WA.Command("pet", function() UI.Show("pet") end)

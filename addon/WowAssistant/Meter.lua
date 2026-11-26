@@ -28,9 +28,31 @@ local FINISHERS = { Eviscerate = true, ["Slice and Dice"] = true, Rupture = true
 -- Casts that do not hit the target themselves.
 local NO_HIT = { ["Slice and Dice"] = true, Stealth = true, Vanish = true, Sprint = true, Evasion = true,
   ["Blade Flurry"] = true, ["Adrenaline Rush"] = true, ["Cold Blood"] = true, Preparation = true, Distract = true,
-  ["Pick Pocket"] = true, Sap = true, ["Instant Poison"] = true, ["Deadly Poison"] = true, ["Crippling Poison"] = true }
+  ["Pick Pocket"] = true, Sap = true, ["Instant Poison"] = true, ["Deadly Poison"] = true, ["Crippling Poison"] = true,
+  -- hunter: buffs, pet commands, traps, stings (their damage comes later, as a dot)
+  ["Hunter's Mark"] = true, ["Aspect of the Hawk"] = true, ["Aspect of the Monkey"] = true, ["Aspect of the Cheetah"] = true,
+  ["Aspect of the Pack"] = true, ["Aspect of the Wild"] = true, ["Aspect of the Beast"] = true, ["Trueshot Aura"] = true,
+  ["Rapid Fire"] = true, ["Bestial Wrath"] = true, Intimidation = true, ["Mend Pet"] = true, ["Call Pet"] = true,
+  ["Dismiss Pet"] = true, ["Revive Pet"] = true, ["Feed Pet"] = true, ["Feign Death"] = true, ["Freezing Trap"] = true,
+  ["Immolation Trap"] = true, ["Frost Trap"] = true, ["Explosive Trap"] = true, Disengage = true, Deterrence = true,
+  ["Eyes of the Beast"] = true, ["Eagle Eye"] = true, Flare = true, ["Tranquilizing Shot"] = true, ["Scare Beast"] = true,
+  ["Beast Lore"] = true, ["Concussive Shot"] = true, ["Serpent Sting"] = true, ["Scorpid Sting"] = true, ["Viper Sting"] = true }
+
+-- Hunter pet abilities that do damage (the damage meter may list them under the owner).
+local PET_SPELL = { Claw = true, Bite = true, ["Lightning Breath"] = true, ["Scorpid Poison"] = true, Screech = true,
+  ["Demoralizing Screech"] = true, Thunderstomp = true, ["Sonic Blast"] = true, Swipe = true, Pinch = true,
+  ["Savage Rend"] = true, Dismember = true, ["Tendon Rip"] = true, Web = true, ["Mine!"] = true, ["Dust Cloud"] = true }
 
 local function Secret(v) return issecretvalue and issecretvalue(v) or false end
+-- A pet is out and you are not swinging in melee yourself (hunters): physical hits are the pet's.
+local function PetNotMe()
+  local ok, pet = pcall(UnitExists, "pet")
+  if not ok or Secret(pet) or not pet then return false end
+  local ok2, melee = pcall(IsCurrentSpell or function() return false end, 6603)
+  if not ok2 or Secret(melee) then return false end
+  return not melee
+end
+
 local function Num(v)
   if Secret(v) or v == nil then return nil end
   return tonumber(v)
@@ -178,11 +200,14 @@ local function OnTargetHit(unit, action, flag, amount, school)
     fight.pending = nil
   elseif Num(school) and Num(school) ~= 1 then
     name = "Other"
+  elseif PetNotMe() then
+    -- a hunter who is not meleeing: the physical hits on the target are the pet's
+    name = "Pet: Melee"
   else
     name = "Melee"
   end
   local a = Ability(name)
-  if name == "Melee" or name == "Other" then a.n = a.n + 1 end
+  if name == "Melee" or name == "Other" or name == "Pet: Melee" then a.n = a.n + 1 end
   local dmg = Num(amount)
   if action == "WOUND" then
     if flag == "CRITICAL" then a.crit = a.crit + 1
@@ -248,7 +273,33 @@ local function MeterTotals()
     local name = SpellName(id) or (id == nil and "Melee") or nil
     if id == 6603 then name = "Melee" end
     local amount = Num(sp.totalAmount)
-    if name and amount then out.spells[name] = (out.spells[name] or 0) + amount end
+    if name and amount then
+      -- a pet's spells merged into ours (the meter may list them under the owner)
+      if PET_SPELL[name] and UnitExists and UnitExists("pet") then name = "Pet: " .. name end
+      out.spells[name] = (out.spells[name] or 0) + amount
+    end
+  end
+  -- the pet as its own source: its damage is ours, as on raid logging sites
+  local okPet, hasPet = pcall(UnitExists, "pet")
+  local petGuid = okPet and hasPet and not Secret(hasPet) and UnitGUID and UnitGUID("pet") or nil
+  if petGuid and not Secret(petGuid) and petGuid ~= UnitGUID("player") then
+    local merged = false
+    for name in pairs(out.spells) do if name:sub(1, 5) == "Pet: " then merged = true end end
+    local psrc = Call("GetCombatSessionSourceFromType", current, damage, petGuid, nil)
+    MT.last.pet = psrc
+    if not merged and type(psrc) == "table" and type(psrc.combatSpells) == "table" then
+      local sum = 0
+      for _, sp in ipairs(psrc.combatSpells) do
+        local id = Num(sp.spellID)
+        local amount = Num(sp.totalAmount)
+        local name = (id == nil or id == 6603) and "Melee" or SpellName(id)
+        if name and amount and amount > 0 then
+          out.spells["Pet: " .. name] = (out.spells["Pet: " .. name] or 0) + amount
+          sum = sum + amount
+        end
+      end
+      if out.total and sum > 0 then out.total = out.total + sum end
+    end
   end
   return out
 end

@@ -133,6 +133,29 @@ export function parseCombatLog(text, character, opts = {}) {
       }
       continue;
     }
+    // Our pet (a hunter's beast): source flags say "mine" (0x1) and pet or guardian (0x3000).
+    // Its damage is ours, as on raid logging sites, under "Pet: <ability>".
+    const srcFlags = parseInt(f[3], 16) || 0;
+    if (!mine && (srcFlags & 0x1) && (srcFlags & 0x3000)) {
+      const swing = ev.startsWith("SWING_");
+      if (ev === "SWING_DAMAGE" || ev === "SPELL_DAMAGE" || ev === "SPELL_PERIODIC_DAMAGE") {
+        touch(t);
+        const amount = Number(f[swing ? 28 : 31]) || 0;
+        const a = ability(swing ? "Pet: Melee" : `Pet: ${f[10]}${ev === "SPELL_PERIODIC_DAMAGE" ? " (dot)" : ""}`);
+        a.n++;
+        a.dmg += amount;
+        if (f[swing ? 35 : 38] === "1") a.crit++;
+        else if (f[swing ? 36 : 39] === "1") a.glance++;
+        else a.hit++;
+        a.max = Math.max(a.max, amount);
+        fight.targets[f[6]] = (fight.targets[f[6]] ?? 0) + amount;
+      } else if ((ev === "SWING_MISSED" || ev === "SPELL_MISSED") && fight && t - fight.last <= FIGHT_GAP) {
+        const a = ability(swing ? "Pet: Melee" : `Pet: ${f[10]}`);
+        a.n++;
+        a[MISS[f[swing ? 9 : 12]] ?? "other"]++;
+      }
+      continue;
+    }
     if (!mine) continue;
 
     const hostile = f[5]?.startsWith("Creature-") || f[5]?.startsWith("Vehicle-") || (f[5]?.startsWith("Player-") && !toMe);

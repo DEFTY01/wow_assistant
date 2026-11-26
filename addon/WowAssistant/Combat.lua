@@ -29,8 +29,9 @@ end
 local function Pct(part, whole) return whole > 0 and part / whole * 100 or 0 end
 local function F1(n) return ("%.1f"):format(n) end
 
--- Newest first, at most `limit` (200 in the web app).
-function C.Report(fights, limit)
+-- Newest first, at most `limit` (200 in the web app). `advise` replaces the rogue advice
+-- (WA.Hunter.Advise for hunters).
+function C.Report(fights, limit, advise)
   limit = limit or 200
   local list = {}
   for _, f in ipairs(fights or {}) do if (f.start or 0) > 0 and (f.dur or 0) > 0 then list[#list + 1] = f end end
@@ -118,7 +119,7 @@ function C.Report(fights, limit)
     local f = list[i]
     r.recent[i] = { start = f.start, dur = f.dur, dps = f.dmg / f.dur, target = f.target or "?", targetLevel = f.targetLevel, source = f.source }
   end
-  r.advice = C.Advise(r, list)
+  r.advice = (advise or C.Advise)(r, list)
   return r
 end
 

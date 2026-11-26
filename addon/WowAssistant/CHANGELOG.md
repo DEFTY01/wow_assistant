@@ -1,3 +1,23 @@
+## 2.6.0
+
+Hunter: új **Pet** oldal, lőszerár, és a Harc oldal hunterre szabva.
+
+- Pet oldal (`/wa pet`):
+  - a petedet olvassa: család, szint, training point, boldogság, ismert rangok
+  - mit taníts neki: a következő rang, mennyi training point, és ha még nem tudod tanítani, melyik állatot szelídítsd meg érte (hol, hányas szinten)
+  - a legjobb sebző és tank pet a szintedhez: a család szorzója × a támadási sebesség (a Forever gyors állatai, például a Broken Tooth 1.0 mp-cel)
+  - családok: sebzés, páncél, élet, mit eszik, mire jó, milyen képességeket tanulhat
+  - bestiárium: mind a 666 szelídíthető állat a Wowhead Forever adataiból, kereshetően (név, család, zóna, képesség)
+  - képességek rangonként: pet-szint, training point, mit csinál
+- Lőszer:
+  - a kereskedőnél látott árat megjegyzi (különben AH-ár vagy becslés)
+  - 200 darab ára és egy óra folyamatos harc lőszerköltsége a Haditervben
+- Harc oldal hunterrel:
+  - a pet sebzése mostantól a tiéd (harcnapló és játékban rögzített harc is), "Pet: …" sorokkal
+  - pontszám hunternek: DPS a várthoz képest, Auto Shot folyamatossága, a pet része, távolság, Serpent Sting, lövések percenként
+  - hunter összesítő: honnan jön a sebzés (távolsági, pet, közelharc, DoT), képességek percenként és használatonként, Auto Shot-, Serpent Sting- és Aspect of the Hawk-uptime
+  - hunter tanácsok a rogue-é helyett (gyenge pet, sok közelharc, sok miss, nincs Sting, ritka Arcane Shot)
+
 ## 2.5.0
 
 A Haditerv és a Felszerelés oldal mostantól **hunterrel** is működik, 1-től 60-as szintig.
