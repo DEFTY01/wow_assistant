@@ -29,6 +29,83 @@ export interface Fight {
   auras: Record<string, number>;
   capped: number;
   samples: number;
+  /** Every Eviscerate with the state of the decision (scripts/combat-log.mjs, from 2.8.3). */
+  evis?: EvisCast[];
+}
+
+export interface EvisCast {
+  t: number; // tenths of a second from the fight's start
+  cp: number;
+  target?: string;
+  landed: boolean | null;
+  dmg: number | null;
+  crit: boolean | null;
+  killed: boolean | null;
+  hpBefore: number | null;
+  maxHp: number | null;
+  lived: number; // seconds the target lived after it (at least, unless livedKnown)
+  livedKnown: boolean;
+}
+
+// A low-point Eviscerate is a proven mistake only when the log shows all of it: it spent 1-2
+// combo points, it hit and the target survived, it could not have been meant to kill (more than
+// twice the damage left, so even a crit would not have killed), and the target lived at least
+// EVIS_ROOM more seconds - two Sinister Strikes' worth of energy. The same rule as the addon's
+// WowAssistant/Combat.lua C.EvisMistake. true = proven, false = low points but justified by the
+// log, null = not a low-point cast or the state is not known.
+export const EVIS_ROOM = 8;
+export function evisMistake(e: EvisCast): boolean | null {
+  if (!(e.cp >= 1 && e.cp <= 2) || e.landed === false) return null;
+  if (e.killed) return false;
+  if (e.hpBefore == null || e.dmg == null || e.lived == null) return null;
+  return e.hpBefore > 2 * e.dmg && e.lived >= EVIS_ROOM;
+}
+
+export interface EvisEvidence {
+  seen: number;
+  proven: { start: number; e: EvisCast }[];
+  justified: number;
+}
+export function evisEvidence(fights: Fight[]): EvisEvidence {
+  const out: EvisEvidence = { seen: 0, proven: [], justified: 0 };
+  for (const f of fights) {
+    for (const e of Array.isArray(f.evis) ? f.evis : []) {
+      out.seen++;
+      const x = evisMistake(e);
+      if (x === true) out.proven.push({ start: f.start, e });
+      else if (x === false) out.justified++;
+    }
+  }
+  return out;
+}
+
+const clock = (start: number, tenths: number) =>
+  new Date((start + tenths / 10) * 1000).toLocaleString("hu-HU", { timeZone: "Europe/Budapest", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+
+/** The Eviscerate finding from the log's evidence, or null when the log has no Eviscerate data. */
+export function evisAdvice(ev: EvisEvidence, avgCp: number | null): Advice | null {
+  if (ev.proven.length) {
+    const lines = ev.proven.slice(0, 3).map(({ start, e }) =>
+      `${clock(start, e.t)}, ${e.target ?? "?"}: ${e.cp} pont, életereje előtte ${e.hpBefore} / ${e.maxHp ?? "?"}, ` +
+      `a sebzés ${e.dmg}${e.crit ? " (krit)" : ""}, utána még ${e.livedKnown ? "" : "legalább "}${e.lived.toFixed(1)} mp-ig élt`);
+    return {
+      level: "fix",
+      title: "Kevés combo pontos Eviscerate",
+      text: `${ev.proven.length} Eviscerate ment 1–2 combo ponttal úgy, hogy a célpont nem halt meg tőle, több mint kétszer annyi ` +
+        `életereje maradt, mint a sebzés (krittel sem halt volna meg), és utána még legalább ${EVIS_ROOM} mp-ig élt (harcnapló): ` +
+        lines.join("; ") + (ev.proven.length > 3 ? `; és még ${ev.proven.length - 3}` : "") +
+        ". Ilyenkor építs még 1–2 pontot: az ára ugyanaz a 35 energia, a sebzése pontonként nő.",
+    };
+  }
+  if (ev.seen && ev.justified && avgCp != null && avgCp < 4) {
+    return {
+      level: "info",
+      title: "Kevés pontos Eviscerate, de indokolt",
+      text: `Az Eviscerate-jeid átlagosan ${avgCp.toFixed(1)} combo ponttal mentek; a harcnaplóban egyik 1–2 pontos sem volt hiba: ` +
+        `${ev.justified} ölt vagy kevés életerejű célpontra ment, illetve a célpont hamar meghalt.`,
+    };
+  }
+  return null;
 }
 
 export async function storeFights(env: Env, fights: unknown): Promise<number> {
@@ -40,14 +117,17 @@ export async function storeFights(env: Env, fights: unknown): Promise<number> {
   if (!valid.length) return 0;
   // The uploader re-sends the whole log every time: skip the fights that are already stored as they are.
   const oldest = Math.min(...valid.map((f) => f.start));
-  const have = await env.DB.prepare("SELECT start, duration, damage FROM fights WHERE slug = ? AND start >= ?")
+  const have = await env.DB.prepare(
+    "SELECT start, duration, damage, instr(json, '\"evis\"') > 0 AS evis FROM fights WHERE slug = ? AND start >= ?",
+  )
     .bind(env.CHARACTER_SLUG, oldest)
-    .all<{ start: number; duration: number; damage: number }>();
+    .all<{ start: number; duration: number; damage: number; evis: number }>();
   const stored = new Map(have.results.map((r) => [r.start, r]));
   const stmts = valid
     .filter((f) => {
       const s = stored.get(f.start);
-      return !s || s.duration !== f.dur || s.damage !== Math.round(f.dmg);
+      // a fight stored before the parser kept the Eviscerates is stored again once it has them
+      return !s || s.duration !== f.dur || s.damage !== Math.round(f.dmg) || (!s.evis && Array.isArray(f.evis) && f.evis.length > 0);
     })
     .map((f) =>
       env.DB.prepare("INSERT OR REPLACE INTO fights (slug, start, duration, damage, json) VALUES (?, ?, ?, ?, ?)").bind(
@@ -246,13 +326,17 @@ function advise(r: CombatReport, fights: Fight[]): Advice[] {
   }
 
   const evis = r.finishers.find((f) => f.name === "Eviscerate");
-  if (evis && evis.casts >= 5 && evis.avgCp < 4) {
+  const ev = evisEvidence(fights);
+  const fromLog = ev.seen ? evisAdvice(ev, evis?.avgCp ?? null) : null;
+  if (fromLog) out.push(fromLog);
+  else if (!ev.seen && evis && evis.casts >= 5 && evis.avgCp < 4) {
     out.push({
-      level: "fix",
-      title: "Túl korán ütöd az Eviscerate-et",
+      level: "tip",
+      title: "Kevés combo pontos Eviscerate (nem megállapítható)",
       text: `Az Eviscerate-jeid átlagosan ${f1(evis.avgCp)} combo ponttal mennek (${evis.casts} használat). ` +
-        "A sebzése combo pontonként nő, az energiaára viszont fix, ezért 4–5 ponttal éri meg; " +
-        "kivétel, ha a mob 1–2 ponttal is meghal tőle.",
+        "A sebzése combo pontonként nő, az energiaára viszont fix, ezért 4–5 ponttal éri meg, " +
+        "kivéve ha a mob 1–2 ponttal is meghal tőle. Hogy hiba volt-e, nem látszik: ezekben a harcokban " +
+        "nincs meg a célpont életereje (a harcnapló újraolvasása után lesz).",
     });
   }
 

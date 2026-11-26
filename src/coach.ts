@@ -1,4 +1,4 @@
-import type { Fight } from "./combat";
+import { evisEvidence, type Fight } from "./combat";
 import type { Env } from "./env";
 
 const FINISHERS = new Set(["Eviscerate", "Slice and Dice", "Rupture", "Kidney Shot", "Expose Armor"]);
@@ -89,7 +89,9 @@ export async function coachReport(env: Env, limit = 150): Promise<CoachReport | 
   }
   const evisTotal = evisByCp.reduce((a, b) => a + b, 0);
   const evisLow = evisByCp[1] + evisByCp[2];
-  if (evisTotal >= 8 && evisLow / evisTotal > 0.3) {
+  // with the target's health in the log, the combat page decides (proven or justified); this
+  // average-only tip is for fights without it
+  if (evisTotal >= 8 && evisLow / evisTotal > 0.3 && !evisEvidence(fights).seen) {
     tips.push({
       level: "tip",
       title: "Sok az alacsony combo pontos Eviscerate",
