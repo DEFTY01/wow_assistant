@@ -319,18 +319,25 @@ function H.Context(input)
 
   -- Hunter advice from the model's own numbers (the combat page's advice is the rogue's).
   local advice = {}
+  local function Push(o) advice[#advice + 1] = WA.Combat.Finding(o) end
   if combat and combat.seconds >= 120 then
     if ranged and params.rangedUptime < 0.6 and level >= 10 then
-      advice[#advice + 1] = { level = "tip", title = "Kevés Auto Shot",
-        text = ("A harcidban csak az idő %d%%-ában lősz. Engedd, hogy a pet fogja meg a mobot, és lőj távolról: a hunter sebzésének nagyja az Auto Shot."):format(Round(params.rangedUptime * 100)) }
+      Push({ title = "Kevés Auto Shot", fault = true, rule = "hunterRange",
+        fact = ("A harcaidban az idő kb. %d%%-ában lőttél."):format(Round(params.rangedUptime * 100)),
+        advice = "Ha a pet meg tudta fogni a mobot, lőj távolról: a hunter sebzésének nagyja az Auto Shot.",
+        missing = "a távolság és a mozgás a harc alatt" })
     end
     if level >= 10 and params.meleeUptime > 0.3 then
-      advice[#advice + 1] = { level = "tip", title = "Sokat vagy közelharcban",
-        text = ("Az idő %d%%-ában közelharcban vagy. 10. szinttől a pet tankol: maradj 8 yardon kívül, és Wing Clip + hátralépés, ha rád jön a mob."):format(Round(params.meleeUptime * 100)) }
+      Push({ title = "Sokat voltál közelharcban", fault = true, rule = "hunterRange",
+        fact = ("Az idő kb. %d%%-ában közelharcban voltál."):format(Round(params.meleeUptime * 100)),
+        advice = "10-től a pet tankol: maradj 8 yardon kívül, és Wing Clip + hátralépés, ha rád jön a mob.",
+        missing = "hogy a mob miért volt rajtad (a pet aggrója nem látszik)" })
     end
     if level >= 10 and params.petDps < 0.2 * level then
-      advice[#advice + 1] = { level = "tip", title = "Gyenge vagy hiányzó pet",
-        text = "A pet alig sebez. Szelídíts a szintedhez illő állatot (Tame Beast), etesd, és tanítsd meg neki a Claw/Bite legújabb rangját." }
+      Push({ title = "Gyenge vagy hiányzó pet", fault = true, rule = "hunterPet",
+        fact = ("A pet kb. %s DPS-t adott."):format(F1(params.petDps)),
+        advice = "Szelídíts a szintedhez illő állatot, etesd, és tanítsd meg neki a Claw/Bite legújabb rangját.",
+        missing = "hogy a pet kint volt-e és támadott-e" })
     end
   end
   ctx.advice = advice
@@ -468,51 +475,64 @@ end
 -- Advice from all the recorded fights (instead of the rogue's).
 function H.Advise(r, fights)
   local out = {}
-  local function Push(level, title, text) out[#out + 1] = { level = level, title = title, text = text } end
+  local function Push(o) out[#out + 1] = WA.Combat.Finding(o) end
   local auto = Find(r.abilities, "Auto Shot")
   local level = fights[1] and fights[1].level or 0
   if r.seconds < 300 or not auto or auto.n < 100 then
-    Push("info", "Kevés még az adat", ("Eddig %d harc, %d másodperc és %d Auto Shot van rögzítve. Az arányok kb. 10 perc harc után megbízhatóak.")
-      :format(r.fights, Round(r.seconds), auto and auto.n or 0))
+    Push({ info = true, title = "Kevés még az adat", fact = ("Eddig %d harc, %d másodperc és %d Auto Shot van rögzítve. Az arányok kb. 10 perc harc után megbízhatóak.")
+      :format(r.fights, Round(r.seconds), auto and auto.n or 0) })
   end
   local src, share = H.Sources(r.abilities, r.damage)
   if level >= 10 and r.seconds >= 120 and share.pet < 15 then
-    Push("fix", "A pet alig sebez", ("A sebzésed csak %d%%-a a peté (jó esetben 25–40%%). Nézd meg a Pet oldalt: tanítsd meg a Claw/Bite legújabb rangját, "):format(Round(share.pet)) ..
-      "etesd boldogra (a boldog pet +25% sebzés), és ha a családja gyenge, szelídíts macskát vagy raptort.")
+    Push({ title = "A pet kevés sebzést adott", fault = true, rule = "hunterPet",
+      fact = ("A sebzésed %d%%-a a peté (jellemzően 25–40%%)."):format(Round(share.pet)),
+      advice = "Nézd meg a Pet oldalt: a Claw/Bite legújabb rangja, a boldogság (a boldog pet +25% sebzés), és ha a családja gyenge, macska vagy raptor.",
+      missing = "hogy a pet élt-e, kint volt-e és támadott-e a harcokban (a halála és a passzív mód nem látszik)" })
   end
   local own = src.ranged + src.melee
   if level >= 10 and own > 0 and src.melee / own > 0.25 then
-    Push("fix", "Sokat harcolsz közelről", ("A saját sebzésed %d%%-a közelharc. A hunter ereje a távolság: hagyd, hogy a pet fogja meg a mobot, "):format(Round(src.melee / own * 100)) ..
-      "és csak akkor üss Raptor Strike-ot, ha a mob rajtad van.")
+    Push({ title = "Sok közelharci sebzés", fault = true, rule = "hunterRange",
+      fact = ("A saját sebzésed %d%%-a közelharc."):format(Round(src.melee / own * 100)),
+      advice = "Ha a pet meg tudta fogni a mobot, lőj távolról; Raptor Strike csak akkor, ha a mob rajtad van.",
+      missing = "hogy a mob miért volt rajtad (a pet aggrója, a távolság és a mozgás nem látszik)" })
   end
   if auto and auto.n >= 50 then
     local miss = ((auto.miss or 0) + (auto.dodge or 0)) / auto.n * 100
     if miss > 9 then
-      Push("tip", "Sok lövés megy mellé", ("Az Auto Shotjaid %s%%-a miss vagy dodge. A +hit tárgyak (és a magasabb szintű mobok kerülése) itt sokat hoznak."):format(F1(miss)))
+      Push({ title = "Sok lövés megy mellé", rule = "hitGear",
+        fact = ("Az Auto Shotjaid %s%%-a miss vagy dodge."):format(F1(miss)),
+        advice = "A +hit tárgyak, és a magasabb szintű mobok kerülése itt sokat hoznak." })
     end
   end
   local avgFight = r.seconds / math.max(1, r.fights)
   local sting = Find(r.abilities, "Serpent Sting (dot)")
   if level >= 4 and avgFight >= 15 and not sting then
-    Push("tip", "Nincs Serpent Sting", ("Az átlagos harcod %d mp, de egyetlen Serpent Sting tick sincs. Hosszabb harcban a Sting nyitásként sok ingyen sebzés."):format(Round(avgFight)))
+    Push({ title = "Nincs Serpent Sting", fault = true, rule = "serpentSting",
+      fact = ("Az átlagos harcod %d mp, és nincs Serpent Sting tick."):format(Round(avgFight)),
+      advice = "Hosszabb harcban a Sting nyitásként sok ingyen sebzés.",
+      missing = "a manád a harc elején, és hogy a mob immunis volt-e rá" })
   end
   local special = 0
   for _, name in ipairs(SPECIALS) do local a = Find(r.abilities, name) special = special + (a and a.n or 0) end
   if level >= 6 and r.seconds >= 120 and special / r.seconds * 60 < 1 then
-    Push("tip", "Ritkán lősz Arcane Shotot", ("Percenként csak %s Arcane/Multi/Aimed Shotot lősz. Ha van manád, az Arcane Shot minden 6. másodpercben plusz sebzés.")
-      :format(F1(special / r.seconds * 60)))
+    Push({ title = "Ritkán lősz Arcane Shotot", fault = true, rule = "arcaneShot",
+      fact = ("Percenként %s Arcane / Multi / Aimed Shot."):format(F1(special / r.seconds * 60)),
+      advice = "Ha van manád, az Arcane Shot minden 6. másodpercben plusz sebzés.",
+      missing = "a manád a harcokban, és hogy a cooldown idején tudtál-e lőni" })
   end
   local hawk
   for _, a in ipairs(r.auras or {}) do if a.name == "Aspect of the Hawk" then hawk = a.uptimePct end end
   if level >= 10 and r.seconds >= 120 and (hawk or 0) < 50 then
-    Push("tip", "Aspect of the Hawk ritkán van fent", ("A harcidő %d%%-ában van fent az Aspect of the Hawk. Távolról lőve ez a +ranged attack power aspektus.")
-      :format(Round(hawk or 0)))
+    Push({ title = "Aspect of the Hawk ritkán van fent", fault = true, rule = "hawk",
+      fact = ("A harcidő %d%%-ában volt fent az Aspect of the Hawk."):format(Round(hawk or 0)),
+      advice = "Távolról lőve ez a +ranged attack power aspektus.",
+      missing = "hogy megtanultad-e, és hogy más aspektus (Monkey, Cheetah) kellett-e éppen" })
   end
   if auto and auto.n >= 100 then
     local landed = auto.hit + auto.crit
-    Push("info", "Mért arányok", ("Auto Shot: %s%% miss, %s%% dodge, %s%% crit. Sebzés: távolsági %d%%, pet %d%%, közelharc %d%%, DoT %d%%.")
+    Push({ info = true, title = "Mért arányok", fact = ("Auto Shot: %s%% miss, %s%% dodge, %s%% crit. Sebzés: távolsági %d%%, pet %d%%, közelharc %d%%, DoT %d%%.")
       :format(F1((auto.miss or 0) / auto.n * 100), F1((auto.dodge or 0) / auto.n * 100), F1(landed > 0 and auto.crit / landed * 100 or 0),
-        Round(share.ranged), Round(share.pet), Round(share.melee), Round(share.dot)))
+        Round(share.ranged), Round(share.pet), Round(share.melee), Round(share.dot)) })
   end
   return out
 end

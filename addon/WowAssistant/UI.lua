@@ -1057,7 +1057,8 @@ function UI.pages.combat()
       local col = pct >= 0.8 and HEX.good or (pct >= 0.5 and HEX.gold or HEX.warn)
       rows[#rows + 1] = { p.label, Cell(Color(col, ("%d / %d"):format(math.floor(p.points + 0.5), p.max)), pct), p.text }
     end
-    out[#out + 1] = Section("combat.score", "Mitől ennyi a pontszám", { { table = { id = "combat.score",
+    out[#out + 1] = Section("combat.score", "Mitől ennyi a pontszám", { { p = "A pontszám a mért adataid összevetése a szokásos játékkal; " ..
+      "egy alacsony rész önmagában nem bizonyított hiba (lásd a tanácsoknál, mi igazolható).", muted = true }, { table = { id = "combat.score",
       cols = { { "Mi számít", 210 }, { "Pont", 70, "RIGHT" }, { "Részletek", 0, flex = true } }, rows = rows } } }, true)
   end
 

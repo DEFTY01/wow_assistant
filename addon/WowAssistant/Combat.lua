@@ -124,22 +124,80 @@ function C.Report(fights, limit, advise)
   return r
 end
 
+-- Findings: what the advice may say about you.
+--
+-- A finding states a measured fact. It may call something a mistake of yours ("hiba", red) only
+-- when both hold: the rule behind it is verified for Forever (RULES[key].verified), and the
+-- state the decision depended on is known from the events (nothing in `missing`). Otherwise the
+-- fact stays a "megfigyelés", and a would-be mistake is "nem megállapítható", with what is
+-- missing spelled out. No rule below has been checked against the Forever 1.60.1 client or the
+-- WoWSims Forever engine yet, so for now no finding is marked as a mistake.
+C.RULES = {
+  energyCap = { text = "teli energiánál a regenerálódó energia elvész", verified = false },
+  evisCp = { text = "az Eviscerate sebzése combo pontonként nő, az energiaára fix", verified = false },
+  sndHaste = { text = "a Slice and Dice gyorsítja az auto-attackot", verified = false },
+  parryFront = { text = "a mob csak szemből tud parryzni és blokkolni", verified = false },
+  poison20 = { text = "a rogue 20-as szinttől mérget tehet a fegyverére", verified = false },
+  glanceSkill = { text = "a glancing ütés a magasabb szintű mobokon és alacsony fegyverskillnél gyakori", verified = false },
+  hitGear = { text = "a +hit csökkenti a miss esélyét", verified = false },
+  hunterPet = { text = "10-től a hunter petje sebez és tankol", verified = false },
+  hunterRange = { text = "a hunter 8 yardon belül nem lő, közelharcban gyengébb", verified = false },
+  serpentSting = { text = "a Serpent Sting 15 mp alatt sebez, a hosszú harcban megéri", verified = false },
+  arcaneShot = { text = "az Arcane Shot 6 mp-enként plusz sebzés", verified = false },
+  hawk = { text = "az Aspect of the Hawk ranged attack powert ad", verified = false },
+  shamanMelee = { text = "az enhancement shaman sebzésének nagyja a fegyver", verified = false },
+  earthShock = { text = "az Earth Shock azonnali sebzés, 6 mp közös cooldownnal", verified = false },
+  searingTotem = { text = "a Searing Totem 10-től sebez a közelben", verified = false },
+  windfury = { text = "30-tól a Windfury Weapon a legerősebb imbue", verified = false },
+  lightningShield = { text = "a Lightning Shield sebez, amikor megütnek", verified = false },
+}
+C.FINDING = { fault = "hiba", observation = "megfigyelés", unproven = "nem megállapítható", data = "mért adat" }
+local GREY = "|cff9d9d9d"
+
+-- o = { title, fact, advice (what to try, conditionally), rule (a RULES key), missing (what the
+-- events do not show), fault (true when the finding would blame you), info (plain data) }
+function C.Finding(o)
+  local rule = o.rule and C.RULES[o.rule]
+  local status, level
+  if o.info then status, level = C.FINDING.data, "info"
+  elseif o.fault and rule and rule.verified and not o.missing then status, level = C.FINDING.fault, "fix"
+  elseif o.fault then status, level = C.FINDING.unproven, "tip"
+  else status, level = C.FINDING.observation, "tip" end
+  local why
+  if status == C.FINDING.fault then
+    why = "Hiba, mert: " .. rule.text .. " (Foreverre ellenőrzött szabály), és a harcadat mutatja a döntés helyzetét."
+  elseif status == C.FINDING.unproven then
+    local bits = {}
+    if o.missing then bits[#bits + 1] = "a harcadatból nem látszik " .. o.missing end
+    if rule and not rule.verified then bits[#bits + 1] = "a szabály (" .. rule.text .. ") Foreverre nincs ellenőrizve" end
+    why = "Hibának nem megállapítható: " .. table.concat(bits, "; ") .. "."
+  elseif rule then
+    why = "Szabály: " .. rule.text .. (rule.verified and "." or " (Foreverre nincs ellenőrizve).")
+  end
+  local text = o.fact .. (o.advice and (" " .. o.advice) or "") .. (why and ("\n" .. GREY .. why .. "|r") or "")
+  return { level = level, title = o.title, text = text, status = status, fact = o.fact, rule = o.rule, missing = o.missing }
+end
+
 function C.Advise(r, fights)
   local out = {}
-  local function Push(level, title, text) out[#out + 1] = { level = level, title = title, text = text } end
+  local function Push(o) out[#out + 1] = C.Finding(o) end
   if r.seconds < 300 or r.white.n < 150 then
-    Push("info", "Kevés még az adat", ("Eddig %d harc, %d másodperc és %d auto-attack van rögzítve. "):format(r.fights, math.floor(r.seconds + 0.5), r.white.n) ..
-      "Az arányok kb. 10 perc harc után kezdenek megbízhatóak lenni.")
+    Push({ info = true, title = "Kevés még az adat", fact = ("Eddig %d harc, %d másodperc és %d auto-attack van rögzítve. "):format(r.fights, math.floor(r.seconds + 0.5), r.white.n) ..
+      "Az arányok kb. 10 perc harc után kezdenek megbízhatóak lenni." })
   end
   if r.energyCappedPct and r.energyCappedPct > 8 then
-    Push("fix", "Energia megy kárba", ("A harcidő %s%%-ában tele energiával állsz. Minden másodperc a plafonon 10 elveszett energia, "):format(F1(r.energyCappedPct)) ..
-      "vagyis kb. negyed Sinister Strike. Harc elején azonnal üss, és ne tartogasd az energiát 80 fölött.")
+    Push({ title = "Sokszor tele az energiád", fault = true, rule = "energyCap",
+      fact = ("A harcidő %s%%-ában tele energiával álltál (félmásodperces minták, illetve a harcnapló energiaértékei)."):format(F1(r.energyCappedPct)),
+      advice = "Ha közben ütni tudtál volna, harc elején azonnal üss, és ne tartogasd az energiát 80 fölött.",
+      missing = "hogy akkor volt-e használható képességed (távolság, stun, futó vagy elérhetetlen célpont)" })
   end
   local evis
   for _, f in ipairs(r.finishers) do if f.name == "Eviscerate" then evis = f end end
   if evis and evis.casts >= 5 and evis.avgCp < 4 then
-    Push("fix", "Túl korán ütöd az Eviscerate-et", ("Az Eviscerate-jeid átlagosan %s combo ponttal mennek (%d használat). "):format(F1(evis.avgCp), evis.casts) ..
-      "A sebzése combo pontonként nő, az energiaára viszont fix, ezért 4–5 ponttal éri meg; kivétel, ha a mob 1–2 ponttal is meghal tőle.")
+    Push({ title = "Kevés combo pontos Eviscerate", fault = true, rule = "evisCp",
+      fact = ("Az Eviscerate-jeid átlagosan %s combo ponttal mentek (%d használat)."):format(F1(evis.avgCp), evis.casts),
+      advice = "4–5 ponttal több sebzés jut egy energiára, kivéve ha a mob 1–2 ponttal is meghal.",
+      missing = "a célpont életereje a cast pillanatában (meghalt volna-e kevesebb ponttal is)" })
   end
   local avgFight = r.seconds / r.fights
   local snd
@@ -147,9 +205,11 @@ function C.Advise(r, fights)
   if avgFight >= 12 and (not snd or snd.uptimePct < 50) then
     local whiteShare = 0
     for _, a in ipairs(r.abilities) do if White(a.name) then whiteShare = whiteShare + a.share end end
-    Push("fix", "Slice and Dice alig van fent", ("A Slice and Dice a harcidő %s%%-ában aktív, miközben a sebzésed %s%%-a auto-attack. ")
-      :format(snd and F1(snd.uptimePct) or "0", F1(whiteShare)) ..
-      "Az átlagos harcod elég hosszú ahhoz, hogy az első 1–2 combo pontot Slice and Dice-ra költsd, és utána gyűjts Eviscerate-re.")
+    Push({ title = "Ritkán van fent a Slice and Dice", fault = true, rule = "sndHaste",
+      fact = ("A Slice and Dice a harcidő %s%%-ában volt aktív, miközben a sebzésed %s%%-a auto-attack; az átlagos harcod %d mp.")
+        :format(snd and F1(snd.uptimePct) or "0", F1(whiteShare), math.floor(avgFight + 0.5)),
+      advice = "Hosszabb harcban az első 1–2 combo pont Slice and Dice-ra, utána Eviscerate.",
+      missing = "a harc várható hossza a döntés pillanatában, és hogy megtanultad-e a Slice and Dice-t" })
   end
   local parried, swings = 0, 0
   for _, a in ipairs(r.abilities) do
@@ -158,24 +218,30 @@ function C.Advise(r, fights)
   end
   local parry = Pct(parried, swings)
   if parry > 2 then
-    Push("tip", "Sok ütésedet hárítják", ("Az ütéseid %s%%-át parryzik. A mobok csak szemből tudnak parryzni és blokkolni, "):format(F1(parry)) ..
-      "tehát csapatban (dungeonben) állj a célpont mögé. Szólóban ez nem kerülhető el, de egy Gouge utáni helyezkedés segít.")
+    Push({ title = "Az ütéseid egy részét hárítják", fault = true, rule = "parryFront",
+      fact = ("Az ütéseid %s%%-át parryzták."):format(F1(parry)),
+      advice = "Csapatban (dungeonben) a célpont mögül ez elkerülhető; szólóban a mob feléd fordul.",
+      missing = "hol álltál a célponthoz képest (a pozíció nincs igazolt skálán), és hogy a mob kit nézett" })
   end
   if r.white.n >= 150 then
-    Push("info", "Mért találati arányok", ("Auto-attack: %s%% miss, %s%% dodge, %s%% glancing, %s%% crit. Képességek: %s%% miss, %s%% crit. ")
-      :format(F1(r.white.miss), F1(r.white.dodge), F1(r.white.glance), F1(r.white.crit), F1(r.yellow.miss), F1(r.yellow.crit)) ..
-      (r.white.miss > 15 and "A fehér ütések ötöde-hatoda elvész, ezért a +hit tárgyak neked sokat érnek." or "A miss arány rendben van."))
+    Push({ info = true, title = "Mért találati arányok",
+      fact = ("Auto-attack: %s%% miss, %s%% dodge, %s%% glancing, %s%% crit. Képességek: %s%% miss, %s%% crit.")
+        :format(F1(r.white.miss), F1(r.white.dodge), F1(r.white.glance), F1(r.white.crit), F1(r.yellow.miss), F1(r.yellow.crit)) ..
+        (r.white.miss > 15 and " A +hit tárgyak itt sokat érhetnek." or "") })
   end
   if r.white.glance > 20 then
-    Push("tip", "Sok a glancing ütés", ("Az auto-attackjeid %s%%-a glancing. Ez nálad magasabb szintű mobokon és alacsony fegyverskillnél jön elő: "):format(F1(r.white.glance)) ..
-      "ha nemrég váltottál fegyvertípust, a skill felhúzása ingyen DPS.")
+    Push({ title = "Sok a glancing ütés", rule = "glanceSkill",
+      fact = ("Az auto-attackjeid %s%%-a glancing."):format(F1(r.white.glance)),
+      advice = "Ha nemrég váltottál fegyvertípust, a fegyverskill felhúzása segít." })
   end
   local hasPoison = false
   for _, a in ipairs(r.abilities) do if a.name:lower():find("poison", 1, true) then hasPoison = true end end
   local level = fights[1] and fights[1].level or 0
   if not hasPoison and level >= 20 and r.seconds >= 120 then
-    Push("tip", "Nincs méreg a fegyvereiden", "A rögzített harcokban egyetlen méreg-sebzés sincs. Classic alapján 20-as szinttől elérhető az Instant Poison " ..
-      "(a Forever-beli feltételt nem ellenőriztem); ha megvan, mindkét fegyverre tedd fel, a gyors balkezes fegyveren ér a legtöbbet.")
+    Push({ title = "Nincs méreg-sebzés", fault = true, rule = "poison20",
+      fact = "A rögzített harcokban egyetlen méreg-sebzés sincs.",
+      advice = "Ha már van mérged, mindkét fegyverre tedd fel; a gyors balkezes fegyveren ér a legtöbbet.",
+      missing = "hogy megtanultad-e a mérgeket és volt-e nálad (a varázskönyv és a táska nem mutatja)" })
   end
   local ss, melee
   for _, a in ipairs(r.abilities) do
@@ -183,9 +249,8 @@ function C.Advise(r, fights)
     if a.name == "Melee" and not melee then melee = a end
   end
   if ss and melee then
-    Push("info", "Sebzésmegoszlás", ("Sinister Strike %s%% (átlag %d), auto-attack %s%% (átlag %d). ")
-      :format(F1(ss.share), math.floor(ss.avg + 0.5), F1(melee.share), math.floor(melee.avg + 0.5)) ..
-      "A Sinister Strike a főkezes fegyver sebzéséből számol, ezért oda a lassú, nagy sebzésű fegyver való, a balkézbe a gyors.")
+    Push({ info = true, title = "Sebzésmegoszlás", fact = ("Sinister Strike %s%% (átlag %d), auto-attack %s%% (átlag %d).")
+      :format(F1(ss.share), math.floor(ss.avg + 0.5), F1(melee.share), math.floor(melee.avg + 0.5)) })
   end
   return out
 end

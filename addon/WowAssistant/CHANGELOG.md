@@ -1,3 +1,13 @@
+## 2.8.1
+
+Tanácsok: hibát csak akkor jelez, ha a harcadat és egy Foreverre ellenőrzött szabály igazolja.
+
+- Minden tanács egy mért ténnyel kezdődik, utána jön, mit érdemes kipróbálni ("ha ...")
+- Szürkén alatta: miért nem mondható hibának, vagyis mi nem látszik a harcadatból (például a célpont életereje az Eviscerate pillanatában, a manád, a pet állapota, hol álltál), és hogy a szabály Foreverre nincs ellenőrizve
+- Három fajta: **mért adat**, **megfigyelés**, **nem megállapítható**; **hiba** csak ellenőrzött szabállyal és teljes adattal lehet. Egyik szabály sincs még a Forever 1.60.1-re ellenőrizve, ezért most egyetlen tanács sem hibajelzés
+- Rogue, hunter és shaman tanácsok, a Haditerv "Tanácsok a harcaid alapján" része is
+- A pontszám mellett: egy alacsony rész önmagában nem bizonyított hiba
+
 ## 2.8.0
 
 Harc oldal: minden számnál látszik, miből jött és milyen fajta szám.
