@@ -1,3 +1,17 @@
+## 2.8.3
+
+Az első bizonyítható hiba: a kevés combo pontos Eviscerate, a harcnaplóból.
+
+- A feltöltő minden Eviscerate-hez elmenti:
+  - a combo pontokat, a cast saját költségéből;
+  - a célpont életerejét előtte, ami a harcnapló szerint utána maradt plusz a sebzés;
+  - a sebzést, és hogy kritelt-e vagy ölt-e;
+  - hogy a célpont utána még meddig élt.
+- Hiba csak akkor, ha mind igaz: 1–2 pont, eltalálta és nem ölt, a célpontnak több mint kétszer annyi élete maradt, mint a sebzés (krittel sem halt volna meg), és utána még legalább 8 mp-ig élt. Ennyi idő alatt 1–2 pont még felépíthető.
+- A hiba felsorolja az eseteket (időpont, célpont, pontszám, életerő előtte, sebzés, hátralévő idő), így mindegyik visszakereshető a naplóban.
+- Ha a kevés pontos Eviscerate-ek mind ölők vagy indokoltak voltak, nem hibaként jelenik meg, hanem megfigyelésként. Élő harcnál, ahol a célpont élete nem látszik, marad a "nem megállapítható".
+- Javítva: a játéknak írt harcnapló-harcokból eddig kimaradt a pet, a túlsebzés és a "miből számoltuk", ezért a harcoldal ezeket nem mutatta.
+
 ## 2.8.2
 
 A tanácsok szabályai Foreverre ellenőrizve: 17-ből 16, forrással.

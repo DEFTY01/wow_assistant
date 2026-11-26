@@ -44,6 +44,7 @@ function C.Report(fights, limit, advise)
   local white, yellow = Empty(), Empty()
   local cp, cpOrder, auraSecs, auraOrder, byLevel, lvOrder = {}, {}, {}, {}, {}, {}
   local seconds, damage, capped, samples, offhandMiss = 0, 0, 0, 0, 0
+  local evisSeen, evisProven, evisJustified = 0, {}, 0
   for _, f in ipairs(list) do
     seconds = seconds + f.dur
     damage = damage + f.dmg
@@ -70,6 +71,12 @@ function C.Report(fights, limit, advise)
         e.casts = e.casts + 1
         e.cp = e.cp + (tonumber(c[4]) or 0)
       end
+    end
+    for _, e in ipairs(f.evis or {}) do
+      evisSeen = evisSeen + 1
+      local proof = C.EvisMistake(e)
+      if proof == true then evisProven[#evisProven + 1] = { start = f.start, e = e }
+      elseif proof == false then evisJustified = evisJustified + 1 end
     end
     for _, a in ipairs(f.auras or {}) do
       if auraSecs[a[1]] == nil then auraOrder[#auraOrder + 1] = a[1] end
@@ -102,6 +109,7 @@ function C.Report(fights, limit, advise)
     energyCappedPct = samples > 0 and Pct(capped, samples) or nil,
     offhandMissSharePct = (white.n - Landed(white)) > 0 and Pct(offhandMiss, white.n - Landed(white)) or nil,
     finishers = {}, auras = {}, byLevel = {}, recent = {},
+    evis = { seen = evisSeen, proven = evisProven, justified = evisJustified },
   }
   for _, name in ipairs(cpOrder) do
     r.finishers[#r.finishers + 1] = { name = name, casts = cp[name].casts, avgCp = cp[name].cp / cp[name].casts }
@@ -202,6 +210,29 @@ function C.Finding(o)
     source = rule and rule.source or nil }
 end
 
+-- A low-point Eviscerate is a proven mistake only when the log shows all of it (fight.evis, from
+-- the uploader): it spent 1-2 combo points, it hit and the target survived, it could not have been
+-- meant to kill (the target had more than twice the damage left, so even a crit would not have
+-- killed), and the target lived at least EVIS_ROOM more seconds - two Sinister Strikes' worth of
+-- energy, time to build more points. Returns true (proven), false (low points, but a kill or an
+-- excuse the log shows), or nil (not a low-point cast, or the state is not known).
+C.EVIS_ROOM = 8
+function C.EvisMistake(e)
+  local cp = tonumber(e.cp)
+  if not cp or cp < 1 or cp > 2 then return nil end
+  if e.landed == false then return nil end
+  if e.killed then return false end
+  local hp, dmg, lived = tonumber(e.hpBefore), tonumber(e.dmg), tonumber(e.lived)
+  if not hp or not dmg or not lived then return nil end
+  if hp <= 2 * dmg or lived < C.EVIS_ROOM then return false end
+  return true
+end
+
+local function Clock(start, tenths)
+  local s = (start or 0) + (tonumber(tenths) or 0) / 10
+  return date and date("%m.%d. %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
+end
+
 function C.Advise(r, fights)
   local out = {}
   local function Push(o) out[#out + 1] = C.Finding(o) end
@@ -217,7 +248,24 @@ function C.Advise(r, fights)
   end
   local evis
   for _, f in ipairs(r.finishers) do if f.name == "Eviscerate" then evis = f end end
-  if evis and evis.casts >= 5 and evis.avgCp < 4 then
+  local ev = r.evis or { seen = 0, proven = {}, justified = 0 }
+  if #ev.proven > 0 then
+    local lines = {}
+    for i = 1, math.min(3, #ev.proven) do
+      local p, e = ev.proven[i], ev.proven[i].e
+      lines[i] = ("%s, %s: %d pont, életereje előtte %d / %d, a sebzés %d%s, utána még %s%s mp-ig élt"):format(
+        Clock(p.start, e.t), e.target or "?", e.cp, e.hpBefore, e.maxHp or 0, e.dmg, e.crit and " (krit)" or "",
+        e.livedKnown and "" or "legalább ", F1(e.lived))
+    end
+    Push({ title = "Kevés combo pontos Eviscerate", fault = true, rule = "evisCp",
+      fact = ("%d Eviscerate ment 1–2 combo ponttal úgy, hogy a célpont nem halt meg tőle, több mint kétszer annyi életereje maradt, mint a sebzés (krittel sem halt volna meg), és utána még legalább %d mp-ig élt (harcnapló):\n- %s%s")
+        :format(#ev.proven, C.EVIS_ROOM, table.concat(lines, "\n- "), #ev.proven > 3 and ("\n- … és még " .. (#ev.proven - 3)) or ""),
+      advice = "Ilyenkor építs még 1–2 pontot: az ára ugyanaz a 35 energia, a sebzése pontonként nő." })
+  elseif ev.seen > 0 and evis and evis.casts >= 5 and evis.avgCp < 4 then
+    Push({ title = "Kevés pontos Eviscerate, de indokolt", rule = "evisCp",
+      fact = ("Az Eviscerate-jeid átlagosan %s combo ponttal mentek; a harcnaplóban egyik 1–2 pontos sem volt hiba: %d ölt vagy kevés életerejű célpontra ment, illetve a célpont hamar meghalt.")
+        :format(F1(evis.avgCp), ev.justified) })
+  elseif evis and evis.casts >= 5 and evis.avgCp < 4 then
     Push({ title = "Kevés combo pontos Eviscerate", fault = true, rule = "evisCp",
       fact = ("Az Eviscerate-jeid átlagosan %s combo ponttal mentek (%d használat)."):format(F1(evis.avgCp), evis.casts),
       advice = "4–5 ponttal több sebzés jut egy energiára, kivéve ha a mob 1–2 ponttal is meghal.",

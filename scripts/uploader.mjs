@@ -127,6 +127,8 @@ const forGame = (f, level) => ({
   ab: Object.entries(f.ab ?? {}).map(([name, a]) => ({ name, ...a })),
   casts: f.casts ?? [],
   auras: Object.entries(f.auras ?? {}).map(([name, secs]) => [name, secs]),
+  // where the numbers come from, and every Eviscerate with the target's health (2.8.0+)
+  pet: f.pet, overkill: f.overkill, basis: f.basis, evis: f.evis,
 });
 
 function writeGameFights(text, includeOpen) {

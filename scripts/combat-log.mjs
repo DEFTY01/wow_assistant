@@ -14,6 +14,13 @@
 // A fight runs from our first to our last damaging or hostile action (no gap over FIGHT_GAP);
 // a pet counts only when the log's own flags say it is ours (affiliation "mine", pet/guardian).
 // Each fight says so in its `basis`, which the addon shows next to the numbers.
+//
+// Every Eviscerate is kept with the state of the decision (fight.evis): the combo points it
+// spent (the cast's power cost "energy|combo points"), the target's health before the hit (the
+// damage event's advanced block describes the target: health after the hit + the damage), the
+// damage, whether it killed, and how long the target lived after it (its death, or at least
+// until our last hit on it). The addon decides from these whether a low-point Eviscerate was a
+// mistake.
 
 // Everything lives inside the function on purpose: the web app serves this function's own
 // source to the browser (Function.prototype.toString), so it must not lean on module scope.
@@ -85,6 +92,15 @@ export function parseCombatLog(text, character, opts = {}) {
     for (const [name, since] of Object.entries(f.auraOn)) f.auras[name] = (f.auras[name] ?? 0) + Math.max(0, f.last - since);
     for (const name of Object.keys(f.auras)) f.auras[name] = round1(Math.min(f.auras[name], dur));
     const target = Object.entries(f.targets).sort((a, b) => b[1] - a[1])[0]?.[0];
+    // how long each Eviscerate's target lived after it: its death, else at least until our last hit
+    const evis = f.evis.map((e) => {
+      const died = deaths[e.guid];
+      const end = died != null && died >= e.at ? died : Math.max(lastHit[e.guid] ?? e.at, e.at);
+      const out = { t: e.t, cp: e.cp, target: e.target, landed: e.landed ?? null, dmg: e.dmg ?? null, crit: e.crit ?? null,
+        killed: e.killed ?? null, hpBefore: e.hpBefore ?? null, maxHp: e.maxHp ?? null,
+        lived: round1(end - e.at), livedKnown: died != null && died >= e.at };
+      return out;
+    });
     fights.push({
       start: Math.round(f.t0),
       dur: round1(dur),
@@ -99,6 +115,7 @@ export function parseCombatLog(text, character, opts = {}) {
       samples: round1(f.samples),
       pet,
       overkill: f.overkill,
+      evis: evis.length ? evis : undefined,
       basis: { dmg: "effective", dur: "own-events", pet: "owner-flags" },
     });
   };
@@ -106,7 +123,8 @@ export function parseCombatLog(text, character, opts = {}) {
   const touch = (t) => {
     if (fight && t - fight.last > FIGHT_GAP) close();
     if (!fight) {
-      fight = { t0: t, last: t, ab: {}, casts: [], targets: {}, levels: {}, auras: {}, auraOn: {}, capped: 0, samples: 0, energyAt: null, overkill: 0 };
+      fight = { t0: t, last: t, ab: {}, casts: [], targets: {}, levels: {}, auras: {}, auraOn: {}, capped: 0, samples: 0, energyAt: null, overkill: 0,
+        evis: [], evisPending: null };
       // Buffs that were already running when the fight began.
       for (const name of activeAuras) fight.auraOn[name] = t;
       cp = 0; // combo points sit on the target, so a new fight starts from zero
@@ -127,6 +145,15 @@ export function parseCombatLog(text, character, opts = {}) {
   };
 
   const activeAuras = new Set();
+  const deaths = {}; // unit GUID -> time it died
+  const lastHit = {}; // unit GUID -> time of our (or our pet's) last damage on it
+  // the power cost of a cast for one power type ("3|4" and "35|3": 35 energy, 3 combo points)
+  const costOf = (types, costs, type) => {
+    const t = String(types ?? "").split("|");
+    const c = String(costs ?? "").split("|");
+    const i = t.indexOf(type);
+    return i >= 0 ? Number(c[i]) : NaN;
+  };
 
   for (const line of text.split(/\r?\n/)) {
     const sep = line.indexOf("  ");
@@ -153,6 +180,10 @@ export function parseCombatLog(text, character, opts = {}) {
       }
       continue;
     }
+    if (ev === "UNIT_DIED") {
+      deaths[f[5]] = t;
+      continue;
+    }
     // Our pet (a hunter's beast): source flags say "mine" (0x1) and pet or guardian (0x3000).
     // Its damage is ours, as on raid logging sites, under "Pet: <ability>".
     const srcFlags = parseInt(f[3], 16) || 0;
@@ -169,6 +200,7 @@ export function parseCombatLog(text, character, opts = {}) {
         else a.hit++;
         a.max = Math.max(a.max, amount);
         fight.targets[f[6]] = (fight.targets[f[6]] ?? 0) + amount;
+        lastHit[f[5]] = t;
       } else if ((ev === "SWING_MISSED" || ev === "SPELL_MISSED") && fight && t - fight.last <= FIGHT_GAP) {
         const a = ability(swing ? "Pet: Melee" : `Pet: ${f[10]}`);
         a.n++;
@@ -191,6 +223,7 @@ export function parseCombatLog(text, character, opts = {}) {
       else a.hit++;
       a.max = Math.max(a.max, amount);
       fight.targets[f[6]] = (fight.targets[f[6]] ?? 0) + amount;
+      lastHit[f[5]] = t;
       sampleEnergy(t, Number(f[20]), Number(f[21]));
     } else if (ev === "SWING_DAMAGE_LANDED") {
       if (fight && f[9] === f[5]) fight.levels[f[6]] = Number(f[27]) || fight.levels[f[6]];
@@ -217,12 +250,31 @@ export function parseCombatLog(text, character, opts = {}) {
       else a.hit++;
       a.max = Math.max(a.max, amount);
       fight.targets[f[6]] = (fight.targets[f[6]] ?? 0) + amount;
+      lastHit[f[5]] = t;
       if (f[12] === f[5]) fight.levels[f[6]] = Number(f[30]) || fight.levels[f[6]];
+      // the Eviscerate just cast: the target's health and what the hit did
+      const e = fight.evisPending;
+      if (ev === "SPELL_DAMAGE" && f[10] === "Eviscerate" && e && e.guid === f[5] && t - e.at <= 1.5) {
+        fight.evisPending = null;
+        const hpAfter = f[12] === f[5] ? Number(f[14]) : NaN;
+        e.rec.landed = true;
+        e.rec.dmg = amount;
+        e.rec.crit = f[38] === "1";
+        e.rec.killed = Number(f[33]) >= 0 || hpAfter === 0;
+        if (Number.isFinite(hpAfter)) {
+          e.rec.hpBefore = hpAfter + amount;
+          e.rec.maxHp = Number(f[15]) || null;
+        }
+      }
     } else if (ev === "SPELL_MISSED") {
       touch(t);
       const a = ability(f[10]);
       a.n++;
       a[MISS[f[12]] ?? "other"]++;
+      if (f[10] === "Eviscerate" && fight.evisPending?.guid === f[5]) {
+        fight.evisPending.rec.landed = false;
+        fight.evisPending = null;
+      }
     } else if (ev === "SPELL_ENERGIZE") {
       if (f[33] === COMBO_POINTS) cp = Math.min(Number(f[34]) || 5, cp + (Number(f[31]) || 0));
     } else if (ev === "SPELL_CAST_SUCCESS") {
@@ -239,6 +291,15 @@ export function parseCombatLog(text, character, opts = {}) {
           fight.casts.push([Math.round((t - fight.t0) * 10), name, Number.isFinite(energy) ? energy : -1, cp]);
         }
         if (isEnergy && f[12] === f[1]) sampleEnergy(t, energy, Number(f[24]));
+        if (name === "Eviscerate") {
+          // combo points from the cast's own cost, else from what we counted
+          const spent = costOf(f[22], f[25], COMBO_POINTS);
+          const rec = { t: Math.round((t - fight.t0) * 10), cp: Number.isFinite(spent) && spent > 0 ? spent : cp, target: f[6] };
+          fight.evis.push(rec);
+          fight.evisPending = { guid: f[5], at: t, rec };
+          rec.guid = f[5];
+          rec.at = t;
+        }
       }
       if (FINISHERS.has(name)) cp = 0;
     }
