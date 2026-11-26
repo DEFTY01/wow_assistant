@@ -135,6 +135,34 @@ A receptlisták a Wowhead Forever szakmaoldalairól származnak. Ezeket a `data/
 azonosító>.json` fájlokba kell lementeni (nincsenek a gitben), és a futó appba ezzel tölthetők be:
 `npm run import:recipes`.
 
+## Az addon kiadása CurseForge-ra
+
+A fejlesztés itt folyik; a játékosok csak a kiadott verziókat kapják meg a CurseForge appban. A
+kiadás erről a gépről megy, nem GitHubról, mert a `Recipes.lua` és a `GameData.lua` helyi adatból
+készül, és nincs a gitben.
+
+Egyszer kell beállítani:
+
+1. CurseForge-on hozz létre egy World of Warcraft addon projektet (authors.curseforge.com), és várd
+   meg a jóváhagyást.
+2. Készíts API tokent (My API Tokens), és írd a `.uploader.env`-be:
+   `CF_API_KEY=...` és `CF_PROJECT_ID=...` (a projekt oldalán, „About Project”).
+3. `node scripts/release-addon.mjs --versions` kilistázza a játékverziókat; azok azonosítóit,
+   amelyeken az addon fut, írd be: `CF_GAME_VERSIONS=12345,12346`.
+
+Minden kiadásnál:
+
+1. Írd át a verziót a `addon/WowAssistant/WowAssistant.toc` `## Version` sorában. Utótaggal béta
+   vagy alfa lesz belőle: `2.4.0-beta1`, `2.4.0-alpha1`; utótag nélkül végleges.
+2. Írd az új verzió szakaszát az `addon/WowAssistant/CHANGELOG.md` tetejére (`## 2.4.0`); ez lesz a
+   CurseForge változásnaplója. Ha nem ez a verzió áll legfelül, a szkript megáll.
+3. Ha változtak a receptek vagy a játékadatok, futtasd: `npm run addon:recipes`.
+4. Commitolj, aztán `npm run addon:release` elkészíti a `dist/WowAssistant-<verzió>.zip`-et (csak
+   csomagol, nem tölt fel). Ha jó, `npm run addon:publish` feltölti, és helyi `wa-v<verzió>`
+   címkét tesz rá (`git push origin wa-v<verzió>`).
+
+A csomagba nem kerül bele a `Market.lua` és a `Fights.lua`: ezeket a feltöltő a saját gépeden írja.
+
 ## Csak a saját gépeden (Cloudflare nélkül)
 
 Egy parancs elindítja az appot helyi adatbázissal, a feltöltőt és a 30 percenkénti

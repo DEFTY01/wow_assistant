@@ -11,6 +11,8 @@
     "typecheck": "tsc --noEmit",
     "addon:install": "node scripts/uploader.mjs --install",
     "addon:upload": "node scripts/uploader.mjs",
+    "addon:release": "node scripts/release-addon.mjs",
+    "addon:publish": "node scripts/release-addon.mjs --upload",
     "db:migrate:local": "wrangler d1 migrations apply wow-assistant --local",
     "db:migrate:remote": "wrangler d1 migrations apply wow-assistant --remote",
     "mcp:install-deps": "npm --prefix mcp install",
