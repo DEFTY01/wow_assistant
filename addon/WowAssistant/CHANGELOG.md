@@ -1,3 +1,14 @@
+## 2.9.0
+
+Új a harcoldalon: cooldownok kihasználtsága.
+
+- A harcnapló castjaiból számolja, hogy a harcidő hány százalékában töltődött egy cooldownos képesség. A módszer a WoWAnalyzer CastEfficiency normál ága: befejezett töltődések, plusz a harc végén még futó töltődés, osztva a harcidővel.
+- Csak a Foreverre ellenőrzött cooldownokkal számol (Wowhead Forever): Shank 10 mp, Blade Flurry 2 perc, Kidney Shot 20 mp, Arcane Shot 6 mp, a shockok közös 6 mp-e, Stormstrike 8 mp.
+- Minden sor mutatja, miből jött: hány harc, mennyi harcidő, abból mennyi töltődés, hány mp húzódott át az előző harcból, és a cooldown forrása.
+- Csak az első használat utáni harcok számítanak, mert előtte lehet, hogy még nem volt meg a képesség. Az élő mérő harcai kimaradnak, mert nincs bennük cast-idő. Amit még sosem használtál, az nem 0%, hanem nincs sora.
+- A reaktív képességek (Riposte parry után, Kick egy castra) kimaradnak: hogy mikor lehetett használni, azt egy esemény dönti el, nem a töltődés.
+- Az alacsony érték nem hiba, és nem is így jelenik meg.
+
 ## 2.8.3
 
 Az első bizonyítható hiba: a kevés combo pontos Eviscerate, a harcnaplóból.

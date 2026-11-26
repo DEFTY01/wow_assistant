@@ -1113,6 +1113,22 @@ function UI.pages.combat()
       { "DPS", 80, "RIGHT" }, { "Fehér miss", 90, "RIGHT" } }, rows = rows3 } }
   end
   out[#out + 1] = Section("combat.all", "Összesítés, minden harc", blocks, false, r.fights)
+  if r.cooldowns and #r.cooldowns > 0 then
+    local rows4 = {}
+    for _, u in ipairs(r.cooldowns) do
+      local from = ("%d harc, %d mp harcidő; ebből %d mp töltődött%s. Cooldown: %s")
+        :format(u.fights, math.floor(u.seconds + 0.5), math.floor(u.active + 0.5),
+          u.carried > 0 and (" (" .. math.floor(u.carried + 0.5) .. " mp az előző harcból áthúzódva)") or "", u.source)
+      rows4[#rows4 + 1] = { u.name, Cell(u.cd >= 60 and (math.floor(u.cd / 60) .. " perc") or (u.cd .. " mp"), u.cd), Cell(u.casts, u.casts),
+        u.pct and Cell(Pct(u.pct), u.pct) or Cell("–", -1), from }
+    end
+    out[#out + 1] = Section("combat.cd", "Cooldownok kihasználtsága", {
+      { p = "mért, a harcnapló castjaiból: a harcidő hány százalékában töltődött a képesség (" .. WA.Combat.CD_METHOD .. "; " ..
+        "azonnali képességek, ezért castidő és GCD-várakozás nincs). Csak a Foreverre ellenőrzött cooldownok, és csak az első használat " ..
+        "utáni harcok. Az alacsony érték nem hiba: a harc lehet rövidebb a cooldownnál, vagy a képesség nem volt használható.", muted = true },
+      { table = { id = "combat.cd", cols = { { "Képesség", 120 }, { "Cooldown", 70, "RIGHT" }, { "Cast", 50, "RIGHT" },
+        { "Kihasználtság", 90, "RIGHT" }, { "Miből", 0, flex = true } }, rows = rows4 } } }, true, #rows4)
+  end
   return out
 end
 

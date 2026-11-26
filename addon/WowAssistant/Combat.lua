@@ -110,6 +110,7 @@ function C.Report(fights, limit, advise)
     offhandMissSharePct = (white.n - Landed(white)) > 0 and Pct(offhandMiss, white.n - Landed(white)) or nil,
     finishers = {}, auras = {}, byLevel = {}, recent = {},
     evis = { seen = evisSeen, proven = evisProven, justified = evisJustified },
+    cooldowns = C.CooldownUsage(list),
   }
   for _, name in ipairs(cpOrder) do
     r.finishers[#r.finishers + 1] = { name = name, casts = cp[name].casts, avgCp = cp[name].cp / cp[name].casts }
@@ -130,6 +131,78 @@ function C.Report(fights, limit, advise)
   end
   r.advice = (advise or C.Advise)(r, list)
   return r
+end
+
+-- Cooldown usage: how much of the fight time an ability with a real cooldown spent recharging,
+-- by the WoWAnalyzer method (CastEfficiency, the normal one-charge branch):
+--   usage = (finished recharges + the recharge still running at the fight's end + countable cast
+--   time and GCD waits after a reset) / the observed fight time.
+-- Only abilities whose Forever cooldown is checked (Wowhead Forever, 2026-11-26) and only the
+-- fights after the first one where it was cast (before that it may not have been learned).
+-- All of these are instant and nothing resets them, so the cast time and the GCD wait are 0. A
+-- cooldown still running from the previous fight counts from the pull. Reactive abilities
+-- (Riposte after a parry, Kick on a spellcast) are left out: their availability is an event, so
+-- recharge time does not say what could have been used.
+-- Fights without a cast list (the live damage meter) carry no cast times and are left out.
+C.COOLDOWNS = {
+  { name = "Shank", cd = 10, source = "Wowhead Forever spell=1329283 (10 mp; mellékkéz-fegyver kell)" },
+  { name = "Blade Flurry", cd = 120, source = "Wowhead Forever spell=13877 (2 perc)" },
+  { name = "Kidney Shot", cd = 20, source = "Wowhead Forever spell=408 (20 mp)" },
+  { name = "Arcane Shot", cd = 6, source = "Wowhead Forever spell=3044 (6 mp)" },
+  { name = "Shock", cd = 6, spells = { ["Earth Shock"] = true, ["Flame Shock"] = true, ["Frost Shock"] = true },
+    source = "Wowhead Forever spell=8042 (6 mp, a három shock közös cooldownja: WoWSims Forever d5144855 sim/shaman/shocks.go)" },
+  { name = "Stormstrike", cd = 8, source = "Wowhead Forever spell=17364 (8 mp)" },
+}
+C.CD_METHOD = "WoWAnalyzer CastEfficiency (19e94d2d), normál cooldownos ág"
+
+-- usage for one ability over fights (any order); each fight { start, dur, casts = {{t*10, name}, ...} }
+function C.CooldownUse(fights, spec)
+  local list = {}
+  for _, f in ipairs(fights) do
+    if type(f.casts) == "table" and #f.casts > 0 and (tonumber(f.dur) or 0) > 0 then list[#list + 1] = f end
+  end
+  table.sort(list, function(a, b) return (a.start or 0) < (b.start or 0) end)
+  local function Is(name) return spec.spells and spec.spells[name] or name == spec.name end
+  local first
+  for i, f in ipairs(list) do
+    for _, c in ipairs(f.casts) do if Is(c[2]) then first = i break end end
+    if first then break end
+  end
+  if not first then return nil end
+  local cd = spec.cd
+  local seconds, active, casts, fights, carried = 0, 0, 0, 0, 0
+  local readyAt -- absolute time the ability is ready again
+  for i = first, #list do
+    local f = list[i]
+    local start, dur = f.start or 0, f.dur
+    fights, seconds = fights + 1, seconds + dur
+    local busyUntil = 0 -- seconds into this fight up to which the cooldown was running
+    if readyAt and readyAt > start then
+      busyUntil = math.min(dur, readyAt - start)
+      active, carried = active + busyUntil, carried + busyUntil
+    end
+    for _, c in ipairs(f.casts) do
+      if Is(c[2]) then
+        local t = (tonumber(c[1]) or 0) / 10
+        casts = casts + 1
+        local from = math.max(t, busyUntil) -- log timestamps can overlap the previous recharge by a tick
+        local to = math.min(dur, t + cd)
+        if to > from then active = active + (to - from) busyUntil = to end
+        readyAt = start + t + cd
+      end
+    end
+  end
+  return { name = spec.name, cd = cd, casts = casts, fights = fights, seconds = seconds, active = active, carried = carried,
+    pct = seconds > 0 and active / seconds * 100 or nil, source = spec.source }
+end
+
+function C.CooldownUsage(fights)
+  local out = {}
+  for _, spec in ipairs(C.COOLDOWNS) do
+    local u = C.CooldownUse(fights, spec)
+    if u then out[#out + 1] = u end
+  end
+  return out
 end
 
 -- Findings: what the advice may say about you.
