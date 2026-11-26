@@ -137,7 +137,9 @@ function S.Context(input)
     meleeUptime = mh and (level < 10 and 0.6 or 0.85) or 0,
     imbueMult = ImbuePrior(level, mh, tal),
     flurry = (tal.flurry or 0) > 0 and (0.05 + 0.05 * tal.flurry) or 0,
-    stormPerSec = (storm and level >= 40) and 1 / 20 or 0,
+    -- Stormstrike: 8 s cooldown on Forever (Wowhead Forever spell=17364); the prior is about 80% of
+    -- that (every 10 s), as the shocks' prior leaves room for mana and the global cooldown
+    stormPerSec = (storm and level >= 40) and 1 / 10 or 0,
     shockPerSec = earth and 1 / 11 or 0,
     shockDamage = earth and earth[2] or 0, shockCoef = earth and 0.386 * LowLevel(earth[1]) or 0,
     boltPerSec = level < 10 and 1 / 15 or 1 / 40,
@@ -421,7 +423,8 @@ function S.Score(f, ctx)
   if dur >= 12 and level >= 40 and (storm > 0 or Find(ab, "Stormstrike")) then
     local ss = Find(ab, "Stormstrike")
     local perMin = (ss and ss.n or 0) / dur * 60
-    Part("storm", "Stormstrike cooldownra", math.min(perMin / 2.5, 1) * 10, 10, ("%s Stormstrike percenként (20 mp a cooldown)"):format(F1(perMin)))
+    -- full points at 6 a minute: 80% of the 7.5 an 8 s cooldown allows (Wowhead Forever spell=17364)
+    Part("storm", "Stormstrike cooldownra", math.min(perMin / 6, 1) * 10, 10, ("%s Stormstrike percenként (8 mp a cooldown, legfeljebb 7,5)"):format(F1(perMin)))
   end
   local got, max = 0, 0
   for _, p in ipairs(parts) do got, max = got + p.points, max + p.max end

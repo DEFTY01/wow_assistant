@@ -1,3 +1,7 @@
+## 2.9.1
+
+- Javítva: a Stormstrike cooldownja Foreveren 8 mp (Wowhead Forever), nem 20, mint Classicban. A shaman modell ezért 10 mp-enként számol vele, a cooldownja 80%-ával. A pontszám percenként 6-nál ad teljes pontot (8 mp-es cooldownnal legfeljebb 7,5 lehet), és a szövege is 8 mp-et mond.
+
 ## 2.9.0
 
 Új a harcoldalon: cooldownok kihasználtsága.
