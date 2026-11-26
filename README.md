@@ -121,6 +121,12 @@ számolja, a játék saját adataival:
   magától lekérdezi („Legjobb 10 élő ára” gomb);
 - az ismert recepteket a szakmaablakból olvassa ki: szakmánként egyszer nyisd meg.
 
+Az ablak azt mutatja, mennyi pénzt hoz egy eladás. A **Hányszor gyártod** mezőbe (–/+, Shift-tel
+tízesével, vagy az 1 / 5 / 20 gomb) írt számmal minden recept pontosan annyi gyártásra számol, a
+legolcsóbb hirdetésektől felfelé. A **Legjobb adag** receptenként annyit vesz, amennyi még hasznot
+hoz. Oszlopok: vendorár, költség és haszon darabonként, darabszám (narancs, ha az AH kínálata nem
+elég ennyire), amit a kereskedő fizet, és a tiszta haszon.
+
 A receptadatot az addon egy generált fájlból kapja, amely nincs a gitben. Az elkészítése és
 telepítése: `npm run addon:recipes`.
 

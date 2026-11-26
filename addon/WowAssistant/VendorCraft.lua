@@ -255,6 +255,25 @@ local function Simulate(reag, incomeEach, crafts, stopWhenLosing)
   return bestN, bestProfit, bestCost, first, buyers
 end
 
+-- Exactly `crafts` crafts, cheapest listings first: how many could be bought, their cost, the
+-- cost of the first one, and the buyers (for the shopping list).
+local function CostOf(reag, crafts)
+  local buyers = {}
+  for i = 1, #reag, 2 do buyers[#buyers + 1] = NewBuyer(reag[i]) end
+  local spent, first = 0, nil
+  for n = 1, crafts do
+    local c = 0
+    for k, B in ipairs(buyers) do
+      local x = Take(B, reag[k * 2])
+      if not x then return n - 1, spent, first, buyers end
+      c = c + x
+    end
+    first = first or c
+    spent = spent + c
+  end
+  return crafts, spent, first, buyers
+end
+
 -- Your professions and skill (Game.lua: skill lines or the profession API, whichever the client has).
 local function MyProfessions()
   local mine = {}
@@ -262,7 +281,10 @@ local function MyProfessions()
   return mine
 end
 
-VC.filter = { prof = "mine", skill = "current", known = false, text = "", sort = 7, dir = -1 }
+-- qty: how many times you craft each recipe for one trip to the vendor; nil = the best batch
+-- (as many as still make money with the cheapest listings).
+VC.filter = { prof = "mine", skill = "current", known = false, text = "", sort = 8, dir = -1, qty = nil }
+local SORT_KEYS = { "name", "product", "each", "costEach", "gainEach", "items", "income", "profit" }
 
 local results = {}
 local unpriced = 0
@@ -291,10 +313,18 @@ local function Compute()
     end
     if pass then
       local income = each * r.min
-      local bestN, bestProfit, bestCost, first = Simulate(r.reagents, income, r.cd > 0 and 1 or MAX_CRAFTS, true)
+      local made, profit, cost, first
+      local want = f.qty and math.max(1, math.min(MAX_CRAFTS, f.qty)) or nil
+      if r.cd > 0 then want = want and 1 end
+      if want then
+        made, cost, first = CostOf(r.reagents, want)
+        profit = income * made - cost
+      else
+        made, profit, cost, first = Simulate(r.reagents, income, r.cd > 0 and 1 or MAX_CRAFTS, true)
+      end
       if not first then
         unpriced = unpriced + 1
-      else
+      elseif made > 0 and profit > 0 then
         local avgCost = 0
         for i = 1, #r.reagents, 2 do
           local id, q = r.reagents[i], r.reagents[i + 1]
@@ -304,7 +334,7 @@ local function Compute()
           avgCost = avgCost + unit * q
         end
         local avgProfit = avgCost and (each * (r.min + r.max) / 2 - avgCost)
-        if bestN > 0 or (avgProfit and avgProfit > 0) then
+        do
           local status
           if isKnown then status = "|cff40ff40ismered|r"
           elseif skill and r.orange > skill then status = r.orange .. " skill kell"
@@ -314,17 +344,20 @@ local function Compute()
             for code in (r.sources or ""):gmatch("%d+") do if SOURCE[code] then s[#s + 1] = SOURCE[code] end end
             status = #s > 0 and ("recept: " .. table.concat(s, ", ")) or "recept kell"
           end
+          local items = made * r.min
           results[#results + 1] = {
             r = r, each = each, exact = exact, first = first, firstProfit = income - first,
-            avgCost = avgCost, avgProfit = avgProfit, crafts = bestN, cost = bestCost,
-            income = income * bestN, profit = bestProfit, status = status,
-            capped = r.cd == 0 and bestN >= MAX_CRAFTS,
+            avgCost = avgCost, avgProfit = avgProfit, crafts = made, cost = cost,
+            income = income * made, profit = profit, status = status, items = items,
+            costEach = cost / items, gainEach = profit / items, product = ItemName(r.product),
+            capped = not want and r.cd == 0 and made >= MAX_CRAFTS,
+            short = want and made < want,
           }
         end
       end
     end
   end
-  local key = ({ "name", "each", "firstProfit", "avgProfit", "crafts", "cost", "profit" })[f.sort] or "profit"
+  local key = SORT_KEYS[f.sort] or "profit"
   table.sort(results, function(a, b)
     local x, y = a[key], b[key]
     if key == "name" then x, y = a.r.name, b.r.name end
@@ -472,9 +505,16 @@ local function Signed(c)
   return c >= 0 and ("|cff40ff40+|r" .. Short(c)) or Short(c)
 end
 
+-- { title, width, justify, tooltip }; the last two are what one trip to the vendor brings
 local COLS = {
-  { "Recept", 236, "LEFT" }, { "Termék · vendorár", 196, "LEFT" }, { "1. darab", 80, "RIGHT" },
-  { "Átlagáron", 84, "RIGHT" }, { "Adag", 54, "RIGHT" }, { "Befektetés", 90, "RIGHT" }, { "Haszon", 90, "RIGHT" },
+  { "Recept", 222, "LEFT", "A recept, a szakma és hogy honnan tanulod." },
+  { "Termék", 150, "LEFT", "Amit gyártasz és eladsz." },
+  { "Vendor / db", 70, "RIGHT", "Ennyit fizet a kereskedő egy darabért (a játék saját adata)." },
+  { "Költség / db", 74, "RIGHT", "Az alapanyag ára egy darabra, a legolcsóbb AH-hirdetésektől felfelé." },
+  { "Haszon / db", 72, "RIGHT", "Vendorár mínusz költség, darabonként." },
+  { "Darab", 52, "RIGHT", "Ennyi darabot adsz el. Narancs: ennyire elég az AH kínálata." },
+  { "Eladás", 80, "RIGHT", "Ennyit fizet a kereskedő az egészért." },
+  { "Tiszta haszon", 90, "RIGHT", "Eladás mínusz az alapanyagok ára: ennyivel lesz több pénzed." },
 }
 local W = 900
 local ROW_H = 20
@@ -497,7 +537,7 @@ local function Build()
   local f = St.Window("WowAssistantVendorFrame", W, 0, "Mit érdemes legyártani vendornak")
   local inset = f.inset
   local y0 = -f.top
-  f:SetHeight(f.top + 136 + ROWS * ROW_H + 124)
+  f:SetHeight(f.top + 150 + ROWS * ROW_H + 124)
   f.offset, f.sel = 0, nil
 
   -- filters: profession, skill, known only, search
@@ -542,15 +582,63 @@ local function Build()
     f.cards[i] = c
   end
 
+  -- how many times you craft: one number for every recipe, the values follow it
+  local qy = y0 - 104
+  local ql = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormalSmall")
+  ql:SetPoint("TOPLEFT", inset, qy - 4)
+  ql:SetText("Hányszor gyártod:")
+  local function SetQty(n)
+    VC.filter.qty = n and math.max(1, math.min(MAX_CRAFTS, math.floor(n))) or nil
+    WowAssistantDB.vcQty = VC.filter.qty
+    f.qtyBox.setting = true
+    f.qtyBox:SetText(VC.filter.qty and tostring(VC.filter.qty) or "")
+    f.qtyBox.setting = false
+    dirty = true
+    VC.Refresh()
+  end
+  f.SetQty = SetQty
+  local minus = St.Button(f, "–", 24, function() SetQty((VC.filter.qty or 2) - (IsShiftKeyDown() and 10 or 1)) end)
+  minus:SetPoint("LEFT", ql, "RIGHT", 8, 0)
+  local box = CreateFrame("EditBox", nil, f, "InputBoxTemplate")
+  box:SetSize(46, 20)
+  box:SetPoint("LEFT", minus, "RIGHT", 8, 0)
+  box:SetAutoFocus(false)
+  box:SetNumeric(true)
+  box:SetMaxLetters(4)
+  box:SetFontObject("WowAssistantFontHighlightSmall")
+  box:SetJustifyH("CENTER")
+  box:SetScript("OnTextChanged", function(self)
+    if self.setting then return end
+    local n = tonumber(self:GetText() or "")
+    VC.filter.qty = n and n > 0 and math.min(MAX_CRAFTS, n) or nil
+    WowAssistantDB.vcQty = VC.filter.qty
+    dirty = true
+    VC.Refresh()
+  end)
+  box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
+  box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+  f.qtyBox = box
+  local plus = St.Button(f, "+", 24, function() SetQty((VC.filter.qty or 0) + (IsShiftKeyDown() and 10 or 1)) end)
+  plus:SetPoint("LEFT", box, "RIGHT", 4, 0)
+  f.presets = {}
+  local px = plus
+  for _, p in ipairs({ { 1, "1" }, { 5, "5" }, { 20, "20" }, { nil, "Legjobb adag" } }) do
+    local b = St.Button(f, p[2], p[1] and 34 or 104, function() SetQty(p[1]) end)
+    b:SetPoint("LEFT", px, "RIGHT", px == plus and 12 or 4, 0)
+    b.qty = p[1]
+    f.presets[#f.presets + 1] = b
+    px = b
+  end
+
   f.status = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
-  f.status:SetPoint("TOPLEFT", inset, y0 - 104)
-  f.status:SetPoint("RIGHT", -inset, 0)
-  f.status:SetJustifyH("LEFT")
+  f.status:SetPoint("TOPRIGHT", -inset, qy - 6)
+  f.status:SetWidth(220)
+  f.status:SetJustifyH("RIGHT")
   f.status:SetWordWrap(false)
 
   -- column headers: click to sort
   local x = inset
-  local headY = y0 - 122
+  local headY = y0 - 136
   f.heads = {}
   for i, c in ipairs(COLS) do
     local h = CreateFrame("Button", nil, f)
@@ -567,6 +655,13 @@ local function Build()
       dirty = true
       VC.Refresh()
     end)
+    h:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_TOP")
+      GameTooltip:AddLine(WA.Fix(c[1]), 1, 0.82, 0)
+      GameTooltip:AddLine(WA.Fix(c[4] .. " Kattints: rendezés."), 1, 1, 1, true)
+      GameTooltip:Show()
+    end)
+    h:SetScript("OnLeave", function() GameTooltip:Hide() end)
     f.heads[i] = h
     x = x + c[2] + 4
   end
@@ -627,7 +722,7 @@ local function Build()
   f.note:SetPoint("BOTTOMLEFT", inset, St.Wow() and 16 or 8)
   f.note:SetPoint("RIGHT", -inset, 0)
   f.note:SetJustifyH("LEFT")
-  f.note:SetText("Haszon = amennyit a vendor fizet, mínusz az alapanyag ára. Adag: hány darabot éri meg legyártani a legolcsóbb hirdetésektől felfelé. Görgess a listán; a fejlécre kattintva rendez.")
+  f.note:SetText("Írd be, hányszor gyártasz, és minden sor arra számol. Legjobb adag: receptenként annyi, amennyi a legolcsóbb hirdetésekből még hasznot hoz. Shift + –/+: tízesével. Kattints egy sorra a bevásárlólistáért.")
   f:Hide()
   return f
 end
@@ -640,8 +735,10 @@ local function Detail(res)
     Coins(res.each), res.exact and "" or " |cffff9933(a kliens még nem töltötte be, becsült)|r",
     r.cd > 0 and (" · cooldown " .. math.floor(r.cd / 60) .. " perc") or "")
   if res.crafts > 0 then
-    local _, _, _, _, buyers = Simulate(r.reagents, res.each * r.min, res.crafts, false)
-    lines[2] = ("%d gyártás: befektetés %s, vendor fizet %s, haszon |cff40ff40%s|r"):format(res.crafts, Coins(res.cost), Coins(res.income), Coins(res.profit))
+    local _, _, _, buyers = CostOf(r.reagents, res.crafts)
+    lines[2] = ("%d gyártás = %d db: alapanyag %s, a kereskedő fizet %s, tiszta haszon |cff40ff40%s|r%s"):format(res.crafts, res.items,
+      Coins(res.cost), Coins(res.income), Coins(res.profit),
+      res.short and (" |cffff9933(csak ennyire elég az AH kínálata)|r") or "")
     for k, B in ipairs(buyers) do
       local id = r.reagents[k * 2 - 1]
       local parts = {}
@@ -671,8 +768,10 @@ function VC.Refresh()
   local live = 0
   for _ in pairs(m.live) do live = live + 1 end
   frame.topBtn:SetEnabled(AHOpen() and true or false)
-  frame.status:SetText(("%d recept · AH-szken: %s · élő ár: %d tárgy"):format(#results,
-    m.at and (date("%m.%d %H:%M", m.at) .. (m.src == "web" and " (webapp)" or "")) or "|cffff9933nincs|r", live))
+  frame.status:SetText(("%d recept hoz hasznot"):format(#results))
+  for _, b in ipairs(frame.presets) do
+    if b.qty == f.qty then b:LockHighlight() else b:UnlockHighlight() end
+  end
   -- cards: the best craft now, how many are worth it, how fresh the prices are
   local best, worth = nil, 0
   for _, x in ipairs(results) do
@@ -682,12 +781,12 @@ function VC.Refresh()
     end
   end
   local c1, c2, c3 = frame.cards[1], frame.cards[2], frame.cards[3]
-  c1.label:SetText("LEGJOBB MOST")
+  c1.label:SetText("LEGJOBB EGY ELADÁSRA")
   c1.value:SetText(best and best.r.name or "|cff9e917a–|r")
-  c1.sub:SetText(best and ("|cff5ee05e+" .. Short(best.profit) .. "|r haszon, " .. best.crafts .. "× gyártva") or "egyik sem hoz most hasznot")
+  c1.sub:SetText(best and ("|cff5ee05e+" .. Short(best.profit) .. "|r tisztán · " .. best.items .. " db → " .. Short(best.income)) or "egyik sem hoz most hasznot")
   c2.label:SetText("MEGÉRI")
   c2.value:SetText(("%d recept"):format(worth))
-  c2.sub:SetText(("%d-ből a szűrés szerint"):format(#results))
+  c2.sub:SetText(f.qty and (f.qty .. "× gyártva, receptenként") or "legjobb adaggal, receptenként")
   c3.label:SetText("ÁRAK")
   c3.value:SetText(m.at and date("%m.%d %H:%M", m.at) or "|cffff9933nincs ár|r")
   c3.sub:SetText(m.at and ((m.src == "web" and "webapp AH-adat" or "saját AH-szken") .. (live > 0 and (" · élő: " .. live) or "")) or "fusson a feltöltő, vagy /wa ah")
@@ -700,12 +799,13 @@ function VC.Refresh()
       local r = res.r
       local c = row.cells
       c[1]:SetText(r.name .. " |cff888888" .. (R.professions[r.prof] or "") .. " " .. r.orange .. " · " .. res.status .. "|r")
-      c[2]:SetText(ItemName(r.product) .. (r.min > 1 and (" ×" .. r.min) or "") .. "  " .. Short(res.each) .. (res.exact and "" or "|cffff9933?|r"))
-      c[3]:SetText(Signed(res.firstProfit))
-      c[4]:SetText(Signed(res.avgProfit))
-      c[5]:SetText(res.crafts > 0 and (res.crafts .. (res.capped and "+" or "") .. "×") or "–")
-      c[6]:SetText(res.crafts > 0 and Short(res.cost) or "")
-      c[7]:SetText(res.crafts > 0 and ("|cff40ff40" .. Short(res.profit) .. "|r") or "–")
+      c[2]:SetText(res.product .. (r.min > 1 and (" |cff888888×" .. r.min .. "|r") or ""))
+      c[3]:SetText(Short(res.each) .. (res.exact and "" or "|cffff9933?|r"))
+      c[4]:SetText(Short(res.costEach))
+      c[5]:SetText(Signed(res.gainEach))
+      c[6]:SetText((res.short and "|cffff9933" or "") .. res.items .. (res.capped and "+" or "") .. (res.short and "|r" or ""))
+      c[7]:SetText(Short(res.income))
+      c[8]:SetText("|cff40ff40" .. Short(res.profit) .. "|r")
       row.sel:SetShown(r.spell == frame.sel)
       if r.spell == frame.sel then selRes = res end
       row:Show()
@@ -733,6 +833,10 @@ function VC.Toggle()
   if not R then Print("Hiányzik a receptadat (Recipes.lua): node scripts/build-addon-recipes.mjs --install") return end
   frame = frame or Build()
   if frame:IsShown() then frame:Hide() return end
+  VC.filter.qty = WowAssistantDB and WowAssistantDB.vcQty or VC.filter.qty
+  frame.qtyBox.setting = true
+  frame.qtyBox:SetText(VC.filter.qty and tostring(VC.filter.qty) or "")
+  frame.qtyBox.setting = false
   frame:ClearAllPoints()
   if AHOpen() then frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 4, 0) else frame:SetPoint("CENTER") end
   dirty = true
