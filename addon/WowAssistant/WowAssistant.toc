@@ -1,12 +1,12 @@
 ## Interface: 16001, 120100
-## Title: WoW Assistant
-## Notes: The WoW Assistant web app in game: plan, professions, gear, combat, vendor crafting, session bar and Azeroth Chronicle. /wa
+## Title: Waystone
+## Notes: Adventurer's companion: plan, combat, gear, professions, vendor crafting, session bar and chronicle in one window. /wa
 ## Author: Defty
-## Version: 2.3.1
+## Version: 2.4.0
 ## SavedVariables: WowAssistantDB
 ## SavedVariablesPerCharacter: WowAssistantCharDB
 ## OptionalDeps: SessionBar, AzerothChronicle
-## IconTexture: Interface\Icons\INV_Weapon_ShortBlade_05
+## IconTexture: Interface\AddOns\WowAssistant\Media\Waystone
 ## AddonCompartmentFunc: WowAssistant_OnAddonCompartmentClick
 ## AddonCompartmentFuncOnEnter: WowAssistant_OnAddonCompartmentEnter
 ## AddonCompartmentFuncOnLeave: WowAssistant_OnAddonCompartmentLeave

@@ -52,6 +52,8 @@ visszahozza, `/wa minimap icon` másik ikonra vált.
 ### A webapp a játékban (`/wa`)
 
 A 2.0-s addon egyetlen mappa (`WowAssistant`), benne a korábbi SessionBar és AzerothChronicle is.
+A 2.4.0-tól a nyilvános neve **Waystone** (`/waystone` is működik); a mappa, a mentett adatok és a
+feltöltő ugyanazok maradnak.
 A főablak fülei ugyanazt számolják, mint a webapp, ugyanazzal a kóddal Lua-ra átírva:
 
 - **Haditerv** – mit vegyél, tanulj, gyárts és hol farmolj a meglévő aranyadból (`/wa plan`).
@@ -157,7 +159,7 @@ Minden kiadásnál:
 2. Írd az új verzió szakaszát az `addon/WowAssistant/CHANGELOG.md` tetejére (`## 2.4.0`); ez lesz a
    CurseForge változásnaplója. Ha nem ez a verzió áll legfelül, a szkript megáll.
 3. Ha változtak a receptek vagy a játékadatok, futtasd: `npm run addon:recipes`.
-4. Commitolj, aztán `npm run addon:release` elkészíti a `dist/WowAssistant-<verzió>.zip`-et (csak
+4. Commitolj, aztán `npm run addon:release` elkészíti a `dist/Waystone-<verzió>.zip`-et (csak
    csomagol, nem tölt fel). Ha jó, `npm run addon:publish` feltölti, és helyi `wa-v<verzió>`
    címkét tesz rá (`git push origin wa-v<verzió>`).
 

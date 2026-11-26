@@ -162,7 +162,7 @@ end
 
 local function Build()
   local St = WA.Style
-  local f = St.Window("WowAssistantMainFrame", W, H, "WoW Assistant")
+  local f = St.Window("WowAssistantMainFrame", W, H, "Waystone")
   local inset, top = f.inset, f.top
 
   -- side menu: who, the pages, the other windows

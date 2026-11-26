@@ -1,10 +1,10 @@
-// Packs the WowAssistant addon into a zip for CurseForge and, with --upload, sends it there.
+// Packs the WowAssistant addon (public name: Waystone) into a zip for CurseForge and, with --upload, sends it there.
 //
 // The release runs from this machine, not from GitHub: Recipes.lua and GameData.lua are generated
 // from local data (scripts/build-addon-recipes.mjs) and are not kept in git, so a CI runner could
 // not build a complete addon.
 //
-//   node scripts/release-addon.mjs              zip only: dist/WowAssistant-<version>.zip
+//   node scripts/release-addon.mjs              zip only: dist/Waystone-<version>.zip
 //   node scripts/release-addon.mjs --upload     zip, upload to CurseForge, tag wa-v<version> (local)
 //   node scripts/release-addon.mjs --versions   list CurseForge's WoW game versions (to pick ids)
 //
@@ -135,7 +135,7 @@ function changelog(version) {
   const subjects = git("log", ...range, "--format=%s", "--", "addon/WowAssistant")
     .split("\n").filter(Boolean)
     .map((s) => s.replace(/^WowAssistant[^:]*:\s*/, ""));
-  return `## WoW Assistant ${version}\n\n` + (subjects.length ? subjects.map((s) => `- ${s}`).join("\n") : "- maintenance");
+  return `## Waystone ${version}\n\n` + (subjects.length ? subjects.map((s) => `- ${s}`).join("\n") : "- maintenance");
 }
 
 async function upload(file, name, version, log) {
@@ -146,7 +146,7 @@ async function upload(file, name, version, log) {
   const releaseType = /alpha/i.test(version) ? "alpha" : /beta/i.test(version) ? "beta" : "release";
   const form = new FormData();
   form.append("metadata", JSON.stringify({
-    changelog: log, changelogType: "markdown", displayName: `WoW Assistant ${version}`,
+    changelog: log, changelogType: "markdown", displayName: `Waystone ${version}`,
     gameVersions: versions, releaseType,
   }));
   form.append("file", new Blob([readFileSync(file)], { type: "application/zip" }), name);
@@ -179,7 +179,7 @@ async function main() {
     .map(({ rel, full }) => ({ name: `WowAssistant/${rel}`, data: readFileSync(full) }));
 
   mkdirSync(join(root, "dist"), { recursive: true });
-  const name = `WowAssistant-${version}.zip`;
+  const name = `Waystone-${version}.zip`; // the folder inside stays WowAssistant (saved data, uploader)
   const file = join(root, "dist", name);
   writeFileSync(file, zip(entries));
   const log = changelog(version);

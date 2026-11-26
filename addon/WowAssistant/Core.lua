@@ -25,7 +25,7 @@ WA.commands = {} -- /wa <name> ... handlers: fn(rest, msg)
 WA.help = {}     -- lines for /wa help
 
 -- Chat uses the game's font, which has no ő and ű: WA.Fix (Style.lua) swaps them for ö and ü.
-function WA.Print(msg) DEFAULT_CHAT_FRAME:AddMessage("|cfff0c040WoW Assistant:|r " .. (WA.Fix and WA.Fix(msg) or msg)) end
+function WA.Print(msg) DEFAULT_CHAT_FRAME:AddMessage("|cfff0c040Waystone:|r " .. (WA.Fix and WA.Fix(msg) or msg)) end
 
 local function Copy(v, seen)
   if type(v) ~= "table" then return v end
@@ -185,5 +185,6 @@ end
 WA.Dispatch = Dispatch
 
 SLASH_WOWASSISTANT1 = "/wa"
-SLASH_WOWASSISTANT2 = "/wowassistant"
+SLASH_WOWASSISTANT2 = "/waystone"
+SLASH_WOWASSISTANT3 = "/wowassistant"
 SlashCmdList.WOWASSISTANT = Dispatch

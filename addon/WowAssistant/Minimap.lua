@@ -1,7 +1,7 @@
 -- WoW Assistant: the minimap button.
 --
--- The icon: a rogue's dagger with a gold coin on it (deft hands that make gold). /wa minimap icon
--- switches between a few others. Left click: main window; right click: vendor crafting; shift +
+-- The icon: the Waystone logo (Media/Waystone.tga). /wa minimap icon switches between a few
+-- others. Left click: main window; right click: vendor crafting; shift +
 -- left click: session bar on/off; drag: move it around the minimap. /wa minimap hides or shows it.
 -- Also listed in the addon compartment (the addon list button by the minimap) where the client has one.
 
@@ -9,8 +9,9 @@ local _, WA = ...
 local MB = {}
 WA.Minimap = MB
 
--- { icon, badge (small texture on the bottom right corner, or nil), name }
+-- { icon, badge (small texture on the bottom right corner, or nil), name, whole texture (no crop) }
 local ICONS = {
+  { "Interface\\AddOns\\WowAssistant\\Media\\Waystone", nil, "Waystone", true },
   { "Interface\\Icons\\INV_Weapon_ShortBlade_05", "Interface\\MoneyFrame\\UI-GoldIcon", "tőr és arany" },
   { "Interface\\Icons\\Ability_Rogue_Eviscerate", nil, "Eviscerate" },
   { "Interface\\Icons\\INV_Misc_Coin_01", nil, "aranyérmék" },
@@ -46,6 +47,7 @@ local function SetIcon()
   local d = DB()
   local it = ICONS[d.icon or 1] or ICONS[1]
   button.icon:SetTexture(it[1])
+  if it[4] then button.icon:SetTexCoord(0, 1, 0, 1) else button.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93) end
   if not button.icon:GetTexture() then button.icon:SetTexture(FALLBACK_ICON) end
   if it[2] then button.badge:SetTexture(it[2]) button.badge:Show() else button.badge:Hide() end
 end
@@ -73,7 +75,7 @@ end
 
 local function ShowTooltip(self)
   GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-  GameTooltip:AddLine("WoW Assistant", 1, 0.82, 0)
+  GameTooltip:AddLine("Waystone", 1, 0.82, 0)
   GameTooltip:AddLine(WA.Fix(("%s segédje"):format(UnitName("player") or "")), 0.8, 0.8, 0.8)
   local last = LastFightLine()
   if last then
