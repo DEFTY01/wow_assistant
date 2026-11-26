@@ -734,7 +734,7 @@ local function Add(out, b) if b then out[#out + 1] = b end end
 
 local function NotSupported(tab, title)
   UI.head[tab] = { title, "A sebzésmodell még nem ismeri ezt a kasztot" }
-  return { { empty = { "Egyelőre rogue, hunter, shaman, druid, warlock, mage, warrior és priest", "A sebzésmodell (és vele a Haditerv és a Felszerelés) egyelőre a rogue-ot, a huntert, a shamant, a druidot, a warlockot, a mage-et, a warriort és a priestet ismeri; " ..
+  return { { empty = { "Egyelőre rogue, hunter, shaman, druid, warlock, mage, warrior, priest és paladin", "A sebzésmodell (és vele a Haditerv és a Felszerelés) egyelőre a rogue-ot, a huntert, a shamant, a druidot, a warlockot, a mage-et, a warriort, a priestet és a paladint ismeri; " ..
     "a többi kaszt sorban jön. A Mesterségek és a Vendor gyártás minden karakteren működik." } } }
 end
 
@@ -1131,6 +1131,42 @@ local function PriestSummary(r, ctx, fights)
   return Section("combat.priest", "Priest összesítő (minden harc)", blocks, true, r.fights)
 end
 
+-- Paladins: white swings, Holy Strike, seals, Judgement, Consecration.
+local KIND_PA = { melee = "fehér ütés", hs = "Holy Strike", seal = "seal", judgement = "Judgement", other = "egyéb" }
+local function PaladinSummary(r, ctx, fights)
+  local s = WA.Paladin.Summary(r, ctx, fights)
+  local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
+  local m = s.melee
+  local blocks = {
+    { cards = {
+      { label = "Átlag DPS", value = F1(s.dps), sub = ("%d harc, %d perc"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = "Fehér ütés", value = m and Pct(s.shares.melee) or "–",
+        sub = m and ("miss %s, dodge %s, crit %s"):format(Pct(m.miss), Pct(m.dodge), Pct(m.crit)) or "nincs adat" },
+      { label = "Seal", value = Pct(s.shares.seal), sub = ("Judgement %d%%"):format(math.floor(s.shares.judgement + 0.5)) },
+      { label = "Holy Strike", value = F1(s.hsCpm) .. "/perc", sub = "legfeljebb 6/perc (10 mp cooldown)" },
+    } },
+  }
+  local srcRows = {}
+  for _, k in ipairs({ "melee", "hs", "seal", "judgement", "other" }) do
+    if (s.sources[k] or 0) > 0 then
+      srcRows[#srcRows + 1] = { KIND_PA[k], Cell(Bar(s.shares[k]), s.shares[k]), Cell(s.sources[k], s.sources[k]),
+        Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
+    end
+  end
+  blocks[#blocks + 1] = { h = "Honnan jön a sebzés" }
+  blocks[#blocks + 1] = { table = { id = "combat.pasrc", cols = { { "Forrás", 120 }, { "Arány", 0, flex = true }, { "Sebzés", 80, "RIGHT" },
+    { "DPS", 64, "RIGHT" } }, rows = srcRows } }
+  local rows = {}
+  for _, a in ipairs(s.rows) do
+    rows[#rows + 1] = { a.name, KIND_PA[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
+      Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
+  end
+  blocks[#blocks + 1] = { h = "Képességek: használat percenként és sebzés használatonként" }
+  blocks[#blocks + 1] = { table = { id = "combat.pacpm", cols = { { "Képesség", 0, flex = true }, { "Fajta", 100 }, { "Arány", 60, "RIGHT" },
+    { "Db", 50, "RIGHT" }, { "Percenként", 76, "RIGHT" }, { "Használatonként", 104, "RIGHT" }, { "Átlag találat", 90, "RIGHT", extra = true } }, rows = rows } }
+  return Section("combat.paladin", "Paladin összesítő (minden harc)", blocks, true, r.fights)
+end
+
 -- Warriors: white swings, Heroic Strike, weapon specials, Rend; rage over the maximum.
 local KIND_WR = { melee = "fehér ütés", hs = "Heroic Strike", special = "fegyveres special", dot = "DoT (Rend)", other = "egyéb" }
 local function WarriorSummary(r, ctx, fights)
@@ -1187,6 +1223,7 @@ function UI.pages.combat()
   local mage = G.Class() == "MAGE"
   local warrior = G.Class() == "WARRIOR"
   local priest = G.Class() == "PRIEST"
+  local paladin = G.Class() == "PALADIN"
   local ctx = G.Supported() and G.Context() or nil
   local baseline = ctx and ctx.baseline or nil
   local function Score(x)
@@ -1197,6 +1234,7 @@ function UI.pages.combat()
     if mage then return WA.Mage.Score(x, ctx) end
     if warrior then return WA.Warrior.Score(x, ctx) end
     if priest then return WA.Priest.Score(x, ctx) end
+    if paladin then return WA.Paladin.Score(x, ctx) end
     return WA.Combat.Score(x, WA.Combat.Comparable(x, ctx) and baseline or nil)
   end
   local out = {}
@@ -1218,6 +1256,7 @@ function UI.pages.combat()
         or mage and "DPS a várthoz képest, folyamatos castolás (pálcával együtt), kárba ment manaital vagy mana gem."
         or warrior and "DPS a várthoz képest, folyamatos ütés, a 100 fölött elveszett rage (a harcnapló rage-eseményeiből)."
         or priest and "DPS a várthoz képest, folyamatos castolás (pálcával együtt), Shadow Word: Pain a hosszabb harcban, kárba ment manaital."
+        or paladin and "DPS a várthoz képest, folyamatos ütés, Holy Strike a cooldownjához képest, kárba ment manaital."
         or "DPS a felszerelésedtől várthoz képest, kárba ment energia, Eviscerate combo pontjai, Slice and Dice uptime, képességek percenként." },
     { label = "DPS", value = P.dps.text, sub = P.dps.status .. (P.model and P.model.value and (" · várt " .. P.model.text .. " (szimulált)") or ""),
       tip = P.dps.from .. (P.model and ("\nVárt: " .. P.model.from) or "") },
@@ -1242,6 +1281,9 @@ function UI.pages.combat()
     end)() or priest and (function()
       local _, sh = WA.Priest.Sources(f.ab, f.dmg)
       return { label = "Varázslat része", value = Pct(sh.nuke + sh.flay + sh.dot), sub = ("DoT %d%%, pálca %d%%"):format(math.floor(sh.dot + 0.5), math.floor(sh.wand + 0.5)) }
+    end)() or paladin and (function()
+      local _, sh = WA.Paladin.Sources(f.ab, f.dmg)
+      return { label = "Fehér ütés része", value = Pct(sh.melee), sub = ("seal %d%%, Holy Strike %d%%"):format(math.floor(sh.seal + 0.5), math.floor(sh.hs + 0.5)) }
     end)() or { label = "Sebzés", value = tostring(f.dmg or 0), sub = (f.ab and #f.ab or 0) .. " képesség" },
     { label = "Hossz", value = F1(f.dur) .. " mp", sub = f.casts and (#f.casts .. " használat") or "" },
   } }
@@ -1303,7 +1345,7 @@ function UI.pages.combat()
   end
 
   -- all fights together (the web app's combat page)
-  local r = WA.Combat.Report(all, nil, hunter and WA.Hunter.Advise or shaman and WA.Shaman.Advise or druid and WA.Druid.Advise or warlock and WA.Warlock.Advise or mage and WA.Mage.Advise or warrior and WA.Warrior.Advise or priest and WA.Priest.Advise or nil)
+  local r = WA.Combat.Report(all, nil, hunter and WA.Hunter.Advise or shaman and WA.Shaman.Advise or druid and WA.Druid.Advise or warlock and WA.Warlock.Advise or mage and WA.Mage.Advise or warrior and WA.Warrior.Advise or priest and WA.Priest.Advise or paladin and WA.Paladin.Advise or nil)
   if not r then return out end
   if hunter then out[#out + 1] = HunterSummary(r, ctx) end
   if shaman then out[#out + 1] = ShamanSummary(r, ctx) end
@@ -1312,6 +1354,7 @@ function UI.pages.combat()
   if mage then out[#out + 1] = MageSummary(r, ctx, all) end
   if warrior then out[#out + 1] = WarriorSummary(r, ctx, all) end
   if priest then out[#out + 1] = PriestSummary(r, ctx, all) end
+  if paladin then out[#out + 1] = PaladinSummary(r, ctx, all) end
   if #r.advice > 0 then
     local tips = {}
     for _, a in ipairs(r.advice) do tips[#tips + 1] = { level = a.level, title = a.title, text = a.text } end
@@ -1687,6 +1730,13 @@ function UI.pages.gear()
       { label = "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)), sub = "főkéz " .. Weapon(sh.mh) },
       { label = "Crit", value = Pct(sh.crit), sub = sh.oh and ("balkéz " .. Weapon(sh.oh)) or "nincs második fegyver" },
       { label = "Rage / mp", value = F1(WA.Warrior.WhiteRage(sh, ctx.params)), sub = "a fehér ütésekből (Forever szabály)" },
+    } }
+  elseif ctx.class == "PALADIN" then
+    out[#out + 1] = { cards = {
+      dpsCard,
+      { label = "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)), sub = "fegyver " .. Weapon(sh.mh) },
+      { label = "Crit", value = Pct(sh.crit), sub = "hit " .. Pct(sh.hit) },
+      { label = "Spell power", value = tostring(math.floor((sh.sp or 0) + 0.5)), sub = "holy: Holy Strike, seal" },
     } }
   elseif ctx.class == "PRIEST" then
     out[#out + 1] = { cards = {

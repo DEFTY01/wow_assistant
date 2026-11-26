@@ -1,3 +1,21 @@
+## 2.17.0
+
+Paladin: saját modell, harcoldal és Haditerv. Ezzel mind a kilenc kasztnak van sebzésmodellje.
+
+- A paladinnak saját sebzésmodellje van (Paladin.lua), a Wowhead Forever adatai alapján:
+  - fehér ütések, 1 strength = 2 AP, az agility critet ad, egy fegyver (a paladin nem forgat két fegyvert);
+  - Holy Strike (a Forever saját paladin-ütése, 10 mp cooldown): a fegyver sebzésének 25–50%-a + rangonként fix holy sebzés (6-os szinten 11–14, 60-ason 97–121) + a spell power 0,429-e;
+  - Seal of Righteousness: holy sebzés minden ütésre, rangonként a tooltip képletéből (R/87–R/25 + a spell power 7,65–12%-a), a harcaid pontosítják;
+  - Seal of Command (Retribution talent): az ütés 70%-a holy sebzésként esélyre; a Wowhead nem mutat proc-gyakoriságot, ezért a harcaidban mért arányt használja;
+  - Judgement, Consecration, Exorcism és a Retribution Aura a harcaidból mérve;
+  - szövet, bőr, mail, pajzs, és 40-től plate; fejsze, buzogány, kard, polearm.
+- Harcoldal paladinnak:
+  - pontszám: DPS a várthoz képest, folyamatos ütés, Holy Strike a cooldownjához képest (a harc hosszába hány fér), kárba ment manaital;
+  - "Paladin összesítő": fehér ütés, Holy Strike, seal, Judgement és a többi aránya; miss, dodge, crit; Holy Strike percenként.
+- Tanácsok paladinnak: a teli manánál ivott manaital hiba, ha a harcnapló igazolja; ha sok fehér ütés mellett egyik sebző seal sem sebez, az megfigyelés (az aura-eseményeket az addon nem rögzíti, így nem tudni, melyik seal volt fent).
+- Holy talentfán a gyógyító, Protection talentfán a tank súlyok maradnak az enchant részben.
+- Haditerv: a paladin trainer képességei fontosság szerint.
+
 ## 2.16.0
 
 Priest: saját modell, harcoldal és Haditerv.

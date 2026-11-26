@@ -192,6 +192,13 @@ M.CLASSES = {
       [10] = true, [13] = true, [15] = true, [16] = true, [18] = true },
     slots = { "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
   },
+  -- cloth, leather, mail, plate from 40, shields; axes, maces, swords and polearms, one weapon
+  -- (Paladin.lua)
+  PALADIN = {
+    armor = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [6] = true }, plateFrom = 40,
+    weapon = { [0] = true, [1] = true, [4] = true, [5] = true, [6] = true, [7] = true, [8] = true },
+    slots = { "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
+  },
   -- cloth; daggers, one-hand maces, staves, and a wand in the ranged slot (Priest.lua)
   PRIEST = {
     armor = { [0] = true, [1] = true },
@@ -318,6 +325,7 @@ function M.Context(input)
   if input.class == "MAGE" and WA.Mage then return WA.Mage.Context(input) end
   if input.class == "WARRIOR" and WA.Warrior then return WA.Warrior.Context(input) end
   if input.class == "PRIEST" and WA.Priest then return WA.Priest.Context(input) end
+  if input.class == "PALADIN" and WA.Paladin then return WA.Paladin.Context(input) end
   return M.RogueContext(input)
 end
 

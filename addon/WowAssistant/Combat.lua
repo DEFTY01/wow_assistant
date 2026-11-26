@@ -234,7 +234,7 @@ end
 -- healer specs, which plan gear only - no HPS or rotation score can be proven from them. The
 -- engine builds a level 60 character only (sim/core/constants.go CharacterLevel = 60). "waystone"
 -- marks the classes the addon's own levelling model covers (Model.lua, Hunter.lua, Shaman.lua, Druid.lua,
--- Warlock.lua, Mage.lua, Warrior.lua, Priest.lua).
+-- Warlock.lua, Mage.lua, Warrior.lua, Priest.lua, Paladin.lua).
 -- tabs: the talent tabs in the game's order, each with the engine's spec for it.
 C.SIM_SOURCE = "WoWSims Forever d5144855 sim/register_all.go"
 C.CLASS_MODELS = {
@@ -242,7 +242,8 @@ C.CLASS_MODELS = {
   HUNTER = { name = "Hunter", waystone = true, tabs = { { "Beast Mastery", "Alpha" }, { "Marksmanship", "Alpha" }, { "Survival", "Alpha" } },
     shared = "egy közös Hunter-modul" },
   MAGE = { name = "Mage", waystone = true, tabs = { { "Arcane", "Alpha" }, { "Fire", "Alpha" }, { "Frost", "Alpha" } }, shared = "egy közös Mage-modul" },
-  PALADIN = { name = "Paladin", tabs = { { "Holy", "GearPlanner" }, { "Protection", "Alpha" }, { "Retribution", "Alpha" } } },
+  PALADIN = { name = "Paladin", waystone = true, tabs = { { "Holy", "GearPlanner" }, { "Protection", "Alpha" }, { "Retribution", "Alpha" } },
+    note = "Retribution: a DPS-modell; Holy: gyógyító, Protection: tank súlyok az enchantnál" },
   PRIEST = { name = "Priest", waystone = true, tabs = { { "Discipline", "GearPlanner" }, { "Holy", "GearPlanner" }, { "Shadow", "Alpha" } },
     note = "Discipline és Holy: a gyógyító (Healer) modell; Shadow: a DPS-modell" },
   ROGUE = { name = "Rogue", waystone = true, tabs = { { "Assassination", "Alpha" }, { "Combat", "Alpha" }, { "Subtlety", "Alpha" } },
@@ -354,6 +355,8 @@ C.RULES = {
     source = SIM .. "sim/core/rage.go AddRage (új rage = min(jelenlegi + kapott, maximum)); a harcnapló rage-eseménye kiírja a maximum fölötti részt" },
   hsDump = { text = "a Heroic Strike a következő ütéshez ad sebzést 15 rage-ért", verified = true,
     source = WH .. "78; " .. SIM .. "sim/warrior/heroic_strike_cleave.go" },
+  sealDamage = { text = "a Seal of Righteousness minden fehér ütésre, a Seal of Command esélyre ad holy sebzést; a többi seal nem sebez", verified = true,
+    source = WH .. "20154; " .. WH .. "20915; " .. WH .. "20424" },
   wandFlat = { text = "a pálca sebzése nem nő a spell powerrel", verified = true,
     source = SIM .. "sim/core/wand.go" },
   lightningShield = { text = "a Lightning Shield megsebzi azt, aki megüt (8-tól)", verified = true,

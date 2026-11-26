@@ -67,7 +67,16 @@ local NO_HIT = { ["Slice and Dice"] = true, Stealth = true, Vanish = true, Sprin
   ["Power Word: Fortitude"] = true, ["Prayer of Fortitude"] = true, ["Inner Fire"] = true, ["Power Word: Shield"] = true, Renew = true,
   ["Lesser Heal"] = true, Heal = true, ["Flash Heal"] = true, ["Greater Heal"] = true, ["Prayer of Healing"] = true, Fade = true,
   Shadowform = true, ["Inner Focus"] = true, ["Power Infusion"] = true, ["Shadow Protection"] = true, ["Divine Spirit"] = true,
-  ["Psychic Scream"] = true, ["Cure Disease"] = true, ["Abolish Disease"] = true, Levitate = true, ["Fear Ward"] = true }
+  ["Psychic Scream"] = true, ["Cure Disease"] = true, ["Abolish Disease"] = true, Levitate = true, ["Fear Ward"] = true,
+  -- paladin: seals (their damage comes as its own event), Judgement (its damage is "Judgement of ..."),
+  -- blessings, auras, heals, Hammer of Justice
+  ["Seal of Righteousness"] = true, ["Seal of Command"] = true, ["Seal of the Crusader"] = true, ["Seal of Wisdom"] = true,
+  ["Seal of Light"] = true, ["Seal of Justice"] = true, Judgement = true, ["Blessing of Might"] = true, ["Blessing of Wisdom"] = true,
+  ["Blessing of Kings"] = true, ["Blessing of Salvation"] = true, ["Blessing of Protection"] = true, ["Blessing of Freedom"] = true,
+  ["Blessing of Light"] = true, ["Blessing of Sanctuary"] = true, ["Devotion Aura"] = true, ["Retribution Aura"] = true,
+  ["Concentration Aura"] = true, ["Sanctity Aura"] = true, ["Holy Light"] = true, ["Flash of Light"] = true, ["Lay on Hands"] = true,
+  ["Divine Protection"] = true, ["Divine Shield"] = true, ["Righteous Fury"] = true, Purify = true, Cleanse = true,
+  ["Hammer of Justice"] = true, ["Holy Shield"] = true }
 
 -- Hunter pet abilities that do damage (the damage meter may list them under the owner).
 local PET_SPELL = { Claw = true, Bite = true, ["Lightning Breath"] = true, ["Scorpid Poison"] = true, Screech = true,
