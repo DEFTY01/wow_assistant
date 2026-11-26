@@ -42,7 +42,12 @@ local NO_HIT = { ["Slice and Dice"] = true, Stealth = true, Vanish = true, Sprin
   ["Lightning Shield"] = true, ["Ghost Wolf"] = true, ["Healing Wave"] = true, ["Lesser Healing Wave"] = true, ["Chain Heal"] = true,
   ["Searing Totem"] = true, ["Magma Totem"] = true, ["Fire Nova Totem"] = true, ["Strength of Earth Totem"] = true,
   ["Stoneskin Totem"] = true, ["Grace of Air Totem"] = true, ["Windfury Totem"] = true, ["Mana Spring Totem"] = true,
-  ["Healing Stream Totem"] = true, ["Earthbind Totem"] = true, ["Tremor Totem"] = true, ["Totemic Recall"] = true }
+  ["Healing Stream Totem"] = true, ["Earthbind Totem"] = true, ["Tremor Totem"] = true, ["Totemic Recall"] = true,
+  -- druid: forms, buffs and heals (Rake and Rip hit; their bleed comes later, as a dot)
+  ["Cat Form"] = true, ["Bear Form"] = true, ["Dire Bear Form"] = true, ["Travel Form"] = true, ["Aquatic Form"] = true,
+  ["Moonkin Form"] = true, Prowl = true, Dash = true, ["Mark of the Wild"] = true, Thorns = true, ["Healing Touch"] = true,
+  Rejuvenation = true, Regrowth = true, Innervate = true, Barkskin = true, ["Shifting Power"] = true, Enrage = true,
+  ["Frenzied Regeneration"] = true }
 
 -- Hunter pet abilities that do damage (the damage meter may list them under the owner).
 local PET_SPELL = { Claw = true, Bite = true, ["Lightning Breath"] = true, ["Scorpid Poison"] = true, Screech = true,

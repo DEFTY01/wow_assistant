@@ -351,6 +351,20 @@ function G.ModelInput()
     input.spellCrit = GetSpellCritChance and (GetSpellCritChance(4) or 0) or 0
     local known = KnownSpells()
     if known then input.known = { Stormstrike = known.Stormstrike or nil } end
+  elseif input.class == "DRUID" then
+    local _, int = UnitStat("player", 4)
+    input.int = int or 0
+    -- nature (school 4): Wrath and Moonfire's nature part
+    input.sp = GetSpellBonusDamage and (GetSpellBonusDamage(4) or 0) or 0
+    input.spellCrit = GetSpellCritChance and (GetSpellCritChance(4) or 0) or 0
+    -- the shapeshift form now (1 Cat, 5 Bear, 8 Dire Bear, 31 Moonkin): attack power read in Cat
+    -- Form is kept for when the sheet is read in another form
+    local id = GetShapeshiftFormID and GetShapeshiftFormID() or nil
+    input.form = id == 1 and "cat" or (id == 5 or id == 8) and "bear" or id == 31 and "moonkin" or id and "other" or "caster"
+    if input.form == "cat" and WA.charDB then WA.charDB.catAp = input.ap end
+    input.catAp = WA.charDB and WA.charDB.catAp or nil
+    local known = KnownSpells()
+    if known then input.known = { ["Cat Form"] = known["Cat Form"] or false } end
   end
   return input
 end
@@ -456,7 +470,7 @@ function G.PlanInput(ctx)
   local warnings = {}
   local c = WA.char or {}
   if not c.bankAt then warnings[#warnings + 1] = "A bank tartalma ismeretlen: nyisd meg egyszer a bankot." end
-  local classHu = ({ ROGUE = "rogue", HUNTER = "hunter", SHAMAN = "shaman" })[ctx.class] or "class"
+  local classHu = ({ ROGUE = "rogue", HUNTER = "hunter", SHAMAN = "shaman", DRUID = "druid" })[ctx.class] or "class"
   if #trainer == 0 then warnings[#warnings + 1] = ("Nincs trainer-adat: nyisd meg a %s trainer ablakát minden szűrővel."):format(classHu) end
   if ctx.class == "HUNTER" and not (WA.char and WA.char.spells and #WA.char.spells > 0) then
     warnings[#warnings + 1] = "A varázskönyved még nincs beolvasva: /reload után az addon megnézi, mit tudsz (Aimed Shot, Multi-Shot, pet)."

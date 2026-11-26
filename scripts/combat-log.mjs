@@ -15,11 +15,12 @@
 // a pet counts only when the log's own flags say it is ours (affiliation "mine", pet/guardian).
 // Each fight says so in its `basis`, which the addon shows next to the numbers.
 //
-// Every Eviscerate is kept with the state of the decision (fight.evis): the combo points it
+// Every Eviscerate and Ferocious Bite is kept with the state of the decision (fight.evis; a
+// Ferocious Bite carries spell: "Ferocious Bite", an Eviscerate no spell field): the combo points it
 // spent (the cast's power cost "energy|combo points"), the target's health before the hit (the
 // damage event's advanced block describes the target: health after the hit + the damage), the
 // damage, whether it killed, and how long the target lived after it (its death, or at least
-// until our last hit on it). The addon decides from these whether a low-point Eviscerate was a
+// until our last hit on it). The addon decides from these whether a low-point finisher was a
 // mistake.
 
 // Everything lives inside the function on purpose: the web app serves this function's own
@@ -32,7 +33,9 @@
 export function parseCombatLog(text, character, opts = {}) {
   const FIGHT_GAP = 8; // seconds without any action of ours ends a fight
   const MAX_CASTS = 150;
-  const FINISHERS = new Set(["Eviscerate", "Slice and Dice", "Rupture", "Kidney Shot", "Expose Armor"]);
+  const FINISHERS = new Set(["Eviscerate", "Slice and Dice", "Rupture", "Kidney Shot", "Expose Armor", "Rip", "Ferocious Bite"]);
+  // direct-damage finishers whose decision is kept in fight.evis
+  const PROVABLE = new Set(["Eviscerate", "Ferocious Bite"]);
   const COMBO_POINTS = "4";
   const ENERGY = "3";
   // Things done between fights: they must neither start a fight nor glue two fights together.
@@ -96,7 +99,7 @@ export function parseCombatLog(text, character, opts = {}) {
     const evis = f.evis.map((e) => {
       const died = deaths[e.guid];
       const end = died != null && died >= e.at ? died : Math.max(lastHit[e.guid] ?? e.at, e.at);
-      const out = { t: e.t, cp: e.cp, target: e.target, landed: e.landed ?? null, dmg: e.dmg ?? null, crit: e.crit ?? null,
+      const out = { spell: e.spell, t: e.t, cp: e.cp, target: e.target, landed: e.landed ?? null, dmg: e.dmg ?? null, crit: e.crit ?? null,
         blocked: e.blocked || undefined,
         killed: e.killed ?? null, hpBefore: e.hpBefore ?? null, maxHp: e.maxHp ?? null,
         lived: round1(end - e.at), livedKnown: died != null && died >= e.at };
@@ -255,7 +258,7 @@ export function parseCombatLog(text, character, opts = {}) {
       if (f[12] === f[5]) fight.levels[f[6]] = Number(f[30]) || fight.levels[f[6]];
       // the Eviscerate just cast: the target's health and what the hit did
       const e = fight.evisPending;
-      if (ev === "SPELL_DAMAGE" && f[10] === "Eviscerate" && e && e.guid === f[5] && t - e.at <= 1.5) {
+      if (ev === "SPELL_DAMAGE" && e && f[10] === e.name && e.guid === f[5] && t - e.at <= 1.5) {
         fight.evisPending = null;
         const hpAfter = f[12] === f[5] ? Number(f[14]) : NaN;
         e.rec.landed = true;
@@ -273,7 +276,7 @@ export function parseCombatLog(text, character, opts = {}) {
       const a = ability(f[10]);
       a.n++;
       a[MISS[f[12]] ?? "other"]++;
-      if (f[10] === "Eviscerate" && fight.evisPending?.guid === f[5]) {
+      if (fight.evisPending && f[10] === fight.evisPending.name && fight.evisPending.guid === f[5]) {
         fight.evisPending.rec.landed = false;
         fight.evisPending = null;
       }
@@ -289,16 +292,20 @@ export function parseCombatLog(text, character, opts = {}) {
         // Finishers report combo points in the power fields, not energy: -1 marks "unknown".
         const isEnergy = f[22] === ENERGY;
         const energy = isEnergy ? Number(f[23]) : -1;
+        // a finisher's combo points: from the cast's own cost when the log lists them, else counted
+        const spentCp = FINISHERS.has(name) ? costOf(f[22], f[25], COMBO_POINTS) : NaN;
+        const castCp = Number.isFinite(spentCp) && spentCp > 0 ? spentCp : cp;
         if (fight.casts.length < MAX_CASTS) {
-          fight.casts.push([Math.round((t - fight.t0) * 10), name, Number.isFinite(energy) ? energy : -1, cp]);
+          fight.casts.push([Math.round((t - fight.t0) * 10), name, Number.isFinite(energy) ? energy : -1, castCp]);
         }
         if (isEnergy && f[12] === f[1]) sampleEnergy(t, energy, Number(f[24]));
-        if (name === "Eviscerate") {
+        if (PROVABLE.has(name)) {
           // combo points from the cast's own cost, else from what we counted
           const spent = costOf(f[22], f[25], COMBO_POINTS);
           const rec = { t: Math.round((t - fight.t0) * 10), cp: Number.isFinite(spent) && spent > 0 ? spent : cp, target: f[6] };
+          if (name !== "Eviscerate") rec.spell = name;
           fight.evis.push(rec);
-          fight.evisPending = { guid: f[5], at: t, rec };
+          fight.evisPending = { guid: f[5], at: t, rec, name };
           rec.guid = f[5];
           rec.at = t;
         }

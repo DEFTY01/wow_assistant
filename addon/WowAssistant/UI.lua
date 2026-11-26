@@ -734,7 +734,7 @@ local function Add(out, b) if b then out[#out + 1] = b end end
 
 local function NotSupported(tab, title)
   UI.head[tab] = { title, "A sebzésmodell még nem ismeri ezt a kasztot" }
-  return { { empty = { "Egyelőre rogue, hunter és shaman", "A sebzésmodell (és vele a Haditerv és a Felszerelés) egyelőre a rogue-ot, a huntert és a shamant ismeri; " ..
+  return { { empty = { "Egyelőre rogue, hunter, shaman és druid", "A sebzésmodell (és vele a Haditerv és a Felszerelés) egyelőre a rogue-ot, a huntert, a shamant és a druidot ismeri; " ..
     "a többi kaszt sorban jön. A Mesterségek és a Vendor gyártás minden karakteren működik." } } }
 end
 
@@ -977,6 +977,47 @@ local function ShamanSummary(r, ctx)
   return Section("combat.shaman", "Shaman összesítő (minden harc)", blocks, true, r.fights)
 end
 
+-- Druids: the same summary (paw, Cat Form abilities, bleeds, bear, spells; bleed uptime from the
+-- ticks, finisher combo points, energy at the cap).
+local KIND_DR = { melee = "mancs / közelharc", cat = "Cat Form", bleed = "vérzés", bear = "medve", spell = "varázslat", other = "egyéb" }
+local function DruidSummary(r, ctx)
+  local s = WA.Druid.Summary(r, ctx)
+  local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
+  local blocks = {
+    { cards = {
+      { label = "Átlag DPS", value = F1(s.dps), sub = ("%d harc, %d perc"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = "Rake", value = s.rake and Pct(s.rake) or "–", sub = "vérzés a harcidőben",
+        tip = "A Rake tickjeiből: tickenként 3 mp vérzés (Wowhead Forever spell=1822), osztva az összes harcidővel." },
+      { label = "Rip", value = s.rip and Pct(s.rip) or "–", sub = s.ripCp and ("átlag " .. F1(s.ripCp) .. " combo pont") or "vérzés a harcidőben",
+        tip = "A Rip tickjeiből: tickenként 2 mp vérzés (Wowhead Forever spell=1079), osztva az összes harcidővel." },
+      { label = "Energia tele", value = s.energyCapped and Pct(s.energyCapped) or "–", sub = s.biteCp and ("Bite átlag " .. F1(s.biteCp) .. " pont") or "Cat Formban",
+        tip = "A harcnapló energiaértékeiből: az idő hány százalékában álltál teli energiával." },
+    } },
+  }
+  local srcRows = {}
+  for _, k in ipairs({ "melee", "cat", "bleed", "bear", "spell", "other" }) do
+    if (s.sources[k] or 0) > 0 then
+      srcRows[#srcRows + 1] = { KIND_DR[k], Cell(Bar(s.shares[k]), s.shares[k]), Cell(s.sources[k], s.sources[k]),
+        Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
+    end
+  end
+  blocks[#blocks + 1] = { h = "Honnan jön a sebzés" }
+  blocks[#blocks + 1] = { table = { id = "combat.dsrc", cols = { { "Forrás", 120 }, { "Arány", 0, flex = true }, { "Sebzés", 80, "RIGHT" },
+    { "DPS", 64, "RIGHT" } }, rows = srcRows } }
+  local rows = {}
+  for _, a in ipairs(s.rows) do
+    rows[#rows + 1] = { a.name, KIND_DR[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
+      Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
+  end
+  blocks[#blocks + 1] = { h = "Képességek: használat percenként és sebzés használatonként" }
+  blocks[#blocks + 1] = { table = { id = "combat.dcpm", cols = { { "Képesség", 0, flex = true }, { "Fajta", 100 }, { "Arány", 60, "RIGHT" },
+    { "Db", 50, "RIGHT" }, { "Percenként", 76, "RIGHT" }, { "Használatonként", 104, "RIGHT" }, { "Átlag találat", 90, "RIGHT", extra = true } }, rows = rows } }
+  if s.meleeMiss then
+    blocks[#blocks + 1] = { p = ("Közelharc: %s miss/dodge/parry, %s crit."):format(Pct(s.meleeMiss), Pct(s.meleeCrit)), muted = true }
+  end
+  return Section("combat.druid", "Druid összesítő (minden harc)", blocks, true, r.fights)
+end
+
 function UI.pages.combat()
   local all = G.Fights()
   table.sort(all, function(a, b) return a.start > b.start end)
@@ -989,11 +1030,13 @@ function UI.pages.combat()
   end
   local hunter = G.Class() == "HUNTER"
   local shaman = G.Class() == "SHAMAN"
+  local druid = G.Class() == "DRUID"
   local ctx = G.Supported() and G.Context() or nil
   local baseline = ctx and ctx.baseline or nil
   local function Score(x)
     if hunter then return WA.Hunter.Score(x, ctx) end
     if shaman then return WA.Shaman.Score(x, ctx) end
+    if druid then return WA.Druid.Score(x, ctx) end
     return WA.Combat.Score(x, WA.Combat.Comparable(x, ctx) and baseline or nil)
   end
   local out = {}
@@ -1010,6 +1053,7 @@ function UI.pages.combat()
     { label = "Pontszám", value = Grade(sc), sub = sc and "0–100, S a legjobb" or "nincs elég adat",
       tip = hunter and "DPS a várthoz képest, Auto Shot folyamatossága, a pet része, távolság, Serpent Sting, lövések percenként."
         or shaman and "DPS a várthoz képest, ütések folyamatossága, shock percenként, totem a hosszú harcban, Stormstrike cooldownra."
+        or druid and "DPS a várthoz képest; Cat Formban ütések folyamatossága, kárba ment energia, finisherek combo pontjai, Rake; Cat Form nélkül varázslatok percenként."
         or "DPS a felszerelésedtől várthoz képest, kárba ment energia, Eviscerate combo pontjai, Slice and Dice uptime, képességek percenként." },
     { label = "DPS", value = P.dps.text, sub = P.dps.status .. (P.model and P.model.value and (" · várt " .. P.model.text .. " (szimulált)") or ""),
       tip = P.dps.from .. (P.model and ("\nVárt: " .. P.model.from) or "") },
@@ -1019,6 +1063,9 @@ function UI.pages.combat()
     end)() or shaman and (function()
       local _, sh = WA.Shaman.Sources(f.ab, f.dmg)
       return { label = "Közelharc része", value = Pct(sh.melee + sh.imbue), sub = ("varázslat %d%%, totem %d%%"):format(math.floor(sh.spell + 0.5), math.floor(sh.totem + 0.5)) }
+    end)() or druid and (function()
+      local _, sh = WA.Druid.Sources(f.ab, f.dmg)
+      return { label = "Cat Form része", value = Pct(sh.melee + sh.cat + sh.bleed), sub = ("vérzés %d%%, varázslat %d%%"):format(math.floor(sh.bleed + 0.5), math.floor(sh.spell + 0.5)) }
     end)() or { label = "Sebzés", value = tostring(f.dmg or 0), sub = (f.ab and #f.ab or 0) .. " képesség" },
     { label = "Hossz", value = F1(f.dur) .. " mp", sub = f.casts and (#f.casts .. " használat") or "" },
   } }
@@ -1080,10 +1127,11 @@ function UI.pages.combat()
   end
 
   -- all fights together (the web app's combat page)
-  local r = WA.Combat.Report(all, nil, hunter and WA.Hunter.Advise or shaman and WA.Shaman.Advise or nil)
+  local r = WA.Combat.Report(all, nil, hunter and WA.Hunter.Advise or shaman and WA.Shaman.Advise or druid and WA.Druid.Advise or nil)
   if not r then return out end
   if hunter then out[#out + 1] = HunterSummary(r, ctx) end
   if shaman then out[#out + 1] = ShamanSummary(r, ctx) end
+  if druid then out[#out + 1] = DruidSummary(r, ctx) end
   if #r.advice > 0 then
     local tips = {}
     for _, a in ipairs(r.advice) do tips[#tips + 1] = { level = a.level, title = a.title, text = a.text } end
@@ -1379,6 +1427,14 @@ function UI.pages.gear()
     out[#out + 1] = { cards = {
       dpsCard,
       { label = "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)), sub = "fegyver " .. Weapon(sh.mh) },
+      { label = "Crit", value = Pct(sh.crit), sub = "spell crit " .. Pct(sh.spellCrit or 0) },
+      { label = "Spell power", value = tostring(math.floor((sh.sp or 0) + 0.5)), sub = "hit " .. Pct(sh.hit) },
+    } }
+  elseif ctx.class == "DRUID" then
+    out[#out + 1] = { cards = {
+      dpsCard,
+      { label = ctx.params.cat and "Attack power (Cat)" or "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)),
+        sub = ctx.params.cat and ("mancs " .. F1(WA.Druid.PawAvg(sh.mh)) .. " DPS") or ("fegyver " .. Weapon(sh.mh)) },
       { label = "Crit", value = Pct(sh.crit), sub = "spell crit " .. Pct(sh.spellCrit or 0) },
       { label = "Spell power", value = tostring(math.floor((sh.sp or 0) + 0.5)), sub = "hit " .. Pct(sh.hit) },
     } }

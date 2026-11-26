@@ -34,6 +34,8 @@ export interface Fight {
 }
 
 export interface EvisCast {
+  /** unset for an Eviscerate; "Ferocious Bite" for a druid's bite */
+  spell?: string;
   t: number; // tenths of a second from the fight's start
   cp: number;
   target?: string;
@@ -77,7 +79,8 @@ export function evisEvidence(fights: Fight[]): EvisEvidence {
   const out: EvisEvidence = { seen: 0, proven: [], justified: 0, unchecked: 0 };
   for (const f of fights) {
     if (Array.isArray(f.evis)) {
-      for (const e of f.evis) {
+      // Ferocious Bite records (spell set, from 2.11.0) are the addon's druid page's, not Eviscerates
+      for (const e of f.evis.filter((x) => !x.spell)) {
         out.seen++;
         const x = evisMistake(e);
         if (x === true) out.proven.push({ start: f.start, e });

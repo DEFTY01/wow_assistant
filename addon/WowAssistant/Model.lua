@@ -171,6 +171,13 @@ M.CLASSES = {
     weapon = { [0] = true, [1] = true, [4] = true, [5] = true, [10] = true, [13] = true, [15] = true },
     slots = { "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
   },
+  -- cloth and leather; maces, two-hand maces, staves, fist weapons, daggers (Druid.lua: in Cat
+  -- Form only the weapon's DPS counts)
+  DRUID = {
+    armor = { [0] = true, [1] = true, [2] = true },
+    weapon = { [4] = true, [5] = true, [10] = true, [13] = true, [15] = true },
+    slots = { "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
+  },
 }
 -- Kept for code that still asks about the rogue's list.
 M.ARMOR_SUBS = M.CLASSES.ROGUE.armor
@@ -274,10 +281,12 @@ end
 ---------------------------------------------------------------------------
 -- context: what is needed to score a piece of gear against what is equipped now
 ---------------------------------------------------------------------------
--- The class's own model: HUNTER goes to Hunter.lua, SHAMAN to Shaman.lua, everything else is the rogue.
+-- The class's own model: HUNTER goes to Hunter.lua, SHAMAN to Shaman.lua, DRUID to Druid.lua,
+-- everything else is the rogue.
 function M.Context(input)
   if input.class == "HUNTER" and WA.Hunter then return WA.Hunter.Context(input) end
   if input.class == "SHAMAN" and WA.Shaman then return WA.Shaman.Context(input) end
+  if input.class == "DRUID" and WA.Druid then return WA.Druid.Context(input) end
   return M.RogueContext(input)
 end
 

@@ -1,3 +1,22 @@
+## 2.11.0
+
+Druid: saját modell, harcoldal és Haditerv.
+
+- A druidnak saját sebzésmodellje van (Druid.lua), a WoWSims Forever motor és a Wowhead Forever adatai alapján:
+  - Cat Form előtt varázsló (Wrath, Moonfire, bot), utána Cat Form; hogy megtanultad-e, a varázskönyvedből látszik;
+  - Cat Formban a mancs másodpercenként üt, a sebzése a főkezes fegyvered DPS-e: a fegyver sebessége nem számít, csak a DPS-e. A felszerelés-összehasonlítás is így számol;
+  - a Cat Formban olvasott attack powert az addon megjegyzi, és akkor is azzal számol, ha éppen más formában vagy;
+  - 1 agility = 1 AP Cat Formban: ez a klasszikus szabály, Foreverre nincs ellenőrizve, és a modell jegyzete ezt meg is mondja.
+- Harcoldal druidnak:
+  - pontszám: Cat Formban ütések folyamatossága, kárba ment energia, a finisherek combo pontjai, Rake a hosszabb harcban; Cat Form nélkül varázslatok percenként;
+  - "Druid összesítő": honnan jön a sebzés (mancs, Cat Form-képesség, vérzés, medve, varázslat), a Rake és a Rip a harcidő hány százalékában vérzett (a tickekből: a Rake 3, a Rip 2 mp-enként), a finisherek átlagos combo pontja, teli energia.
+- Tanácsok druidnak:
+  - a kevés (1–2) combo pontos Ferocious Bite csak akkor hiba, ha a harcnapló igazolja: ugyanaz a szabály, mint a rogue Eviscerate-jénél (nem ölt, krittel sem ölt volna, és a célpont még legalább 8 mp-ig élt);
+  - teli energia, ritka Rake (ez nem megállapítható: a harc várható hossza nem látszik), sok mellé ütés.
+- Haditerv és Felszerelés druidnak: a trainer képességei rangsorolva; bőr- és szövetpáncél, buzogány, kétkezes buzogány, bot, ököl és tőr.
+- A harcnapló-feldolgozó a Ferocious Bite-ot is rögzíti, a célpont életerejével együtt. Egy finisher combo pontja most a cast saját költségéből jön, ha a napló megadja; a számlálóból csak akkor, ha nem. A rogue Eviscerate-átlaga ezért pontosabb lett: a valódi naplóban 3,2 helyett 3,4.
+- A Tiger's Fury Foreveren nincs a játékban (Wowhead Forever), ezért a modell nem is számol vele.
+
 ## 2.10.0
 
 A kilenc kaszt modellje, és a motor három referenciafüggvénye.

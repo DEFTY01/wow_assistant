@@ -16,7 +16,10 @@ local C = {}
 WA.Combat = C
 
 local FIELDS = { "n", "dmg", "hit", "crit", "glance", "miss", "dodge", "parry", "block", "other", "max" }
-local FINISHERS = { Eviscerate = true, ["Slice and Dice"] = true, Rupture = true, ["Kidney Shot"] = true, ["Expose Armor"] = true }
+local FINISHERS = { Eviscerate = true, ["Slice and Dice"] = true, Rupture = true, ["Kidney Shot"] = true, ["Expose Armor"] = true,
+  Rip = true, ["Ferocious Bite"] = true }
+-- the direct-damage finishers whose low-point casts the log can prove (fight.evis, by e.spell)
+local PROVABLE = { Eviscerate = true, ["Ferocious Bite"] = true }
 local OFFHAND_MISS = "Melee (off hand miss)"
 local function White(name) return name == "Melee" end
 local function Dot(name) return name:sub(-6) == " (dot)" end
@@ -44,7 +47,8 @@ function C.Report(fights, limit, advise)
   local white, yellow = Empty(), Empty()
   local cp, cpOrder, auraSecs, auraOrder, byLevel, lvOrder = {}, {}, {}, {}, {}, {}
   local seconds, damage, capped, samples, offhandMiss = 0, 0, 0, 0, 0
-  local evisSeen, evisProven, evisJustified, evisUnchecked = 0, {}, 0, 0
+  local ev = {}
+  for name in pairs(PROVABLE) do ev[name] = { seen = 0, proven = {}, justified = 0, unchecked = 0 } end
   for _, f in ipairs(list) do
     seconds = seconds + f.dur
     damage = damage + f.dmg
@@ -72,21 +76,28 @@ function C.Report(fights, limit, advise)
         e.cp = e.cp + (tonumber(c[4]) or 0)
       end
     end
-    if type(f.evis) == "table" then
-      for _, e in ipairs(f.evis) do
-        evisSeen = evisSeen + 1
+    -- fight.evis holds every Eviscerate and (from 2.11.0) Ferocious Bite; no e.spell = Eviscerate
+    local recorded = {}
+    for _, e in ipairs(type(f.evis) == "table" and f.evis or {}) do
+      local x = ev[e.spell or "Eviscerate"]
+      if x then
+        recorded[e.spell or "Eviscerate"] = true
+        x.seen = x.seen + 1
         local proof = C.EvisMistake(e)
         local low = (tonumber(e.cp) or 0) >= 1 and (tonumber(e.cp) or 0) <= 2 and e.landed ~= false
-        if proof == true then evisProven[#evisProven + 1] = { start = f.start, e = e }
-        elseif proof == false then evisJustified = evisJustified + 1
-        elseif low then evisUnchecked = evisUnchecked + 1 end
+        if proof == true then x.proven[#x.proven + 1] = { start = f.start, e = e }
+        elseif proof == false then x.justified = x.justified + 1
+        elseif low then x.unchecked = x.unchecked + 1 end
       end
-    else
-      -- a fight without the data (an older log, or the live meter): its low-point casts are unchecked
-      for _, c in ipairs(f.casts or {}) do
-        local n = tonumber(c[4]) or 0
-        if c[2] == "Eviscerate" and n >= 1 and n <= 2 then evisUnchecked = evisUnchecked + 1 end
-      end
+    end
+    -- a fight without the data (an older log, or the live meter): its low-point casts are unchecked.
+    -- A fight with evis records but none for a spell recorded no cast of it (or predates the spell's
+    -- capture): its casts of that spell are unchecked too.
+    for _, c in ipairs(f.casts or {}) do
+      local n = tonumber(c[4]) or 0
+      local x = ev[c[2]]
+      local hasData = type(f.evis) == "table" and (recorded[c[2]] or (c[2] == "Eviscerate"))
+      if x and not hasData and n >= 1 and n <= 2 then x.unchecked = x.unchecked + 1 end
     end
     for _, a in ipairs(f.auras or {}) do
       if auraSecs[a[1]] == nil then auraOrder[#auraOrder + 1] = a[1] end
@@ -119,7 +130,7 @@ function C.Report(fights, limit, advise)
     energyCappedPct = samples > 0 and Pct(capped, samples) or nil,
     offhandMissSharePct = (white.n - Landed(white)) > 0 and Pct(offhandMiss, white.n - Landed(white)) or nil,
     finishers = {}, auras = {}, byLevel = {}, recent = {},
-    evis = { seen = evisSeen, proven = evisProven, justified = evisJustified, unchecked = evisUnchecked },
+    evis = ev.Eviscerate, finisherEvidence = ev,
     cooldowns = C.CooldownUsage(list),
   }
   for _, name in ipairs(cpOrder) do
@@ -222,11 +233,11 @@ end
 -- registers these modules (sim/register_all.go): "Alpha" community models, and "GearPlanner"
 -- healer specs, which plan gear only - no HPS or rotation score can be proven from them. The
 -- engine builds a level 60 character only (sim/core/constants.go CharacterLevel = 60). "waystone"
--- marks the classes the addon's own levelling model covers (Model.lua, Hunter.lua, Shaman.lua).
+-- marks the classes the addon's own levelling model covers (Model.lua, Hunter.lua, Shaman.lua, Druid.lua).
 -- tabs: the talent tabs in the game's order, each with the engine's spec for it.
 C.SIM_SOURCE = "WoWSims Forever d5144855 sim/register_all.go"
 C.CLASS_MODELS = {
-  DRUID = { name = "Druid", tabs = { { "Balance", "Alpha" }, { "Feral (Cat, Bear)", "Alpha" }, { "Restoration", "GearPlanner" } } },
+  DRUID = { name = "Druid", waystone = true, tabs = { { "Balance", "Alpha" }, { "Feral (Cat, Bear)", "Alpha" }, { "Restoration", "GearPlanner" } } },
   HUNTER = { name = "Hunter", waystone = true, tabs = { { "Beast Mastery", "Alpha" }, { "Marksmanship", "Alpha" }, { "Survival", "Alpha" } },
     shared = "egy közös Hunter-modul" },
   MAGE = { name = "Mage", tabs = { { "Arcane", "Alpha" }, { "Fire", "Alpha" }, { "Frost", "Alpha" } }, shared = "egy közös Mage-modul" },
@@ -323,6 +334,13 @@ C.RULES = {
     source = WH .. "3599" },
   windfury = { text = "a Windfury Weapon (30-tól) minden találatnál 20% eséllyel 2 extra támadást ad, plusz attack powerrel", verified = true,
     source = WH .. "8232; " .. SIM .. "sim/shaman/weapon_imbues.go" },
+  biteCp = { text = "a Ferocious Bite sebzése combo pontonként nő (pontonként fix sebzés + AP), az ára 35 energia", verified = true,
+    source = SIM .. "sim/druid/ferocious_bite.go; " .. WH .. "22568" },
+  rakeBleed = { text = "a Rake egy combo pontot ad, és 9 mp-ig vérzik (3 mp-enként egy tick)", verified = true,
+    source = SIM .. "sim/druid/rake.go; " .. WH .. "1822" },
+  -- a playstyle, not a game rule
+  druidCat = { text = "a feral druid sebzésének nagyja Cat Formban jön", verified = false,
+    source = "játékstílus, nem játékszabály: nem ellenőrizhető" },
   lightningShield = { text = "a Lightning Shield megsebzi azt, aki megüt (8-tól)", verified = true,
     source = WH .. "324" },
 }
