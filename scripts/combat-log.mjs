@@ -8,6 +8,12 @@
 //   spell power, armor, absorb, 2 unknown, power type, power, max power, cost, x, y, map, facing,
 //   level) followed by amount, base amount, overkill, school, resisted, blocked, absorbed,
 //   critical, glancing, crushing.
+//
+// Damage is counted as effective damage: the amount minus the overkill (the part beyond the
+// target's remaining health; -1 when there is none). Absorbed damage is not in the amount.
+// A fight runs from our first to our last damaging or hostile action (no gap over FIGHT_GAP);
+// a pet counts only when the log's own flags say it is ours (affiliation "mine", pet/guardian).
+// Each fight says so in its `basis`, which the addon shows next to the numbers.
 
 // Everything lives inside the function on purpose: the web app serves this function's own
 // source to the browser (Function.prototype.toString), so it must not lean on module scope.
@@ -50,6 +56,13 @@ export function parseCombatLog(text, character, opts = {}) {
   const newAbility = () => ({ n: 0, dmg: 0, hit: 0, crit: 0, glance: 0, miss: 0, dodge: 0, parry: 0, block: 0, other: 0, max: 0 });
   const MISS = { MISS: "miss", DODGE: "dodge", PARRY: "parry", BLOCK: "block" };
   const round1 = (n) => Math.round(n * 10) / 10;
+  // amount minus overkill; the overkill is added to the fight's total separately
+  const effective = (amountField, overkillField) => {
+    const amount = Number(amountField) || 0;
+    const over = Math.max(0, Number(overkillField) || 0);
+    if (fight) fight.overkill += Math.min(amount, over);
+    return Math.max(0, amount - over);
+  };
 
   const prefix = `${character}-`;
   const fights = [];
@@ -63,7 +76,11 @@ export function parseCombatLog(text, character, opts = {}) {
     if (!f) return;
     const dur = f.last - f.t0;
     let dmg = 0;
-    for (const a of Object.values(f.ab)) dmg += a.dmg;
+    let pet = 0;
+    for (const [name, a] of Object.entries(f.ab)) {
+      dmg += a.dmg;
+      if (name.startsWith("Pet: ")) pet += a.dmg;
+    }
     if (dur < 3 || dmg <= 0) return;
     for (const [name, since] of Object.entries(f.auraOn)) f.auras[name] = (f.auras[name] ?? 0) + Math.max(0, f.last - since);
     for (const name of Object.keys(f.auras)) f.auras[name] = round1(Math.min(f.auras[name], dur));
@@ -80,13 +97,16 @@ export function parseCombatLog(text, character, opts = {}) {
       auras: f.auras,
       capped: round1(f.capped),
       samples: round1(f.samples),
+      pet,
+      overkill: f.overkill,
+      basis: { dmg: "effective", dur: "own-events", pet: "owner-flags" },
     });
   };
 
   const touch = (t) => {
     if (fight && t - fight.last > FIGHT_GAP) close();
     if (!fight) {
-      fight = { t0: t, last: t, ab: {}, casts: [], targets: {}, levels: {}, auras: {}, auraOn: {}, capped: 0, samples: 0, energyAt: null };
+      fight = { t0: t, last: t, ab: {}, casts: [], targets: {}, levels: {}, auras: {}, auraOn: {}, capped: 0, samples: 0, energyAt: null, overkill: 0 };
       // Buffs that were already running when the fight began.
       for (const name of activeAuras) fight.auraOn[name] = t;
       cp = 0; // combo points sit on the target, so a new fight starts from zero
@@ -140,7 +160,7 @@ export function parseCombatLog(text, character, opts = {}) {
       const swing = ev.startsWith("SWING_");
       if (ev === "SWING_DAMAGE" || ev === "SPELL_DAMAGE" || ev === "SPELL_PERIODIC_DAMAGE") {
         touch(t);
-        const amount = Number(f[swing ? 28 : 31]) || 0;
+        const amount = swing ? effective(f[28], f[30]) : effective(f[31], f[33]);
         const a = ability(swing ? "Pet: Melee" : `Pet: ${f[10]}${ev === "SPELL_PERIODIC_DAMAGE" ? " (dot)" : ""}`);
         a.n++;
         a.dmg += amount;
@@ -162,7 +182,7 @@ export function parseCombatLog(text, character, opts = {}) {
 
     if (ev === "SWING_DAMAGE") {
       touch(t);
-      const amount = Number(f[28]) || 0;
+      const amount = effective(f[28], f[30]);
       const a = ability("Melee");
       a.n++;
       a.dmg += amount;
@@ -188,7 +208,7 @@ export function parseCombatLog(text, character, opts = {}) {
       }
     } else if (ev === "SPELL_DAMAGE" || ev === "RANGE_DAMAGE" || ev === "SPELL_PERIODIC_DAMAGE" || ev === "DAMAGE_SHIELD") {
       touch(t);
-      const amount = Number(f[31]) || 0;
+      const amount = effective(f[31], f[33]);
       const a = ability(ev === "SPELL_PERIODIC_DAMAGE" ? `${f[10]} (dot)` : f[10]);
       a.n++;
       a.dmg += amount;

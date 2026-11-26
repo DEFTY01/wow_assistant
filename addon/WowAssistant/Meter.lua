@@ -153,13 +153,26 @@ local function TargetNow()
   return nil, 0
 end
 
+-- The worn items at the pull, "id,id,...": the Harc page compares a fight with the model of your
+-- current gear only when they are the same.
+local function GearAtPull()
+  if not GetInventoryItemID then return nil end
+  local ids = {}
+  for slot = 1, 18 do
+    local ok, id = pcall(GetInventoryItemID, "player", slot)
+    ids[#ids + 1] = (ok and not Secret(id) and Num(id)) or 0
+  end
+  return table.concat(ids, ",")
+end
+MT.GearAtPull = GearAtPull
+
 local function Begin()
   local name, level = TargetNow()
   fight = {
     start = time(), t0 = GetTime(), target = name, targetLevel = level,
     level = Num(UnitLevel("player")) or 0, casts = {}, ab = {}, order = {}, samples = 0, capped = 0, auras = {}, auraOrder = {},
     cp = Power(POWER_CP) or 0, spent = 0, spentAt = 0, pending = nil, events = 0, secret = 0,
-    solo = InGroup() == false,
+    solo = InGroup() == false, gear = GearAtPull(),
   }
 end
 
@@ -271,7 +284,10 @@ local function MeterTotals()
     if type(s) == "table" and s.isLocalPlayer == true then me = s break end
   end
   if not me then return nil end
-  local out = { total = Num(me.totalAmount), dur = Num(session.durationSeconds) or Num((Call("GetSessionDurationSeconds", current))), spells = {} }
+  local sessionDur = Num(session.durationSeconds)
+  local out = { total = Num(me.totalAmount), dur = sessionDur or Num((Call("GetSessionDurationSeconds", current))), spells = {},
+    own = Num(me.totalAmount), sessionID = Num(session.sessionID) or Num(session.combatSessionID), pet = 0 }
+  out.durFrom = out.dur and "meter" or nil
   local src = Call("GetCombatSessionSourceFromType", current, damage, UnitGUID("player"), nil)
   MT.last.source = src
   for _, sp in ipairs(type(src) == "table" and type(src.combatSpells) == "table" and src.combatSpells or {}) do
@@ -281,7 +297,11 @@ local function MeterTotals()
     local amount = Num(sp.totalAmount)
     if name and amount then
       -- a pet's spells merged into ours (the meter may list them under the owner)
-      if PET_SPELL[name] and UnitExists and UnitExists("pet") then name = "Pet: " .. name end
+      if PET_SPELL[name] and UnitExists and UnitExists("pet") then
+        name = "Pet: " .. name
+        out.petFrom = "merged" -- the meter lists the pet's spells under you: counted once, in your row
+        out.pet = out.pet + amount
+      end
       out.spells[name] = (out.spells[name] or 0) + amount
     end
   end
@@ -304,7 +324,10 @@ local function MeterTotals()
           sum = sum + amount
         end
       end
-      if out.total and sum > 0 then out.total = out.total + sum end
+      if out.total and sum > 0 then
+        out.total = out.total + sum
+        out.pet, out.petFrom = sum, "guid" -- the pet's own meter row, found by the pet's GUID at the end of the fight
+      end
     end
   end
   return out
@@ -315,7 +338,8 @@ local function Finish()
   fight = nil
   if not f then return end
   local m = MeterTotals()
-  local dur = (m and m.dur and m.dur > 0) and m.dur or (GetTime() - f.t0)
+  local fromMeter = m and m.dur and m.dur > 0
+  local dur = fromMeter and m.dur or ((f.ended or GetTime()) - f.t0)
   if dur < 1 then return end
   -- exact damage per spell from the meter, counts from what the target took
   if m then
@@ -334,18 +358,35 @@ local function Finish()
     local a = f.ab[name]
     if a.n > 0 or a.dmg > 0 then ab[#ab + 1] = a total = total + a.dmg end
   end
-  local dmg = (m and m.total and m.total > 0) and m.total or total
+  local meterDmg = m and m.total and m.total > 0
+  local dmg = meterDmg and m.total or total
+  -- what each number came from (the Harc page shows it next to the numbers)
+  local pet = 0
+  if not meterDmg then for _, a in ipairs(ab) do if a.name:sub(1, 5) == "Pet: " then pet = pet + a.dmg end end end
+  local basis = {
+    dmg = meterDmg and "meter-own" or "target-hits", dur = fromMeter and "meter-session" or "regen-clock",
+    pet = meterDmg and (m.petFrom and ("meter-" .. m.petFrom) or "none") or (pet > 0 and "guess" or "none"),
+  }
   -- no damage dealt (running away, a potion and Evasion): nothing to score, and it would only push
   -- a 0 DPS "D" to the top of the list
   if dmg <= 0 then return end
   local auras = {}
   for _, name in ipairs(f.auraOrder) do auras[#auras + 1] = { name, f.auras[name] } end
   local list = WA.charDB.meterFights
-  list[#list + 1] = {
+  local rec = {
     start = f.start, dur = math.floor(dur * 10 + 0.5) / 10, dmg = dmg, target = f.target or "?", targetLevel = f.targetLevel or 0,
     level = f.level, capped = f.capped, samples = f.samples, source = "live", detailed = (f.events >= 5) or nil,
     ab = ab, casts = f.casts, auras = auras, events = f.events, secret = f.secret > 0 and f.secret or nil,
+    pet = meterDmg and m.pet or pet, basis = basis, sessionID = m and m.sessionID or nil, solo = f.solo or nil, gear = f.gear,
   }
+  -- a later update of the same meter session replaces the fight instead of adding it again
+  local last = list[#list]
+  if rec.sessionID and last and last.sessionID == rec.sessionID then
+    rec.start = last.start
+    list[#list] = rec
+  else
+    list[#list + 1] = rec
+  end
   while #list > KEEP do table.remove(list, 1) end
   if MT.last then MT.last.events, MT.last.secret, MT.last.casts = f.events, f.secret, #f.casts end
   if WA.OnFight then WA.OnFight() end

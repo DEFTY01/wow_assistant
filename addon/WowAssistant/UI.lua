@@ -994,14 +994,16 @@ function UI.pages.combat()
   local function Score(x)
     if hunter then return WA.Hunter.Score(x, ctx) end
     if shaman then return WA.Shaman.Score(x, ctx) end
-    return WA.Combat.Score(x, baseline)
+    return WA.Combat.Score(x, WA.Combat.Comparable(x, ctx) and baseline or nil)
   end
   local out = {}
 
   local f = all[1]
   for _, x in ipairs(all) do if x.start == UI.selFight then f = x end end
   local sc = Score(f)
-  local dps = f.dur > 0 and f.dmg / f.dur or 0
+  local prov = WA.Combat.Provenance(f, ctx)
+  local P = {}
+  for _, r in ipairs(prov) do P[r.key] = r end
   UI.head.combat[2] = ("%s%s · %s · forrás: %s"):format(TargetName(f), (f.targetLevel or 0) > 0 and (" (" .. f.targetLevel .. ")") or "",
     date("%m.%d %H:%M", f.start), SOURCE_NAME[f.source or "log"] or "?")
   out[#out + 1] = { cards = {
@@ -1009,7 +1011,8 @@ function UI.pages.combat()
       tip = hunter and "DPS a várthoz képest, Auto Shot folyamatossága, a pet része, távolság, Serpent Sting, lövések percenként."
         or shaman and "DPS a várthoz képest, ütések folyamatossága, shock percenként, totem a hosszú harcban, Stormstrike cooldownra."
         or "DPS a felszerelésedtől várthoz képest, kárba ment energia, Eviscerate combo pontjai, Slice and Dice uptime, képességek percenként." },
-    { label = "DPS", value = F1(dps), sub = baseline and ("várt " .. F1(baseline)) or "" },
+    { label = "DPS", value = P.dps.text, sub = P.dps.status .. (P.model and P.model.value and (" · várt " .. P.model.text .. " (szimulált)") or ""),
+      tip = P.dps.from .. (P.model and ("\nVárt: " .. P.model.from) or "") },
     hunter and (function()
       local _, sh = WA.Hunter.Sources(f.ab, f.dmg)
       return { label = "Pet része", value = Pct(sh.pet), sub = ("távolsági %d%%, közel %d%%"):format(math.floor(sh.ranged + 0.5), math.floor(sh.melee + 0.5)) }
@@ -1028,12 +1031,24 @@ function UI.pages.combat()
     local x = all[i]
     local s2 = Score(x)
     list[#list + 1] = { cells = { Cell(date("%m.%d %H:%M", x.start), x.start), TargetName(x) .. ((x.targetLevel or 0) > 0 and (" (" .. x.targetLevel .. ")") or ""),
-      Cell(F1(x.dur > 0 and x.dmg / x.dur or 0), x.dur > 0 and x.dmg / x.dur or 0), Cell(Grade(s2), s2 and s2.total or -1),
+      Cell((x.dur or 0) > 0 and F1(x.dmg / x.dur) or "–", (x.dur or 0) > 0 and x.dmg / x.dur or -1), Cell(Grade(s2), s2 and s2.total or -1),
       Cell(F1(x.dur) .. " mp", x.dur), SOURCE_NAME[x.source or "log"] or "?" },
       selected = x == f, onClick = function() UI.selFight = x.start UI.cache.combat = nil UI.Draw() end }
   end
   out[#out + 1] = Section("combat.list", "Harcok", { { table = { id = "combat.list", cols = { { "Mikor", 90 }, { "Célpont", 0, flex = true },
     { "DPS", 64, "RIGHT" }, { "Pont", 74, "RIGHT" }, { "Hossz", 70, "RIGHT", extra = true }, { "Forrás", 96, extra = true } }, rows = list, limit = 6 } } }, true, #all)
+
+  -- where every number above comes from, and what kind of number it is
+  local STATUS_COLOR = { ["mért"] = HEX.good, ["becsült"] = HEX.gold, ["szimulált"] = "8fb8ff", ["nem értékelhető"] = HEX.warn }
+  local provRows = {}
+  for _, r in ipairs(prov) do
+    provRows[#provRows + 1] = { cells = { r.label, Color(STATUS_COLOR[r.status] or "ffffff", r.status), Cell(r.text, r.value or -1), r.from },
+      tip = r.label .. ": " .. r.from }
+  end
+  out[#out + 1] = Section("combat.prov", "Honnan a számok", { { p = "mért: forrásból összesítve · becsült: közvetett adatból · szimulált: modellből számolva · " ..
+    "nem értékelhető: nincs hozzá adat (ilyenkor nem 0, hanem –).", muted = true },
+    { table = { id = "combat.prov", cols = { { "Mi", 190 }, { "Állapot", 104 }, { "Érték", 80, "RIGHT" }, { "Miből", 0, flex = true } },
+      rows = provRows } } }, true, #prov)
 
   if sc then
     local rows = {}

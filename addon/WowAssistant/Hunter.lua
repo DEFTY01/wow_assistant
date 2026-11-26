@@ -389,7 +389,8 @@ function H.Score(f, ctx)
   local dur = f.dur or 0
   local dps = dur > 0 and (f.dmg or 0) / dur or 0
   local level = f.level or (ctx and ctx.level) or 0
-  local baseline = ctx and ctx.baseline
+  -- only against the model of the same level and gear (Combat.Comparable)
+  local baseline = ctx and WA.Combat.Comparable(f, ctx) and ctx.baseline or nil
   if baseline and baseline > 0 then
     local ratio = dps / baseline
     Part("dps", "DPS a várthoz képest", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS, a felszerelésedtől és petedtől várt %d %d%%-a"):format(

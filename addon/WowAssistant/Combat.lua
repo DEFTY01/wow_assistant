@@ -7,7 +7,8 @@
 --     the client lets an addon read it.
 -- Fight: { start, dur, dmg, target, targetLevel, level, capped, samples, source,
 --          ab = { { name, n, dmg, hit, crit, glance, miss, dodge, parry, block, other, max }, ... },
---          casts = { { t, spell, cost, cp }, ... }, auras = { { name, seconds }, ... } }
+--          casts = { { t, spell, cost, cp }, ... }, auras = { { name, seconds }, ... },
+--          pet, basis = { dmg, dur, pet }, gear, sessionID }   (the last ones from 2.8.0 on)
 
 local _, WA = ...
 WA = WA or {}
@@ -241,3 +242,139 @@ function C.Score(f, baseline)
   return { total = total, grade = grade, parts = parts, dps = dps }
 end
 
+
+---------------------------------------------------------------------------
+-- where each number of a fight comes from
+---------------------------------------------------------------------------
+-- Every number the Harc page shows for one fight carries a status:
+--   "mért"              summed from a source (the combat log, the client's damage meter);
+--   "becsült"           worked out from something less direct (the clock, the target's hits);
+--   "szimulált"         computed from given inputs by a model (Waystone's own damage model);
+--   "nem értékelhető"   cannot be worked out from what there is: shown as "–", never as 0.
+C.STATUS = { measured = "mért", estimated = "becsült", simulated = "szimulált", none = "nem értékelhető" }
+local RANK = { ["mért"] = 1, ["becsült"] = 2, ["szimulált"] = 3, ["nem értékelhető"] = 4 }
+local function Worst(...)
+  local w = "mért"
+  for _, s in ipairs({ ... }) do if RANK[s] > RANK[w] then w = s end end
+  return w
+end
+
+local function PetDamage(f)
+  if f.pet then return f.pet end
+  local sum = 0
+  for _, a in ipairs(f.ab or {}) do if (a.name or ""):sub(1, 5) == "Pet: " then sum = sum + (a.dmg or 0) end end
+  return sum
+end
+
+-- Whether the model of your current character can be held against this fight: the same level,
+-- and (where the fight recorded it) the same gear. Returns ok, reason.
+function C.Comparable(f, ctx)
+  if not ctx or not ctx.baseline or ctx.baseline <= 0 then return false, "nincs modell ehhez a kaszthoz" end
+  if not f.level or f.level == 0 then return false, "a harc szintje ismeretlen" end
+  if f.level ~= ctx.level then return false, ("a harc %d. szinten volt, a modell a mostani %d. szintedet számolja"):format(f.level, ctx.level) end
+  if f.gear and WA.Meter and WA.Meter.GearAtPull then
+    local now = WA.Meter.GearAtPull()
+    if now and now ~= f.gear then return false, "azóta más a felszerelésed" end
+  end
+  return true, f.gear and "azonos szint és felszerelés" or "azonos szint; a felszerelést ez a harc nem rögzítette"
+end
+
+-- Rows { key, label, status, value, text, from } for one fight. ctx: the class model (or nil).
+function C.Provenance(f, ctx)
+  local rows = {}
+  local function Row(key, label, status, value, text, from) rows[#rows + 1] = { key = key, label = label, status = status, value = value, text = text, from = from } end
+  local b = f.basis or {}
+  local log = (f.source or "log") == "log"
+  local dur = tonumber(f.dur)
+  local total = tonumber(f.dmg)
+  local pet = PetDamage(f)
+
+  -- damage
+  local dmgStatus, dmgFrom
+  if b.dmg == "effective" then
+    dmgStatus, dmgFrom = "mért", "a harcnapló saját sebző eseményei, effektív sebzés (a túlsebzés nélkül)" ..
+      ((f.overkill or 0) > 0 and (", " .. f.overkill .. " túlsebzés levonva") or "")
+  elseif b.dmg == "meter-own" then
+    dmgStatus, dmgFrom = "mért", "a játék damage meterének saját sora (isLocalPlayer), a harc után kiolvasva"
+  elseif b.dmg == "target-hits" then
+    dmgStatus, dmgFrom = "becsült", "a célpontot ért ütések összege (UNIT_COMBAT), egyedül játszva; a damage meter nem volt olvasható"
+  elseif log then
+    dmgStatus, dmgFrom = "mért", "a harcnapló saját sebző eseményei (régebbi feltöltés: a túlsebzés benne lehet)"
+  else
+    dmgStatus, dmgFrom = "becsült", "régebbi rögzítés: nem tudni, a damage meterből vagy a célpont ütéseiből jött"
+  end
+  if not total then dmgStatus = "nem értékelhető" end
+  local own = total and (total - pet) or nil
+  Row("own", "Saját sebzés (pet nélkül)", dmgStatus, own, own and tostring(math.floor(own + 0.5)) or "–", dmgFrom)
+
+  -- the pet
+  local petStatus, petFrom = "mért", nil
+  local partial = false
+  if b.pet == "owner-flags" or (log and not b.pet) then
+    petFrom = "a harcnapló jelzői szerint a te peted vagy totemed (affiliation: mine, pet/guardian); név alapján nem párosít"
+  elseif b.pet == "meter-guid" then
+    petFrom = "a damage meter pet-sora, a harc végén kint lévő pet GUID-ja szerint; ha közben újrahívtad, a korábbi pet része hiányozhat"
+    partial = true
+  elseif b.pet == "meter-merged" then
+    petFrom = "a damage meter a te sorodban adta a pet képességeit; egyszer számolva"
+  elseif b.pet == "guess" then
+    petStatus, petFrom, partial = "becsült", "fizikai ütések a célponton, miközben te nem ütöttél: nem igazolt, hogy a peted volt", true
+  else
+    petFrom = "nem volt pet-sebzés"
+  end
+  if pet > 0 or (b.pet and b.pet ~= "none") then
+    Row("pet", "Pet sebzése", petStatus, pet, tostring(math.floor(pet + 0.5)), petFrom)
+  end
+
+  -- duration
+  local durStatus, durFrom
+  if b.dur == "own-events" or (log and not b.dur) then
+    durStatus, durFrom = "mért", "az első és az utolsó saját (vagy pet) sebző esemény között; 8 mp szünet új harcot kezd"
+  elseif b.dur == "meter-session" then
+    durStatus, durFrom = "mért", "a damage meter sessionjének hossza (durationSeconds)"
+  elseif b.dur == "regen-clock" then
+    durStatus, durFrom = "becsült", "harcba lépés és kilépés között, óra szerint (a meter nem adott hosszt)"
+  else
+    durStatus, durFrom = "becsült", "régebbi rögzítés: a meter hossza vagy a harcba lépés óta eltelt idő"
+  end
+  if not dur or dur <= 0 then durStatus = "nem értékelhető" end
+  Row("dur", "Időtartam", durStatus, dur and dur > 0 and dur or nil, dur and dur > 0 and (F1(dur) .. " mp") or "–", durFrom)
+
+  -- DPS
+  local okDps = total and dur and dur > 0
+  local dps = okDps and total / dur or nil
+  local dpsStatus = okDps and Worst(dmgStatus, durStatus, pet > 0 and petStatus or "mért") or "nem értékelhető"
+  Row("dps", "DPS (saját + pet)", dpsStatus, dps, dps and (F1(dps) .. (partial and pet > 0 and " (részleges)" or "")) or "–",
+    okDps and ("(%d saját + %d pet) / %s mp%s"):format(math.floor(own + 0.5), math.floor(pet + 0.5), F1(dur),
+      partial and pet > 0 and "; a pet-rész nem teljesen igazolt" or "") or "nincs pozitív időtartam vagy sebzés")
+  if pet > 0 then
+    local ownDps = okDps and own / dur or nil
+    Row("ownDps", "Saját DPS (pet nélkül)", okDps and Worst(dmgStatus, durStatus) or "nem értékelhető", ownDps, ownDps and F1(ownDps) or "–",
+      okDps and ("%d / %s mp"):format(math.floor(own + 0.5), F1(dur)) or "nincs pozitív időtartam")
+  end
+
+  -- the model, and the ratio only for a matching situation
+  local okCmp, why = C.Comparable(f, ctx)
+  if ctx and ctx.baseline and ctx.baseline > 0 then
+    local fights = ctx.combat and ctx.combat.fights or 0
+    Row("model", "Várt DPS (Waystone-modell)", okCmp and "szimulált" or "nem értékelhető", okCmp and ctx.baseline or nil,
+      okCmp and F1(ctx.baseline) or "–",
+      ("a Waystone szintezési modellje a mostani statjaidból és felszerelésedből%s; nem WoWSims-szimuláció%s")
+        :format(fights > 0 and (", " .. fights .. " rögzített harccal kalibrálva") or ", tankönyvi értékekkel",
+          okCmp and "" or (" · " .. why)))
+    if okCmp and dps then
+      Row("ratio", "Mért / várt", "szimulált", dps / ctx.baseline * 100, ("%d%%"):format(math.floor(dps / ctx.baseline * 100 + 0.5)),
+        "100 × mért DPS / várt DPS; " .. why .. ". Az eltérés önmagában nem rotációs hiba: a mozgás, a több célpont vagy a harc vége is benne van.")
+    end
+  end
+  Row("sim", "Referencia-szimuláció (WoWSims Forever)", "nem értékelhető", nil, "–",
+    ((f.level or 0) > 0 and f.level < 60) and "a Forever motor csak 60-as karaktert épít: ehhez a szinthez nincs szintazonos referencia"
+      or "nincs bekötve az addonba: külső futtatás és import kellene hozzá")
+
+  -- where it all came from
+  local srcText = log and "harcnapló (WoWCombatLog, a feltöltő dolgozta fel)"
+    or ((b.dmg == "meter-own") and "játékban: a játék damage metere" or "játékban: a célpont ütései")
+  Row("source", "Adatforrás", "mért", nil, log and "harcnapló" or "játékban", srcText ..
+    (f.sessionID and (", session #" .. f.sessionID) or ""))
+  return rows
+end
