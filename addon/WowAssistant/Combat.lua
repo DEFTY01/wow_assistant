@@ -130,26 +130,48 @@ end
 -- when both hold: the rule behind it is verified for Forever (RULES[key].verified), and the
 -- state the decision depended on is known from the events (nothing in `missing`). Otherwise the
 -- fact stays a "megfigyelés", and a would-be mistake is "nem megállapítható", with what is
--- missing spelled out. No rule below has been checked against the Forever 1.60.1 client or the
--- WoWSims Forever engine yet, so for now no finding is marked as a mistake.
+-- missing spelled out.
+--
+-- Verified (2026-11-26) against the WoWSims Forever engine at commit d5144855 (the mechanics) and
+-- Wowhead's Forever spell data (costs, cooldowns, levels, effects). `source` says where.
+local SIM = "WoWSims Forever d5144855 "
+local WH = "Wowhead Forever spell="
 C.RULES = {
-  energyCap = { text = "teli energiánál a regenerálódó energia elvész", verified = false },
-  evisCp = { text = "az Eviscerate sebzése combo pontonként nő, az energiaára fix", verified = false },
-  sndHaste = { text = "a Slice and Dice gyorsítja az auto-attackot", verified = false },
-  parryFront = { text = "a mob csak szemből tud parryzni és blokkolni", verified = false },
-  poison20 = { text = "a rogue 20-as szinttől mérget tehet a fegyverére", verified = false },
-  glanceSkill = { text = "a glancing ütés a magasabb szintű mobokon és alacsony fegyverskillnél gyakori", verified = false },
-  hitGear = { text = "a +hit csökkenti a miss esélyét", verified = false },
-  hunterPet = { text = "10-től a hunter petje sebez és tankol", verified = false },
-  hunterRange = { text = "a hunter 8 yardon belül nem lő, közelharcban gyengébb", verified = false },
-  serpentSting = { text = "a Serpent Sting 15 mp alatt sebez, a hosszú harcban megéri", verified = false },
-  arcaneShot = { text = "az Arcane Shot 6 mp-enként plusz sebzés", verified = false },
-  hawk = { text = "az Aspect of the Hawk ranged attack powert ad", verified = false },
-  shamanMelee = { text = "az enhancement shaman sebzésének nagyja a fegyver", verified = false },
-  earthShock = { text = "az Earth Shock azonnali sebzés, 6 mp közös cooldownnal", verified = false },
-  searingTotem = { text = "a Searing Totem 10-től sebez a közelben", verified = false },
-  windfury = { text = "30-tól a Windfury Weapon a legerősebb imbue", verified = false },
-  lightningShield = { text = "a Lightning Shield sebez, amikor megütnek", verified = false },
+  energyCap = { text = "teli energiánál a regenerálódó energia elvész", verified = true,
+    source = SIM .. "sim/core/energy.go:111 (új energia = min(jelenlegi + kapott, maximum))" },
+  evisCp = { text = "az Eviscerate sebzése combo pontonként nő (pontonként fix sebzés + 4% AP), az ára fix 35 energia", verified = true,
+    source = SIM .. "sim/rogue/eviscerate.go; " .. WH .. "2098" },
+  sndHaste = { text = "a Slice and Dice 20%-kal gyorsítja a közelharci támadást, combo pontonként 3 mp-cel tovább tart (10-től)", verified = true,
+    source = SIM .. "sim/rogue/slice_and_dice.go; " .. WH .. "5171" },
+  parryFront = { text = "parry és block csak akkor lehet, ha a célpont előtt állsz", verified = true,
+    source = SIM .. "sim/core/spell_outcome.go (InFrontOfTarget feltétel)" },
+  poison20 = { text = "az Instant Poison 20-as szinttől tehető a fegyverre", verified = true,
+    source = WH .. "8679" },
+  glanceSkill = { text = "a glancing esélye azonos szintű célponton is 10%, és 2%-kal nő minden fegyverskill-pontért, ami a célpont szintje × 5-höz hiányzik", verified = true,
+    source = SIM .. "sim/core/target.go:577" },
+  hitGear = { text = "minden 1% hit 1%-kal csökkenti a miss esélyét", verified = true,
+    source = SIM .. "sim/core/spell_outcome.go:660" },
+  hunterPet = { text = "10-től (Tame Beast) a hunternek pet-je lehet, amely külön támad", verified = true,
+    source = WH .. "1515; " .. SIM .. "sim/hunter/pets.go" },
+  hunterRange = { text = "a hunter lövései 8 yardon belül nem használhatók (8–35 yd)", verified = true,
+    source = WH .. "3044" },
+  serpentSting = { text = "a Serpent Sting 15 mp alatt sebez (4-től)", verified = true,
+    source = WH .. "1978; " .. SIM .. "sim/hunter/serpent_sting.go" },
+  arcaneShot = { text = "az Arcane Shot azonnali lövés 6 mp cooldownnal (6-tól)", verified = true,
+    source = WH .. "3044; " .. SIM .. "sim/hunter/arcane_shot.go" },
+  hawk = { text = "az Aspect of the Hawk ranged attack powert ad (10-től)", verified = true,
+    source = WH .. "13165" },
+  -- a playstyle, not a game rule: it cannot be verified, only measured
+  shamanMelee = { text = "az enhancement shaman sebzésének nagyja a fegyver", verified = false,
+    source = "játékstílus, nem játékszabály: nem ellenőrizhető" },
+  earthShock = { text = "az Earth Shock azonnali sebzés; a három shock közös, 6 mp-es cooldownon van (4-től)", verified = true,
+    source = SIM .. "sim/shaman/shocks.go; " .. WH .. "8042" },
+  searingTotem = { text = "a Searing Totem 30 mp-ig támad egy 20 yardon belüli ellenfelet (10-től)", verified = true,
+    source = WH .. "3599" },
+  windfury = { text = "a Windfury Weapon (30-tól) minden találatnál 20% eséllyel 2 extra támadást ad, plusz attack powerrel", verified = true,
+    source = WH .. "8232; " .. SIM .. "sim/shaman/weapon_imbues.go" },
+  lightningShield = { text = "a Lightning Shield megsebzi azt, aki megüt (8-tól)", verified = true,
+    source = WH .. "324" },
 }
 C.FINDING = { fault = "hiba", observation = "megfigyelés", unproven = "nem megállapítható", data = "mért adat" }
 local GREY = "|cff9d9d9d"
@@ -170,12 +192,14 @@ function C.Finding(o)
     local bits = {}
     if o.missing then bits[#bits + 1] = "a harcadatból nem látszik " .. o.missing end
     if rule and not rule.verified then bits[#bits + 1] = "a szabály (" .. rule.text .. ") Foreverre nincs ellenőrizve" end
+    if rule and rule.verified then bits[#bits + 1] = "a szabály maga ellenőrzött (" .. rule.text .. ")" end
     why = "Hibának nem megállapítható: " .. table.concat(bits, "; ") .. "."
   elseif rule then
-    why = "Szabály: " .. rule.text .. (rule.verified and "." or " (Foreverre nincs ellenőrizve).")
+    why = "Szabály: " .. rule.text .. (rule.verified and " (Foreverre ellenőrizve)." or " (Foreverre nincs ellenőrizve).")
   end
   local text = o.fact .. (o.advice and (" " .. o.advice) or "") .. (why and ("\n" .. GREY .. why .. "|r") or "")
-  return { level = level, title = o.title, text = text, status = status, fact = o.fact, rule = o.rule, missing = o.missing }
+  return { level = level, title = o.title, text = text, status = status, fact = o.fact, rule = o.rule, missing = o.missing,
+    source = rule and rule.source or nil }
 end
 
 function C.Advise(r, fights)

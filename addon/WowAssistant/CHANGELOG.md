@@ -1,3 +1,15 @@
+## 2.8.2
+
+A tanácsok szabályai Foreverre ellenőrizve: 17-ből 16, forrással.
+
+- Forrás: a WoWSims Forever motor kódja (d5144855) a mechanikához, a Wowhead Forever spell-adatai a költséghez, cooldownhoz, szinthez és hatáshoz
+- Ellenőrizve: teli energia, Eviscerate combo pontonként, Slice and Dice, parry csak szemből, Instant Poison 20-tól, glancing, hit, hunter pet, a hunter 8 yardos holttere, Serpent Sting, Arcane Shot, Aspect of the Hawk, a shockok közös 6 mp-es cooldownja, Searing Totem, Windfury, Lightning Shield
+- Javítva a Forever szerint:
+  - a glancing esélye azonos szintű mobon is 10%, és minden hiányzó fegyverskill-pont +2%
+  - a Windfury Foreveren 2 extra támadást ad (Classicban 1-et)
+- Nem ellenőrizhető: "az enhancement shaman sebzésének nagyja a fegyver" játékstílus, nem szabály; megfigyelés marad
+- A tanácsok továbbra sem mondanak hibát: a szabály most már igazolt, de a döntés pillanatának állapota (a célpont élete, a manád, a pet, hol álltál) nem látszik a harcadatból; ezt a tanács meg is írja
+
 ## 2.8.1
 
 Tanácsok: hibát csak akkor jelez, ha a harcadat és egy Foreverre ellenőrzött szabály igazolja.
