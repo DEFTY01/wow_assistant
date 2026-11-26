@@ -1,3 +1,22 @@
+## 2.7.0
+
+Shaman: a Haditerv, a Felszerelés és a Harc oldal mostantól shamannal is működik (1–60).
+
+- Sebzésmodell (enhancement szintezés):
+  - közelharc egy fegyverrel (kétkezes, vagy egykezes + pajzs), a fegyver-imbue szorzójával: Rockbiter, 10-től Flametongue, 30-tól Windfury (lassú kétkezesen a legjobb)
+  - Earth Shock és Lightning Bolt rangonként, spell powerrel (a 20. szint előtti rangok kisebb együtthatóval)
+  - Searing Totem, Stormstrike (40-től, talenttel), Flurry, Thundering Strikes, Elemental Fury
+  - mindent a rögzített harcaidhoz igazít: ütések aránya, dodge, shock és Lightning Bolt percenként, az imbue és a totem sebzése
+- Felszerelés:
+  - shamannak való tárgyak: bot, buzogány, balta, ököl, tőr, pajzs; mail 40-től
+  - a kétkezes balta és buzogány csak a Two-Handed Axes and Maces talenttel (a talentek beolvasása után)
+  - strength, agility, intellect és spell power a tárgyakon (a Forever "+spell damage" tárgyai is)
+- Haditerv: shaman trainer képességek (Earth Shock, Lightning Shield, imbue-k, totemek, Ghost Wolf), mi az alap és mi kihagyható
+- Harc oldal shamannal:
+  - pontszám: DPS a várthoz képest, ütések folyamatossága, shock percenként, totem a hosszú harcban, Stormstrike cooldownra
+  - shaman összesítő: közelharc, imbue, varázslat, totem és DoT része, ütések aránya, shock percenként, Lightning Shield uptime
+  - shaman tanácsok (sok castolás, ritka shock, nincs totem vagy Windfury, Lightning Shield)
+
 ## 2.6.0
 
 Hunter: új **Pet** oldal, lőszerár, és a Harc oldal hunterre szabva.

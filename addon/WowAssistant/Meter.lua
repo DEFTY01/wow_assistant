@@ -36,7 +36,13 @@ local NO_HIT = { ["Slice and Dice"] = true, Stealth = true, Vanish = true, Sprin
   ["Dismiss Pet"] = true, ["Revive Pet"] = true, ["Feed Pet"] = true, ["Feign Death"] = true, ["Freezing Trap"] = true,
   ["Immolation Trap"] = true, ["Frost Trap"] = true, ["Explosive Trap"] = true, Disengage = true, Deterrence = true,
   ["Eyes of the Beast"] = true, ["Eagle Eye"] = true, Flare = true, ["Tranquilizing Shot"] = true, ["Scare Beast"] = true,
-  ["Beast Lore"] = true, ["Concussive Shot"] = true, ["Serpent Sting"] = true, ["Scorpid Sting"] = true, ["Viper Sting"] = true }
+  ["Beast Lore"] = true, ["Concussive Shot"] = true, ["Serpent Sting"] = true, ["Scorpid Sting"] = true, ["Viper Sting"] = true,
+  -- shaman: imbues, shields, totems and heals (a totem's damage is the totem's, not the cast's)
+  ["Rockbiter Weapon"] = true, ["Flametongue Weapon"] = true, ["Windfury Weapon"] = true, ["Frostbrand Weapon"] = true,
+  ["Lightning Shield"] = true, ["Ghost Wolf"] = true, ["Healing Wave"] = true, ["Lesser Healing Wave"] = true, ["Chain Heal"] = true,
+  ["Searing Totem"] = true, ["Magma Totem"] = true, ["Fire Nova Totem"] = true, ["Strength of Earth Totem"] = true,
+  ["Stoneskin Totem"] = true, ["Grace of Air Totem"] = true, ["Windfury Totem"] = true, ["Mana Spring Totem"] = true,
+  ["Healing Stream Totem"] = true, ["Earthbind Totem"] = true, ["Tremor Totem"] = true, ["Totemic Recall"] = true }
 
 -- Hunter pet abilities that do damage (the damage meter may list them under the owner).
 local PET_SPELL = { Claw = true, Bite = true, ["Lightning Breath"] = true, ["Scorpid Poison"] = true, Screech = true,

@@ -219,6 +219,8 @@ local USABLE = {
   -- mail from level 40; the plan checks the level, the scan keeps it for the levels ahead
   HUNTER = { armor = { [0] = true, [1] = true, [2] = true, [3] = true }, weapon = { [0] = true, [1] = true, [2] = true, [3] = true, [6] = true,
     [7] = true, [8] = true, [10] = true, [13] = true, [15] = true, [16] = true, [18] = true } },
+  SHAMAN = { armor = { [0] = true, [1] = true, [2] = true, [3] = true, [6] = true },
+    weapon = { [0] = true, [1] = true, [4] = true, [5] = true, [10] = true, [13] = true, [15] = true } },
 }
 
 local function Usable(classID, subID)

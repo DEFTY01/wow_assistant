@@ -47,6 +47,8 @@ Which craft brings the most gold when you sell it to a vendor?
 - Look back at your recent fights to see whether a new rotation or item really helped.
 - Hunters: your pet's damage counts as yours, with a raid-log style breakdown (ranged, pet, melee,
   DoT), casts per minute, Auto Shot and Serpent Sting uptime, and hunter advice.
+- Shamans: melee, weapon imbue, spells, totems and DoT side by side, swing activity, shocks per
+  minute, Lightning Shield uptime, and shaman advice.
 
 ### Hunter pets
 - **Your pet**: family, level, training points, happiness and the ranks it knows.
@@ -55,10 +57,11 @@ Which craft brings the most gold when you sell it to a vendor?
 - **Best pet for your level**: family damage × attack speed, including Forever's fast beasts.
 - **Bestiary**: every tameable beast from Wowhead Forever, searchable by name, family, zone or ability.
 
-### Plan and gear *(Rogue and Hunter for now)*
+### Plan and gear *(Rogue, Hunter and Shaman for now)*
 - **Plan**: what to buy and what to do next, worked out from your level, gold and skills.
 - **Gear**: what is worth replacing and which dungeon or quest drops the upgrade, using a damage
-  model of your character.
+  model of your character. Shamans: weapon imbues, shocks, Lightning Bolt and totems, with spell
+  power and the Two-Handed Axes and Maces talent taken into account.
 
 ### Professions
 - The cheapest route to the next skill cap, with a shopping list.
@@ -91,7 +94,7 @@ A journal of your character's milestones, week by week.
 
 ## Good to know
 - **Language:** the interface is **Hungarian** for now. English is coming.
-- **Plan and gear** are for Rogues and Hunters for now, more classes are coming; the other pages work for every class.
+- **Plan and gear** are for Rogues, Hunters and Shamans for now, more classes are coming; the other pages work for every class.
 - Your data stays on your computer, in the game's saved variables.
 
 ## Feedback

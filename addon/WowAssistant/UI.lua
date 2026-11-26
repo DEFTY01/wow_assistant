@@ -734,7 +734,7 @@ local function Add(out, b) if b then out[#out + 1] = b end end
 
 local function NotSupported(tab, title)
   UI.head[tab] = { title, "A sebzésmodell még nem ismeri ezt a kasztot" }
-  return { { empty = { "Egyelőre rogue és hunter", "A sebzésmodell (és vele a Haditerv és a Felszerelés) egyelőre a rogue-ot és a huntert ismeri; " ..
+  return { { empty = { "Egyelőre rogue, hunter és shaman", "A sebzésmodell (és vele a Haditerv és a Felszerelés) egyelőre a rogue-ot, a huntert és a shamant ismeri; " ..
     "a többi kaszt sorban jön. A Mesterségek és a Vendor gyártás minden karakteren működik." } } }
 end
 
@@ -939,6 +939,44 @@ local function HunterSummary(r, ctx)
   return Section("combat.hunter", "Hunter összesítő (minden harc)", blocks, true, r.fights)
 end
 
+-- Shamans: the same summary (melee, imbue, spells, totems, DoT; swing activity, shocks).
+local KIND_SH = { melee = "közelharc", imbue = "imbue", spell = "varázslat", totem = "totem", dot = "DoT", other = "egyéb" }
+local function ShamanSummary(r, ctx)
+  local s = WA.Shaman.Summary(r, ctx)
+  local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
+  local blocks = {
+    { cards = {
+      { label = "Átlag DPS", value = F1(s.dps), sub = ("%d harc, %d perc"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = "Közelharc", value = s.swingUptime and Pct(s.swingUptime * 100) or "–", sub = "a lehetséges ütésekből",
+        tip = "Hány ütést adtál le ahhoz képest, amennyit a fegyvered ennyi idő alatt üthetett volna (a Windfury plusz ütései is benne vannak)." },
+      { label = "Shock", value = F1(s.shocksPerMin), sub = "percenként" },
+      { label = "Lightning Shield", value = s.shield and Pct(s.shield) or "–", sub = "uptime" },
+    } },
+  }
+  local srcRows = {}
+  for _, k in ipairs({ "melee", "imbue", "spell", "totem", "dot", "other" }) do
+    if (s.sources[k] or 0) > 0 then
+      srcRows[#srcRows + 1] = { KIND_SH[k], Cell(Bar(s.shares[k]), s.shares[k]), Cell(s.sources[k], s.sources[k]),
+        Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
+    end
+  end
+  blocks[#blocks + 1] = { h = "Honnan jön a sebzés" }
+  blocks[#blocks + 1] = { table = { id = "combat.ssrc", cols = { { "Forrás", 110 }, { "Arány", 0, flex = true }, { "Sebzés", 80, "RIGHT" },
+    { "DPS", 64, "RIGHT" } }, rows = srcRows } }
+  local rows = {}
+  for _, a in ipairs(s.rows) do
+    rows[#rows + 1] = { a.name, KIND_SH[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
+      Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
+  end
+  blocks[#blocks + 1] = { h = "Képességek: használat percenként és sebzés használatonként" }
+  blocks[#blocks + 1] = { table = { id = "combat.scpm", cols = { { "Képesség", 0, flex = true }, { "Fajta", 80 }, { "Arány", 60, "RIGHT" },
+    { "Db", 50, "RIGHT" }, { "Percenként", 76, "RIGHT" }, { "Használatonként", 104, "RIGHT" }, { "Átlag találat", 90, "RIGHT", extra = true } }, rows = rows } }
+  if s.meleeMiss then
+    blocks[#blocks + 1] = { p = ("Közelharc: %s miss/dodge/parry, %s crit."):format(Pct(s.meleeMiss), Pct(s.meleeCrit)), muted = true }
+  end
+  return Section("combat.shaman", "Shaman összesítő (minden harc)", blocks, true, r.fights)
+end
+
 function UI.pages.combat()
   local all = G.Fights()
   table.sort(all, function(a, b) return a.start > b.start end)
@@ -950,9 +988,14 @@ function UI.pages.combat()
     return { { empty = { "Még nincs rögzített harc", "Az addon minden harcot magától rögzít: üss meg egy mobot, és a harc vége után itt lesz." } } }
   end
   local hunter = G.Class() == "HUNTER"
+  local shaman = G.Class() == "SHAMAN"
   local ctx = G.Supported() and G.Context() or nil
   local baseline = ctx and ctx.baseline or nil
-  local function Score(x) if hunter then return WA.Hunter.Score(x, ctx) end return WA.Combat.Score(x, baseline) end
+  local function Score(x)
+    if hunter then return WA.Hunter.Score(x, ctx) end
+    if shaman then return WA.Shaman.Score(x, ctx) end
+    return WA.Combat.Score(x, baseline)
+  end
   local out = {}
 
   local f = all[1]
@@ -964,11 +1007,15 @@ function UI.pages.combat()
   out[#out + 1] = { cards = {
     { label = "Pontszám", value = Grade(sc), sub = sc and "0–100, S a legjobb" or "nincs elég adat",
       tip = hunter and "DPS a várthoz képest, Auto Shot folyamatossága, a pet része, távolság, Serpent Sting, lövések percenként."
+        or shaman and "DPS a várthoz képest, ütések folyamatossága, shock percenként, totem a hosszú harcban, Stormstrike cooldownra."
         or "DPS a felszerelésedtől várthoz képest, kárba ment energia, Eviscerate combo pontjai, Slice and Dice uptime, képességek percenként." },
     { label = "DPS", value = F1(dps), sub = baseline and ("várt " .. F1(baseline)) or "" },
     hunter and (function()
       local _, sh = WA.Hunter.Sources(f.ab, f.dmg)
       return { label = "Pet része", value = Pct(sh.pet), sub = ("távolsági %d%%, közel %d%%"):format(math.floor(sh.ranged + 0.5), math.floor(sh.melee + 0.5)) }
+    end)() or shaman and (function()
+      local _, sh = WA.Shaman.Sources(f.ab, f.dmg)
+      return { label = "Közelharc része", value = Pct(sh.melee + sh.imbue), sub = ("varázslat %d%%, totem %d%%"):format(math.floor(sh.spell + 0.5), math.floor(sh.totem + 0.5)) }
     end)() or { label = "Sebzés", value = tostring(f.dmg or 0), sub = (f.ab and #f.ab or 0) .. " képesség" },
     { label = "Hossz", value = F1(f.dur) .. " mp", sub = f.casts and (#f.casts .. " használat") or "" },
   } }
@@ -1017,9 +1064,10 @@ function UI.pages.combat()
   end
 
   -- all fights together (the web app's combat page)
-  local r = WA.Combat.Report(all, nil, hunter and WA.Hunter.Advise or nil)
+  local r = WA.Combat.Report(all, nil, hunter and WA.Hunter.Advise or shaman and WA.Shaman.Advise or nil)
   if not r then return out end
   if hunter then out[#out + 1] = HunterSummary(r, ctx) end
+  if shaman then out[#out + 1] = ShamanSummary(r, ctx) end
   if #r.advice > 0 then
     local tips = {}
     for _, a in ipairs(r.advice) do tips[#tips + 1] = { level = a.level, title = a.title, text = a.text } end
@@ -1238,6 +1286,13 @@ function UI.pages.gear()
       { label = "Ranged AP", value = tostring(math.floor((sh.rap or 0) + 0.5)), sub = "távolsági " .. Weapon(sh.ranged) },
       { label = "Crit", value = Pct(sh.crit), sub = "lőszer " .. ((sh.ammo or 0) > 0 and (F1(sh.ammo) .. " DPS") or "nincs") },
       { label = "Hit", value = Pct(sh.hit), sub = (sh.haste or 1) > 1.001 and (("tegez +%d%% sebesség"):format(math.floor((sh.haste - 1) * 100 + 0.5))) or "nincs tegez" },
+    } }
+  elseif ctx.class == "SHAMAN" then
+    out[#out + 1] = { cards = {
+      dpsCard,
+      { label = "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)), sub = "fegyver " .. Weapon(sh.mh) },
+      { label = "Crit", value = Pct(sh.crit), sub = "spell crit " .. Pct(sh.spellCrit or 0) },
+      { label = "Spell power", value = tostring(math.floor((sh.sp or 0) + 0.5)), sub = "hit " .. Pct(sh.hit) },
     } }
   else
     out[#out + 1] = { cards = {

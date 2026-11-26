@@ -114,16 +114,22 @@ end
 -- Hunter talents by rank: Lethal Shots +1% ranged crit, Mortal Shots +6% crit damage bonus,
 -- Lightning Reflexes +3% agility per rank.
 local HUNTER_TALENTS = { ["Lethal Shots"] = { "lethal", 1 }, ["Mortal Shots"] = { "mortal", 6 }, ["Lightning Reflexes"] = { "reflexes", 3 } }
+-- shaman: ranks as they are (Shaman.lua turns them into numbers); read = the talents were scanned
+local SHAMAN_TALENTS = { Flurry = { "flurry", 1 }, ["Thundering Strikes"] = { "thundering", 1 }, ["Elemental Fury"] = { "fury", 1 },
+  ["Two-Handed Axes and Maces"] = { "twoHand", 1 }, ["Elemental Weapons"] = { "elemWeapons", 1 }, Stormstrike = { "stormstrike", 1 } }
+local CLASS_TALENTS = { HUNTER = HUNTER_TALENTS, SHAMAN = SHAMAN_TALENTS }
 
 function G.Talents()
   local out = { malice = 0, efficient = 0, coup = 0, lethal = 0, mortal = 0, reflexes = 0 }
   if not GetNumTalentTabs then return out end
-  if G.Class() == "HUNTER" then
+  local map = CLASS_TALENTS[G.Class() or ""]
+  if map then
     for tab = 1, GetNumTalentTabs() do
       for i = 1, (GetNumTalents and GetNumTalents(tab) or 0) do
         local name, _, _, _, rank = GetTalentInfo(tab, i)
-        local t = name and HUNTER_TALENTS[name]
+        local t = name and map[name]
         if t and rank and rank > 0 then out[t[1]] = rank * t[2] end
+        if name then out.read = true end
       end
     end
     return out
@@ -322,6 +328,14 @@ function G.ModelInput()
         ["Multi-Shot"] = known["Multi-Shot"] or false }
       if (input.level or 0) >= 10 and not known["Call Pet"] then input.hasPet = false end
     end
+  elseif input.class == "SHAMAN" then
+    local _, int = UnitStat("player", 4)
+    input.int = int or 0
+    -- nature (school 4): Lightning Bolt and Earth Shock
+    input.sp = GetSpellBonusDamage and (GetSpellBonusDamage(4) or 0) or 0
+    input.spellCrit = GetSpellCritChance and (GetSpellCritChance(4) or 0) or 0
+    local known = KnownSpells()
+    if known then input.known = { Stormstrike = known.Stormstrike or nil } end
   end
   return input
 end
@@ -427,7 +441,7 @@ function G.PlanInput(ctx)
   local warnings = {}
   local c = WA.char or {}
   if not c.bankAt then warnings[#warnings + 1] = "A bank tartalma ismeretlen: nyisd meg egyszer a bankot." end
-  local classHu = ({ ROGUE = "rogue", HUNTER = "hunter" })[ctx.class] or "class"
+  local classHu = ({ ROGUE = "rogue", HUNTER = "hunter", SHAMAN = "shaman" })[ctx.class] or "class"
   if #trainer == 0 then warnings[#warnings + 1] = ("Nincs trainer-adat: nyisd meg a %s trainer ablakát minden szűrővel."):format(classHu) end
   if ctx.class == "HUNTER" and not (WA.char and WA.char.spells and #WA.char.spells > 0) then
     warnings[#warnings + 1] = "A varázskönyved még nincs beolvasva: /reload után az addon megnézi, mit tudsz (Aimed Shot, Multi-Shot, pet)."

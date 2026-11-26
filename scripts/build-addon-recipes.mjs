@@ -113,6 +113,8 @@ const pct = (v) => Math.round(v * 100) / 100;
 const lootStats = (st) => ({
   agi: st.agi ?? 0, str: st.str ?? 0, ap: st.atkpwr ?? 0, crit: pct((st.critstrkrtng ?? 0) / CRIT_RATING),
   hit: pct((st.hitrtng ?? 0) / HIT_RATING + Math.max(st.mlehitpct ?? 0, st.rgdhitpct ?? 0)), rap: st.rgdatkpwr ?? 0,
+  // casters (shamans): intellect, and spell power for damage (any school, or nature)
+  int: st.int ?? 0, sp: (st.splpwr ?? 0) + (st.spldmg ?? 0) + (st.natsplpwr ?? 0),
   weapon: st.mlespeed ? [st.mledmgmin, st.mledmgmax, st.mlespeed]
     : st.rgdspeed ? [st.rgddmgmin, st.rgddmgmax, st.rgdspeed] : [],
 });
@@ -131,14 +133,14 @@ const data = [
   "  },",
   "  -- loot: { item, zone, name, quality, item level, required level, Wowhead slot, class, subclass, boss,",
   "  --         drop %, source, side, quest level, agi, str, ap, crit, hit, weapon min, max, speed,",
-  "  --         ranged attack power }",
+  "  --         ranged attack power, intellect, spell power }",
   "  loot = {",
   ...loot.map((r) => {
     const s = lootStats(JSON.parse(r.stats || "{}"));
     const w = s.weapon;
     return `    { ${r.item_id}, ${r.zone_id}, ${lua(r.name)}, ${n(r.quality)}, ${n(r.item_level)}, ${r.req_level || 0}, ${n(r.slot)}, ` +
       `${n(r.item_class)}, ${n(r.subclass)}, ${r.boss ? lua(r.boss) : "nil"}, ${n(r.drop_pct)}, ${lua(r.source ?? "dungeon")}, ` +
-      `${r.side ?? 0}, ${n(r.quest_level)}, ${s.agi}, ${s.str}, ${s.ap}, ${s.crit}, ${s.hit}, ${n(w[0])}, ${n(w[1])}, ${n(w[2])}, ${s.rap} },`;
+      `${r.side ?? 0}, ${n(r.quest_level)}, ${s.agi}, ${s.str}, ${s.ap}, ${s.crit}, ${s.hit}, ${n(w[0])}, ${n(w[1])}, ${n(w[2])}, ${s.rap}, ${s.int}, ${s.sp} },`;
   }),
   "  },",
   "  -- buffs: { id, name, source, group, { { level, label, agi, str, ap, crit, statPct }, ... } }",
