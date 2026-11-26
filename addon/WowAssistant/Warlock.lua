@@ -188,7 +188,11 @@ function W.Context(input)
     local bits = {}
     if add.weapon then
       local w = add.weapon
-      bits[#bits + 1] = ("%s %s–%s / %s"):format(weaponSub == 19 and "Wand" or (M.WEAPON_NAMES[weaponSub or -1] or "Weapon"), w.min, w.max, F1(w.speed))
+      if weaponSub == 19 then
+        bits[#bits + 1] = ("Wand %s DPS / %s"):format(F1(WandDps(w)), F1(w.speed))
+      else
+        bits[#bits + 1] = ("%s %s–%s / %s"):format(M.WEAPON_NAMES[weaponSub or -1] or "Weapon", w.min, w.max, F1(w.speed))
+      end
     end
     if (add.sp or 0) ~= 0 then bits[#bits + 1] = ("+%s spell power"):format(add.sp) end
     if (add.int or 0) ~= 0 then bits[#bits + 1] = ("+%s int"):format(add.int) end

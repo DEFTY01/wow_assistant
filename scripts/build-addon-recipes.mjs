@@ -115,8 +115,11 @@ const lootStats = (st) => ({
   hit: pct((st.hitrtng ?? 0) / HIT_RATING + Math.max(st.mlehitpct ?? 0, st.rgdhitpct ?? 0)), rap: st.rgdatkpwr ?? 0,
   // casters (shamans): intellect, and spell power for damage (any school, or nature)
   int: st.int ?? 0, sp: (st.splpwr ?? 0) + (st.spldmg ?? 0) + (st.natsplpwr ?? 0),
+  // Wands carry only dps and speed (no damage range): the average hit is dps x speed, given as
+  // both min and max, so the models' (min + max) / 2 / speed gives back the wand's own DPS
   weapon: st.mlespeed ? [st.mledmgmin, st.mledmgmax, st.mlespeed]
-    : st.rgdspeed ? [st.rgddmgmin, st.rgddmgmax, st.rgdspeed] : [],
+    : st.rgdspeed ? [st.rgddmgmin, st.rgddmgmax, st.rgdspeed]
+    : st.dps > 0 && st.speed > 0 ? [Math.round(st.dps * st.speed * 10) / 10, Math.round(st.dps * st.speed * 10) / 10, st.speed] : [],
 });
 const dungeons = query("SELECT zone_id, name, min_level, max_level, req_level, kind FROM dungeons ORDER BY zone_id", "A dungeonok");
 const loot = query(

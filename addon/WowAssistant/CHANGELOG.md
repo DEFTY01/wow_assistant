@@ -1,3 +1,9 @@
+## 2.12.1
+
+- A Felszerelés oldal most pálcát is ajánl (warlock). A Wowhead Forever a pálcáknak csak a DPS-ét és a sebességét adja, sebzéstartományt nem, ezért eddig a pálcák sebzés nélkül kerültek a játékadatba, és az oldal kihagyta őket. Most az átlagos ütés a DPS × sebesség, így a pálca DPS-e pontos.
+- Ugyanez a hiány érintett öt dobófegyvert (Thrown) is: a hunter modellje most ezeket is értékeli.
+- A játékadatot újra kell építeni, hogy az új számok bekerüljenek: npm run addon:recipes.
+
 ## 2.12.0
 
 Warlock: saját modell, harcoldal és Haditerv.
