@@ -247,82 +247,83 @@ local function FormatValue(cat, v)
 end
 
 local function BuildPanel()
-  local f = CreateFrame("Frame", "AzerothChronicleFrame", UIParent, "BackdropTemplate")
-  f:SetSize(420, 70 + ROWS * 18)
-  f:SetPoint("CENTER")
-  f:SetFrameStrata("DIALOG")
-  f:SetMovable(true)
-  f:EnableMouse(true)
-  f:RegisterForDrag("LeftButton")
-  f:SetScript("OnDragStart", f.StartMoving)
-  f:SetScript("OnDragStop", f.StopMovingOrSizing)
-  f:SetClampedToScreen(true)
-  f:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
-  f:SetBackdropColor(0, 0, 0, 0.85)
-  f:SetBackdropBorderColor(0.3, 0.3, 0.3, 1)
-  tinsert(UISpecialFrames, "AzerothChronicleFrame")
+  -- The shared window style (banner, gold border, close button) with a short fixed title; the
+  -- guild, category and week go on a line of their own so they never run into the close button.
+  local St = WA.Style
+  local W = 460
+  local f = St.Window("AzerothChronicleFrame", W, 0, "Heti verseny")
+  local inset = f.inset
   f.cat = db.lastCategory or "xp"
   f.view = "guild"
 
-  f.title = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormal")
-  f.title:SetPoint("TOPLEFT", 10, -8)
-  local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-  close:SetPoint("TOPRIGHT", 2, 2)
+  f.sub = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormal")
+  f.sub:SetPoint("TOPLEFT", inset, -f.top)
+  f.sub:SetPoint("TOPRIGHT", -inset, -f.top)
+  f.sub:SetJustifyH("CENTER")
+  f.sub:SetWordWrap(false)
 
+  -- category buttons, spread over the full width (the addon font has ő, the game's does not)
+  local n, gap = #CATEGORIES, 4
+  local bw = math.floor((W - 2 * inset - (n - 1) * gap) / n)
+  local tabY = -(f.top + 20)
   f.tabs = {}
   for i, c in ipairs(CATEGORIES) do
-    local b = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-    b:SetSize(62, 20)
-    b:SetPoint("TOPLEFT", 10 + (i - 1) * 64, -28)
-    b:SetText(c.label)
-    b:SetScript("OnClick", function()
+    local b = St.Button(f, c.label, bw, function()
       f.cat = c.id
       f.view = "guild"
       db.lastCategory = c.id
       f:Refresh()
     end)
+    b:SetPoint("TOPLEFT", inset + (i - 1) * (bw + gap), tabY)
     f.tabs[c.id] = b
   end
 
-  local mine = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-  mine:SetSize(100, 18)
-  mine:SetPoint("BOTTOMLEFT", 8, 6)
-  mine:SetText("Karaktereim")
-  mine:SetScript("OnClick", function()
+  local bottom = inset - 4
+  local mine = St.Button(f, "Karaktereim", 110, function()
     f.view = f.view == "mine" and "guild" or "mine"
     f:Refresh()
   end)
-  local sync = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
-  sync:SetSize(90, 18)
-  sync:SetPoint("LEFT", mine, "RIGHT", 4, 0)
-  sync:SetText("Frissítés")
-  sync:SetScript("OnClick", function()
+  mine:SetPoint("BOTTOMLEFT", inset, bottom)
+  local sync = St.Button(f, "Frissítés", 90, function()
     Broadcast(true)
     Request()
     f:Refresh()
   end)
+  sync:SetPoint("LEFT", mine, "RIGHT", 4, 0)
   f.footer = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontDisableSmall")
-  f.footer:SetPoint("BOTTOMRIGHT", -10, 10)
+  f.footer:SetPoint("LEFT", sync, "RIGHT", 8, 0)
+  f.footer:SetPoint("RIGHT", f, "RIGHT", -inset, 0)
+  f.footer:SetJustifyH("RIGHT")
+  f.footer:SetWordWrap(false)
 
+  local rowsTop = -(f.top + 52)
   f.rows = {}
   for i = 1, ROWS do
     local r = {}
-    local y = -54 - (i - 1) * 18
+    local y = rowsTop - (i - 1) * 18
     r.rank = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
-    r.rank:SetPoint("TOPLEFT", 12, y)
-    r.rank:SetWidth(22)
+    r.rank:SetPoint("TOPLEFT", inset, y)
+    r.rank:SetWidth(24)
     r.rank:SetJustifyH("RIGHT")
     r.name = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
-    r.name:SetPoint("TOPLEFT", 40, y)
-    r.name:SetWidth(190)
+    r.name:SetPoint("TOPLEFT", inset + 32, y)
+    r.name:SetWidth(210)
     r.name:SetJustifyH("LEFT")
+    r.name:SetWordWrap(false)
     r.level = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
-    r.level:SetPoint("TOPLEFT", 235, y)
+    r.level:SetPoint("TOPLEFT", inset + 250, y)
     r.value = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
-    r.value:SetPoint("TOPRIGHT", -12, y)
+    r.value:SetPoint("TOPRIGHT", -inset, y)
     r.value:SetJustifyH("RIGHT")
     f.rows[i] = r
   end
+  f:SetHeight(f.top + 52 + ROWS * 18 + 40)
+
+  -- shown in the middle of the list when there is nothing to list
+  f.empty = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontMuted")
+  f.empty:SetPoint("TOP", f, "TOP", 0, rowsTop - 60)
+  f.empty:SetWidth(W - 4 * inset)
+  f.empty:SetJustifyH("CENTER")
 
   function f:SetRow(i, rank, name, level, value)
     local r = self.rows[i]
@@ -339,9 +340,10 @@ local function BuildPanel()
       if id == self.cat and self.view == "guild" then b:LockHighlight() else b:UnlockHighlight() end
     end
     for i = 1, ROWS do self:SetRow(i) end
+    self.empty:SetText("")
 
     if self.view == "mine" then
-      self.title:SetText(("Karaktereim – a hét (%s óta)"):format(from))
+      self.sub:SetText(("Karaktereim – a hét (%s óta)"):format(from))
       local list = {}
       for key, c in pairs(db.chars) do
         local g = Gains(c, wk)
@@ -353,7 +355,8 @@ local function BuildPanel()
         self:SetRow(i, "", ClassColor(e.c.class) .. DisplayName(e.key) .. "|r", "Lv " .. (e.g.level or "?"),
           ("+%s XP  %s  +%d q"):format(Abbrev(e.g.xp), Money(e.g.money), e.g.quests))
       end
-      self.footer:SetText(#list == 0 and "Még nincs heti adat." or "")
+      self.footer:SetText("")
+      if #list == 0 then self.empty:SetText("Még nincs heti adat.") end
       return
     end
 
@@ -361,7 +364,7 @@ local function BuildPanel()
     local cat = self.cat
     local label = cat
     for _, c in ipairs(CATEGORIES) do if c.id == cat then label = c.label end end
-    self.title:SetText(("%s – heti verseny: %s (%s óta)"):format(guild or "Nincs guild", label, from))
+    self.sub:SetText(("%s · %s · %s óta"):format(guild or "Nincs guild", label, from))
     if not db.share then
       self.footer:SetText("Megosztás kikapcsolva: /azc share on")
     else
@@ -381,7 +384,7 @@ local function BuildPanel()
       if x.member == GuildName() then name = name .. " |cff00ff00(te)|r" end
       self:SetRow(i, i .. ".", name, x.e.level and ("Lv " .. x.e.level) or "", FormatValue(cat, Value(x.e, cat)))
     end
-    if #list == 0 then self:SetRow(1, "", "Még nincs adat ebben a kategóriában.") end
+    if #list == 0 then self.empty:SetText("Még nincs adat ebben a kategóriában.") end
   end
 
   f:Hide()
