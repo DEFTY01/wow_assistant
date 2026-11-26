@@ -119,6 +119,21 @@ local SHAMAN_TALENTS = { Flurry = { "flurry", 1 }, ["Thundering Strikes"] = { "t
   ["Two-Handed Axes and Maces"] = { "twoHand", 1 }, ["Elemental Weapons"] = { "elemWeapons", 1 }, Stormstrike = { "stormstrike", 1 } }
 local CLASS_TALENTS = { HUNTER = HUNTER_TALENTS, SHAMAN = SHAMAN_TALENTS }
 
+-- The talent tab with the most points (1-3), nil before the first talent point.
+function G.MainTalentTab()
+  if not GetNumTalentTabs then return nil end
+  local best, bestPts = nil, 0
+  for tab = 1, GetNumTalentTabs() do
+    local pts = 0
+    for i = 1, (GetNumTalents and GetNumTalents(tab) or 0) do
+      local _, _, _, _, rank = GetTalentInfo(tab, i)
+      pts = pts + (tonumber(rank) or 0)
+    end
+    if pts > bestPts then best, bestPts = tab, pts end
+  end
+  return best, bestPts
+end
+
 function G.Talents()
   local out = { malice = 0, efficient = 0, coup = 0, lethal = 0, mortal = 0, reflexes = 0 }
   if not GetNumTalentTabs then return out end

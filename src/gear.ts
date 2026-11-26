@@ -70,7 +70,24 @@ interface Weapon {
   min: number;
   max: number;
   speed: number;
+  /** normalized speed for instant attacks; unset while the subclass is unknown */
+  norm?: number;
 }
+
+// Normalized weapon speed (WoWSims Forever d5144855 sim/core/attack.go newWeaponFromItem), the
+// same as M.NormalizedSpeed in the addon's Model.lua: a dagger 1.7, another two-hander 3.3, a
+// ranged weapon 2.8, every other one-hander 2.4. sub: the item subclass.
+const TWO_HAND_SUBS = new Set([1, 5, 6, 8, 10]);
+const RANGED_SUBS = new Set([2, 3, 16, 18, 19]);
+export function normalizedSpeed(sub: number | null | undefined, twoHand = false): number | undefined {
+  if (sub == null || !Number.isFinite(sub)) return undefined;
+  if (sub === 15) return 1.7;
+  if (twoHand || TWO_HAND_SUBS.has(sub)) return 3.3;
+  if (RANGED_SUBS.has(sub)) return 2.8;
+  return 2.4;
+}
+/** The weapon part of an instant attack (Sinister Strike): AP / 14 x the normalized speed. */
+export const instantWeaponDamage = (w: Weapon, ap: number) => (w.min + w.max) / 2 + (ap / 14) * (w.norm ?? w.speed);
 /** What one item contributes. */
 export interface ItemStats {
   agi: number;
@@ -165,7 +182,7 @@ export function dps(sh: Sheet, p: ModelParams): number {
   if (sh.mh) total += p.swingRate * (avg(sh.mh) / sh.mh.speed) * whiteFactor;
   if (sh.oh) total += p.swingRate * ((avg(sh.oh) * 0.5) / sh.oh.speed) * whiteFactor;
   if (sh.mh) {
-    total += p.ssPerSec * (avg(sh.mh) + p.ssBonus) * yellowFactor;
+    total += p.ssPerSec * (instantWeaponDamage(sh.mh, sh.ap) + p.ssBonus) * yellowFactor;
     total += p.evisPerSec * p.evisDamage * yellowFactor;
   }
   return total;
@@ -291,8 +308,8 @@ export async function gearContext(env: Env) {
     ap: Number(stats.attack_power ?? 0),
     crit: critNow,
     hit: Number(stats.melee_hit?.value ?? 0),
-    mh: mhNow.weapon,
-    oh: ohNow.weapon,
+    mh: mhNow.weapon ? { ...mhNow.weapon, norm: normalizedSpeed(Number(equipped.get("MAIN_HAND")?.item_subclass?.id)) } : null,
+    oh: ohNow.weapon ? { ...ohNow.weapon, norm: normalizedSpeed(Number(equipped.get("OFF_HAND")?.item_subclass?.id)) } : null,
   };
 
   // Textbook defaults: five Sinister Strikes then one 35-energy Eviscerate at 10 energy/sec,
@@ -342,7 +359,7 @@ export async function gearContext(env: Env) {
     if (ss && sheet.mh && ss.hit + ss.crit > 0) {
       // Normal-hit average with crits counted double, minus what the weapon and attack power explain.
       const normal = ss.dmg / (ss.hit + 2 * ss.crit);
-      const weapon = (sheet.mh.min + sheet.mh.max) / 2 + (sheet.ap / 14) * sheet.mh.speed;
+      const weapon = instantWeaponDamage(sheet.mh, sheet.ap);
       params.ssBonus = mix(params.ssBonus, Math.max(0, normal - weapon), ss.hit + ss.crit, 20);
     }
     if (evis && evis.hit + evis.crit > 0) {
@@ -466,6 +483,7 @@ export async function gearReport(env: Env, lookahead = 3, given?: GearContext): 
     if (!slots) continue;
     const add = lootStats(JSON.parse(r.stats));
     if (r.item_class === 2 && !add.weapon) continue;
+    if (add.weapon) add.weapon.norm = normalizedSpeed(r.subclass);
 
     const best = ctx.score(add, slots);
     if (!best) continue;

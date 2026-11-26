@@ -1113,6 +1113,62 @@ function UI.pages.combat()
       { "DPS", 80, "RIGHT" }, { "Fehér miss", 90, "RIGHT" } }, rows = rows3 } }
   end
   out[#out + 1] = Section("combat.all", "Összesítés, minden harc", blocks, false, r.fights)
+  -- the model behind the numbers: the engine's status for every spec of your class, the addon's
+  -- own model, and the reference functions that apply to you (spec §6)
+  do
+    local C = WA.Combat
+    local class = G.Class()
+    local cm = C.CLASS_MODELS[class or ""]
+    if cm then
+      local mainTab, pts
+      if G.MainTalentTab then mainTab, pts = G.MainTalentTab() end
+      local level = UnitLevel and UnitLevel("player") or 0
+      local rows5 = {}
+      for i, t in ipairs(cm.tabs) do
+        local mine = mainTab == i
+        rows5[#rows5 + 1] = { (mine and "> " or "") .. cm.name .. " " .. t[1], t[2],
+          cm.waystone and "van (szintezési modell)" or "nincs",
+          C.SIM_STATUS_TEXT[t[2]] .. (mine and (" · a te fád (" .. pts .. " pont)") or "") }
+      end
+      local refs = {}
+      local function Ref(label, value, from) refs[#refs + 1] = { label, value, from } end
+      if class == "ROGUE" then
+        local link = GetInventoryItemLink and GetInventoryItemLink("player", 16)
+        local sub = link and GetItemInfoInstant and select(7, GetItemInfoInstant(link)) or nil
+        local per, norm = C.REF.SinisterStrikeAp(100, sub)
+        if per then
+          Ref("Sinister Strike +100 AP", ("+%s"):format(F1(per)), ("100 × %s / 14 (a fő kezed normalizált sebessége; " .. C.REF.ssSource .. ")"):format(F1(norm)))
+        end
+      end
+      if class == "HUNTER" then
+        local base, pos, neg = UnitAttackPower and UnitAttackPower("player")
+        local rb, rpos, rneg = UnitRangedAttackPower and UnitRangedAttackPower("player")
+        local melee = (base or 0) + (pos or 0) + (neg or 0)
+        local ranged = (rb or 0) + (rpos or 0) + (rneg or 0)
+        Ref("Pet örökölt AP-ja", ("+%d"):format(math.floor(C.REF.HunterPetAp(melee, ranged) + 0.5)),
+          ("0,10 × max(%d melee, %d ranged AP); idézéskor rögzül, újrahívásig nem változik (%s)"):format(melee, ranged, C.REF.petSource))
+      end
+      if class == "WARLOCK" and GetSpellBonusDamage then
+        -- the game's per-school numbers already include the general bonus: S = max(shadow, fire)
+        local shadow, fire = GetSpellBonusDamage(6) or 0, GetSpellBonusDamage(3) or 0
+        local ap, sp, s = C.REF.WarlockDemon(0, shadow, fire)
+        Ref("Démon örökölt AP / spell damage", ("+%d / +%d"):format(math.floor(ap + 0.5), math.floor(sp + 0.5)),
+          ("S = max(%d shadow, %d fire) = %d (a játék iskolánkénti értéke már tartalmazza az általános bónuszt); 0,17 × S és 0,10 × S (%s)"):format(shadow, fire, s, C.REF.demonSource))
+      end
+      local blocks5 = {
+        { p = ("WoWSims Forever (%s): a %s%s. A motor csak 60-as karaktert épít%s."):format(C.SIM_SOURCE, cm.name,
+          cm.shared and (" " .. cm.shared .. " szerint modellezett") or " specjei külön modellek",
+          level > 0 and level < 60 and (", ezért a te szinteden (" .. level .. ") nincs szintazonos referencia; a saját mért adataid ettől még használhatók") or ""), muted = true },
+        { table = { id = "combat.models", cols = { { "Spec", 170 }, { "WoWSims", 90 }, { "Waystone", 120 }, { "Mit jelent", 0, flex = true } }, rows = rows5 } },
+      }
+      if cm.note then blocks5[#blocks5 + 1] = { p = cm.note, muted = true } end
+      if #refs > 0 then
+        blocks5[#blocks5 + 1] = { h = "Referenciafüggvények (a modell bemenetei)" }
+        blocks5[#blocks5 + 1] = { table = { id = "combat.refs", cols = { { "Mi", 190 }, { "Érték", 90, "RIGHT" }, { "Miből", 0, flex = true } }, rows = refs } }
+      end
+      out[#out + 1] = Section("combat.models", "Modell a kasztodhoz", blocks5, false, #rows5)
+    end
+  end
   if r.cooldowns and #r.cooldowns > 0 then
     local rows4 = {}
     for _, u in ipairs(r.cooldowns) do

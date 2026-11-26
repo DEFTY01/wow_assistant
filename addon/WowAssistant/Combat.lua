@@ -218,6 +218,65 @@ function C.CooldownUsage(fights)
   return out
 end
 
+-- The nine classes and what models them (spec §6). The WoWSims Forever engine at d5144855
+-- registers these modules (sim/register_all.go): "Alpha" community models, and "GearPlanner"
+-- healer specs, which plan gear only - no HPS or rotation score can be proven from them. The
+-- engine builds a level 60 character only (sim/core/constants.go CharacterLevel = 60). "waystone"
+-- marks the classes the addon's own levelling model covers (Model.lua, Hunter.lua, Shaman.lua).
+-- tabs: the talent tabs in the game's order, each with the engine's spec for it.
+C.SIM_SOURCE = "WoWSims Forever d5144855 sim/register_all.go"
+C.CLASS_MODELS = {
+  DRUID = { name = "Druid", tabs = { { "Balance", "Alpha" }, { "Feral (Cat, Bear)", "Alpha" }, { "Restoration", "GearPlanner" } } },
+  HUNTER = { name = "Hunter", waystone = true, tabs = { { "Beast Mastery", "Alpha" }, { "Marksmanship", "Alpha" }, { "Survival", "Alpha" } },
+    shared = "egy közös Hunter-modul" },
+  MAGE = { name = "Mage", tabs = { { "Arcane", "Alpha" }, { "Fire", "Alpha" }, { "Frost", "Alpha" } }, shared = "egy közös Mage-modul" },
+  PALADIN = { name = "Paladin", tabs = { { "Holy", "GearPlanner" }, { "Protection", "Alpha" }, { "Retribution", "Alpha" } } },
+  PRIEST = { name = "Priest", tabs = { { "Discipline", "GearPlanner" }, { "Holy", "GearPlanner" }, { "Shadow", "Alpha" } },
+    note = "Discipline és Holy: a gyógyító (Healer) modell; Shadow: a DPS-modell" },
+  ROGUE = { name = "Rogue", waystone = true, tabs = { { "Assassination", "Alpha" }, { "Combat", "Alpha" }, { "Subtlety", "Alpha" } },
+    shared = "egy közös Rogue-modul" },
+  SHAMAN = { name = "Shaman", waystone = true, tabs = { { "Elemental", "Alpha" }, { "Enhancement", "Alpha" }, { "Restoration", "GearPlanner" } } },
+  WARLOCK = { name = "Warlock", tabs = { { "Affliction", "Alpha" }, { "Demonology", "Alpha" }, { "Destruction", "Alpha" } },
+    shared = "egy közös Warlock-modul" },
+  WARRIOR = { name = "Warrior", tabs = { { "Arms", "Alpha" }, { "Fury", "Alpha" }, { "Protection", "Alpha" } },
+    note = "Arms és Fury: a DPS-modell; Protection: a tank-modell" },
+}
+C.SIM_STATUS_TEXT = {
+  Alpha = "Alpha: közösségi modell, DPS-referencia számolható (60-as szinten)",
+  GearPlanner = "GearPlanner: csak felszereléstervezés; HPS- vagy rotációs pontszám ebből nem igazolható",
+}
+
+-- the engine's status for a class and talent tab (nil tab: the class as a whole)
+function C.SimModel(class, tab)
+  local c = C.CLASS_MODELS[class or ""]
+  if not c then return nil end
+  local t = tab and c.tabs[tab]
+  return { class = c.name, spec = t and t[1] or nil, status = t and t[2] or nil, waystone = c.waystone == true, shared = c.shared, note = c.note }
+end
+
+-- Three reference functions of the engine (spec §6), to check the inputs. The addon's own model
+-- uses the first; the others show what the engine's pet gets from you.
+C.REF = {
+  -- Sinister Strike: + AP / 14 x normalized speed (sim/rogue/sinister_strike.go, sim/core/attack.go,
+  -- DefaultAttackPowerPerDPS = 14 in sim/core/constants.go); before damage modifiers
+  ssSource = "WoWSims Forever d5144855 sim/core/attack.go (CalculateNormalizedWeaponDamage, normalizált sebesség), sim/core/constants.go (DefaultAttackPowerPerDPS = 14)",
+  -- hunter pet: 10% of the higher of melee and ranged AP, kept from the summon (sim/hunter/pets.go)
+  petSource = "WoWSims Forever d5144855 sim/hunter/pets.go (makeStatInheritance, keepSummonStats)",
+  -- warlock demon: S = spell damage + max(shadow, fire); AP 0.17 S, spell damage 0.10 S (sim/warlock/pets.go)
+  demonSource = "WoWSims Forever d5144855 sim/warlock/pets.go (petStatInheritance)",
+}
+function C.REF.SinisterStrikeAp(ap, sub)
+  local norm = WA.Model.NormalizedSpeed(sub)
+  return norm and ap * norm / 14 or nil, norm
+end
+function C.REF.HunterPetAp(meleeAp, rangedAp)
+  return 0.1 * math.max(meleeAp or 0, rangedAp or 0)
+end
+function C.REF.WarlockDemon(spellDamage, shadow, fire)
+  local s = (spellDamage or 0) + math.max(shadow or 0, fire or 0)
+  return 0.17 * s, 0.10 * s, s
+end
+
 -- Findings: what the advice may say about you.
 --
 -- A finding states a measured fact. It may call something a mistake of yours ("hiba", red) only
@@ -604,9 +663,13 @@ function C.Provenance(f, ctx)
         "100 × mért DPS / várt DPS; " .. why .. ". Az eltérés önmagában nem rotációs hiba: a mozgás, a több célpont vagy a harc vége is benne van.")
     end
   end
+  local sm = ctx and ctx.sim or C.SimModel(WA.Game and WA.Game.Class and WA.Game.Class(), WA.Game and WA.Game.MainTalentTab and WA.Game.MainTalentTab())
+  local simWhat = sm and (sm.class .. (sm.spec and (" " .. sm.spec) or "") .. (sm.status and (": " .. C.SIM_STATUS_TEXT[sm.status]) or "")) or nil
   Row("sim", "Referencia-szimuláció (WoWSims Forever)", "nem értékelhető", nil, "–",
-    ((f.level or 0) > 0 and f.level < 60) and "a Forever motor csak 60-as karaktert épít: ehhez a szinthez nincs szintazonos referencia"
-      or "nincs bekötve az addonba: külső futtatás és import kellene hozzá")
+    (((f.level or 0) > 0 and f.level < 60) and "a Forever motor csak 60-as karaktert épít: ehhez a szinthez nincs szintazonos referencia"
+      or (sm and sm.status == "GearPlanner") and "ehhez a spechez a motor csak felszerelést tervez: HPS- vagy rotációs referencia nincs"
+      or "nincs bekötve az addonba: külső futtatás és import kellene hozzá") ..
+    (simWhat and (" · " .. simWhat .. " (" .. C.SIM_SOURCE .. ")") or ""))
 
   -- where it all came from
   local srcText = log and "harcnapló (WoWCombatLog, a feltöltő dolgozta fel)"

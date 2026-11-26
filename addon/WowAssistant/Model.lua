@@ -36,6 +36,27 @@ M.Round = Round
 
 M.ZERO = { agi = 0, str = 0, ap = 0, crit = 0, hit = 0, rap = 0, int = 0, sp = 0 }
 
+-- Normalized weapon speed (WoWSims Forever d5144855 sim/core/attack.go newWeaponFromItem): instant
+-- attacks such as Sinister Strike add AP / 14 x this, not x the weapon's own speed. A dagger 1.7
+-- (in either hand), any other two-hander 3.3, a ranged weapon 2.8, every other one-hander 2.4.
+-- sub: the item subclass (15 dagger; 1 2H axe, 5 2H mace, 6 polearm, 8 2H sword, 10 staff; 2 bow,
+-- 3 gun, 16 thrown, 18 crossbow, 19 wand). nil when the subclass is not known.
+local TWO_HAND_SUBS = { [1] = true, [5] = true, [6] = true, [8] = true, [10] = true }
+local RANGED_SUBS = { [2] = true, [3] = true, [16] = true, [18] = true, [19] = true }
+function M.NormalizedSpeed(sub, twoHand)
+  sub = tonumber(sub)
+  if sub == nil then return nil end
+  if sub == 15 then return 1.7 end
+  if twoHand or TWO_HAND_SUBS[sub] then return 3.3 end
+  if RANGED_SUBS[sub] then return 2.8 end
+  return 2.4
+end
+-- The weapon part of an instant attack (Sinister Strike): average weapon damage + AP / 14 x the
+-- normalized speed; the weapon's own speed only while its subclass is unknown.
+function M.InstantWeaponDamage(w, ap)
+  return (w.min + w.max) / 2 + (ap / 14) * (w.norm or w.speed)
+end
+
 -- Wowhead loot stats -> ItemStats (lootStats in src/gear.ts; GameData.lua already has the numbers).
 -- rap: ranged attack power only (hunters); weapon: melee or ranged numbers.
 function M.LootStats(row)
@@ -85,7 +106,7 @@ function M.Dps(sh, p)
   if sh.mh then total = total + p.swingRate * (avg(sh.mh) / sh.mh.speed) * whiteFactor end
   if sh.oh then total = total + p.swingRate * ((avg(sh.oh) * 0.5) / sh.oh.speed) * whiteFactor end
   if sh.mh then
-    total = total + p.ssPerSec * (avg(sh.mh) + p.ssBonus) * yellowFactor
+    total = total + p.ssPerSec * (M.InstantWeaponDamage(sh.mh, sh.ap) + p.ssBonus) * yellowFactor
     total = total + p.evisPerSec * p.evisDamage * yellowFactor
   end
   return total
@@ -292,6 +313,10 @@ function M.RogueContext(input)
     ap = input.ap or 0, crit = critNow, hit = input.hit or 0,
     mh = eq("MAIN_HAND").weapon, oh = eq("OFF_HAND").weapon,
   }
+  for slot, key in pairs({ MAIN_HAND = "mh", OFF_HAND = "oh" }) do
+    local w = sheet[key]
+    if w and equipped[slot] then w.norm = M.NormalizedSpeed(equipped[slot].sub) end
+  end
 
   local cycleSeconds = (5 * ssCost + 35) / 10
   local params = {
@@ -330,7 +355,7 @@ function M.RogueContext(input)
     params.evisPerSec = mix(params.evisPerSec, (evis and evis.n or 0) / secs, secs, 120)
     if ss and sheet.mh and ss.hit + ss.crit > 0 then
       local normal = ss.dmg / (ss.hit + 2 * ss.crit)
-      local weapon = (sheet.mh.min + sheet.mh.max) / 2 + (sheet.ap / 14) * sheet.mh.speed
+      local weapon = M.InstantWeaponDamage(sheet.mh, sheet.ap)
       params.ssBonus = mix(params.ssBonus, math.max(0, normal - weapon), ss.hit + ss.crit, 20)
     end
     if evis and evis.hit + evis.crit > 0 then
@@ -382,7 +407,8 @@ function M.RogueContext(input)
   }, "ROGUE")
 
   -- Best slot for an item and the DPS it adds there; nil when it is not an upgrade.
-  function ctx.score(add, slots)
+  function ctx.score(add, slots, twoHand, sub)
+    if add.weapon then add.weapon.norm = M.NormalizedSpeed(sub, twoHand) end
     local best
     for _, slot in ipairs(slots) do
       local sh = Apply(sheet, eq(slot), add, params)

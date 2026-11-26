@@ -1,3 +1,21 @@
+## 2.10.0
+
+A kilenc kaszt modellje, és a motor három referenciafüggvénye.
+
+- Új a harcoldalon, "Modell a kasztodhoz":
+  - a kasztod mindhárom specje, és mi modellezi őket a WoWSims Forever motorban (d5144855): "Alpha" közösségi modell, vagy "GearPlanner";
+  - a GearPlanner gyógyító specek csak felszerelést terveznek, ezekből HPS- vagy rotációs pontszám nem igazolható;
+  - van-e hozzá Waystone szintezési modell (rogue, hunter, shaman);
+  - a te fád, a talentpontjaid alapján;
+  - 60 alatt, hogy a motor csak 60-as karaktert épít, ezért nincs szintazonos referencia. A saját mért adataid ettől még használhatók.
+- Referenciafüggvények, a motor kódjából ellenőrizve:
+  - Sinister Strike: +AP / 14 × a normalizált fegyversebesség (tőr 1,7, egykezes 2,4, kétkezes 3,3, távolsági 2,8). +140 AP egykezes karddal +24, tőrrel +17.
+  - Hunter pet: a melee és a ranged AP közül a nagyobbik 10%-a, idézéskor rögzül. 700 / 1000 AP esetén +100.
+  - Warlock démon: S = spell damage + max(shadow, fire); AP 0,17 × S, spell damage 0,10 × S. 300 / 100 / 50 esetén +68 AP és +40 spell damage.
+  - A harcoldal mutatja a te értékeidet: a rogue Sinister Strike-ját, a hunter petjét, a warlock démonját.
+- Javítva: a rogue modell a Sinister Strike-ot eddig a fegyver saját sebességével számolta. Foreveren a normalizált sebesség számít, így egy lassú (2,7-es) kard Sinister Strike-ja kevesebbet nyer az AP-ból, mint eddig mutatta. Ez a felszerelés-összehasonlítást is pontosítja. A webes modell ugyanígy számol.
+- A "Referencia-szimuláció" sor most megnevezi a kasztod és a specced modelljét, GearPlanner specnél pedig azt is, hogy ott nincs referencia.
+
 ## 2.9.2
 
 Javítások egy átnézés után. Mindhárom ugyanazt a szabályt sértette: csak azt mondjuk, ami igazolt.

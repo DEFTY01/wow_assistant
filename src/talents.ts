@@ -1,5 +1,5 @@
 import type { Env } from "./env";
-import { type GearContext, gearContext } from "./gear";
+import { type GearContext, gearContext, instantWeaponDamage, normalizedSpeed } from "./gear";
 import { stateGet, statePut } from "./state";
 import { latestSnapshots } from "./sync";
 
@@ -332,7 +332,9 @@ function evaluate(
       return { cost: 60, cp: 2, crit: e.mutilateCrit, dmg: hit * 1.2 * (1 + e.opportunity) };
     }
     // Sinister Strike: the bonus damage is the one measured in your fights.
-    return { cost: 45 - e.ssCost, cp: 1, crit: e.ssCritChance, dmg: (mhHit + p.ssBonus) * ((1 + e.ssDmg) / (1 + now.ssDmg)) };
+    // Sinister Strike uses the normalized speed (instantWeaponDamage in gear.ts)
+    const ssHit = instantWeaponDamage({ ...sh.mh, norm: normalizedSpeed(w.mhSub) }, sh.ap);
+    return { cost: 45 - e.ssCost, cp: 1, crit: e.ssCritChance, dmg: (ssHit + p.ssBonus) * ((1 + e.ssDmg) / (1 + now.ssDmg)) };
   })();
 
   // Energy: how many builders a 5-point finisher cycle takes, and how long the cycle lasts.
