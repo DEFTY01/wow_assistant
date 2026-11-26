@@ -137,7 +137,6 @@ function S.Window(name, w, h, title)
     -- the title banner sits on the top edge
     local banner = f:CreateTexture(nil, "ARTWORK")
     banner:SetTexture("Interface\\DialogFrame\\UI-DialogBox-Header")
-    banner:SetSize(math.min(420, 180 + #(title or "") * 7), 64)
     banner:SetPoint("TOP", 0, 12)
     f.banner = banner
     f.title:SetPoint("TOP", banner, "TOP", 0, -14)
@@ -155,6 +154,13 @@ function S.Window(name, w, h, title)
     f.top = 26
   end
   f.title:SetText(title or "")
+  if f.banner then
+    -- Only the middle ~55% of the banner texture is the plate the text sits on (the rest is the
+    -- curled ends), so size it from the measured text and never wider than the window.
+    local bw = math.max(256, f.title:GetStringWidth() / 0.55 + 20)
+    if w and w > 0 then bw = math.min(bw, w - 20) end
+    f.banner:SetSize(bw, 64)
+  end
   f.close = close
   return f
 end

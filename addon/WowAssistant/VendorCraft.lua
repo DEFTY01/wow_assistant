@@ -557,7 +557,7 @@ end
 
 local function Build()
   local St = WA.Style
-  local f = St.Window("WowAssistantVendorFrame", W, 0, "Mit érdemes legyártani vendornak")
+  local f = St.Window("WowAssistantVendorFrame", W, 0, "Gyártás vendornak")
   local inset = f.inset
   local y0 = -f.top
   f:SetHeight(f.top + 150 + ROWS * ROW_H + 124)
