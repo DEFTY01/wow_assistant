@@ -1,3 +1,23 @@
+## 2.15.0
+
+Warrior: saját modell, harcoldal és Haditerv.
+
+- A warriornak saját sebzésmodellje van (Warrior.lua), a Wowhead Forever és a WoWSims Forever adatai alapján:
+  - fehér ütések, Heroic Strike a következő ütésre (rangonként +11-től +157-ig, Wowhead Forever), fegyveres specialek (Mortal Strike, Overpower, Slam, Whirlwind) fegyversebzés + fix sebzéssel; a többit (Rend, Execute, Bloodthirst) a harcaidból méri;
+  - a Forever rage-szabálya: egy fehér ütés 3,46 × fegyversebesség rage-et ad, kétkezes fegyverrel 4,5 ×, critnél a dupláját, balkézzel a felét; 100 fölött a rage elvész (WoWSims Forever sim/core/rage.go). A Felszerelés oldal mutatja, mennyi rage-et adnak másodpercenként a fehér ütéseid;
+  - 1 strength = 2 attack power, az agility critet ad;
+  - szövet, bőr, mail, pajzs, és 40-től plate; minden közelharci fegyver; második fegyver 20-as szinttől, kétkezes mellé nem.
+- Harcoldal warriornak:
+  - pontszám: folyamatos ütés, a 100 fölött elveszett rage (a harcnapló rage-eseményeiből);
+  - "Warrior összesítő": fehér ütés, Heroic Strike, special, Rend aránya; miss, dodge, crit; elveszett rage.
+- Tanácsok warriornak:
+  - a Bloodrage vagy a Charge teli rage-nél hiba, ha a harcnapló igazolja: a rage-esemény maga mondja meg, mennyi ment a 100 fölé (a Bloodrage tickjei nem számítanak, csak a megnyomott azonnali rage);
+  - a passzív források (Shield Specialization, Unbridled Wrath...) 100 fölötti rage-e mért adat: ilyenkor a rage-ed tele volt;
+  - ha egyetlen Heroic Strike sincs, pedig rage veszett el a 100 fölött, az oldal szól.
+- A harcnapló-feldolgozó a harc közbeni rage-eseményeket is rögzíti (a tickeket külön jelölve).
+- A plate páncél 40-es szinttől használható (warrior; a paladin jön).
+- Haditerv: a warrior trainer képességei fontosság szerint.
+
 ## 2.14.0
 
 Mage: saját modell, harcoldal és Haditerv.

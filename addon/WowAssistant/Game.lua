@@ -388,6 +388,8 @@ function G.ModelInput()
     input.spellCrit = GetSpellCritChance and math.max(GetSpellCritChance(3) or 0, GetSpellCritChance(5) or 0) or 0
     input.spellHit = GetSpellHitModifier and (GetSpellHitModifier() or 0) or 0
     input.tab = (G.MainTalentTab())
+  elseif input.class == "WARRIOR" then
+    input.tab = (G.MainTalentTab())
   end
   return input
 end
@@ -508,7 +510,7 @@ function G.PlanInput(ctx)
   local warnings = {}
   local c = WA.char or {}
   if not c.bankAt then warnings[#warnings + 1] = "A bank tartalma ismeretlen: nyisd meg egyszer a bankot." end
-  local classHu = ({ ROGUE = "rogue", HUNTER = "hunter", SHAMAN = "shaman", DRUID = "druid", WARLOCK = "warlock", MAGE = "mage" })[ctx.class] or "class"
+  local classHu = ({ ROGUE = "rogue", HUNTER = "hunter", SHAMAN = "shaman", DRUID = "druid", WARLOCK = "warlock", MAGE = "mage", WARRIOR = "warrior" })[ctx.class] or "class"
   if #trainer == 0 then warnings[#warnings + 1] = ("Nincs trainer-adat: nyisd meg a %s trainer ablakát minden szűrővel."):format(classHu) end
   if ctx.class == "HUNTER" and not (WA.char and WA.char.spells and #WA.char.spells > 0) then
     warnings[#warnings + 1] = "A varázskönyved még nincs beolvasva: /reload után az addon megnézi, mit tudsz (Aimed Shot, Multi-Shot, pet)."

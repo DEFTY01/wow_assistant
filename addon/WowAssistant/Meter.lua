@@ -58,7 +58,11 @@ local NO_HIT = { ["Slice and Dice"] = true, Stealth = true, Vanish = true, Sprin
   ["Dampen Magic"] = true, ["Amplify Magic"] = true, ["Conjure Water"] = true, ["Conjure Food"] = true, ["Conjure Mana Agate"] = true,
   ["Conjure Mana Jade"] = true, ["Conjure Mana Citrine"] = true, ["Conjure Mana Ruby"] = true, Evocation = true, Blink = true,
   ["Fire Ward"] = true, ["Frost Ward"] = true, ["Mana Shield"] = true, ["Ice Barrier"] = true, ["Ice Block"] = true, ["Slow Fall"] = true,
-  ["Presence of Mind"] = true, ["Arcane Power"] = true, Combustion = true, ["Cold Snap"] = true }
+  ["Presence of Mind"] = true, ["Arcane Power"] = true, Combustion = true, ["Cold Snap"] = true,
+  -- warrior: shouts, stances, rage, defensive cooldowns
+  ["Battle Shout"] = true, ["Battle Stance"] = true, ["Defensive Stance"] = true, ["Berserker Stance"] = true, Bloodrage = true,
+  ["Berserker Rage"] = true, ["Shield Block"] = true, ["Shield Wall"] = true, Recklessness = true, Retaliation = true,
+  ["Sweeping Strikes"] = true, ["Death Wish"] = true, ["Last Stand"] = true }
 
 -- Hunter pet abilities that do damage (the damage meter may list them under the owner).
 local PET_SPELL = { Claw = true, Bite = true, ["Lightning Breath"] = true, ["Scorpid Poison"] = true, Screech = true,

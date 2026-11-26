@@ -184,6 +184,14 @@ M.CLASSES = {
     weapon = { [7] = true, [10] = true, [15] = true, [19] = true },
     slots = { "RANGED", "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
   },
+  -- cloth, leather, mail, plate from 40, shields; every melee weapon but the wand, bows, guns,
+  -- crossbows and thrown in the ranged slot (Warrior.lua; a second weapon from level 20)
+  WARRIOR = {
+    armor = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [6] = true }, plateFrom = 40,
+    weapon = { [0] = true, [1] = true, [2] = true, [3] = true, [4] = true, [5] = true, [6] = true, [7] = true, [8] = true,
+      [10] = true, [13] = true, [15] = true, [16] = true, [18] = true },
+    slots = { "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
+  },
   -- cloth; daggers, one-hand swords, staves, and a wand in the ranged slot (Mage.lua)
   MAGE = {
     armor = { [0] = true, [1] = true },
@@ -202,6 +210,7 @@ function M.UsableSub(class, itemClass, sub, level)
     if JEWELRY[sub] then return true end
     if not rules.armor[sub] then return false end
     if sub == 3 and rules.mailFrom and (level or 0) < rules.mailFrom then return false end
+    if sub == 4 and rules.plateFrom and (level or 0) < rules.plateFrom then return false end
     return true
   end
   if itemClass == 2 then return rules.weapon[sub] == true end
@@ -301,6 +310,7 @@ function M.Context(input)
   if input.class == "DRUID" and WA.Druid then return WA.Druid.Context(input) end
   if input.class == "WARLOCK" and WA.Warlock then return WA.Warlock.Context(input) end
   if input.class == "MAGE" and WA.Mage then return WA.Mage.Context(input) end
+  if input.class == "WARRIOR" and WA.Warrior then return WA.Warrior.Context(input) end
   return M.RogueContext(input)
 end
 

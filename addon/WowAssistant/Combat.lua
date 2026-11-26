@@ -234,7 +234,7 @@ end
 -- healer specs, which plan gear only - no HPS or rotation score can be proven from them. The
 -- engine builds a level 60 character only (sim/core/constants.go CharacterLevel = 60). "waystone"
 -- marks the classes the addon's own levelling model covers (Model.lua, Hunter.lua, Shaman.lua, Druid.lua,
--- Warlock.lua, Mage.lua).
+-- Warlock.lua, Mage.lua, Warrior.lua).
 -- tabs: the talent tabs in the game's order, each with the engine's spec for it.
 C.SIM_SOURCE = "WoWSims Forever d5144855 sim/register_all.go"
 C.CLASS_MODELS = {
@@ -250,7 +250,7 @@ C.CLASS_MODELS = {
   SHAMAN = { name = "Shaman", waystone = true, tabs = { { "Elemental", "Alpha" }, { "Enhancement", "Alpha" }, { "Restoration", "GearPlanner" } } },
   WARLOCK = { name = "Warlock", waystone = true, tabs = { { "Affliction", "Alpha" }, { "Demonology", "Alpha" }, { "Destruction", "Alpha" } },
     shared = "egy közös Warlock-modul" },
-  WARRIOR = { name = "Warrior", tabs = { { "Arms", "Alpha" }, { "Fury", "Alpha" }, { "Protection", "Alpha" } },
+  WARRIOR = { name = "Warrior", waystone = true, tabs = { { "Arms", "Alpha" }, { "Fury", "Alpha" }, { "Protection", "Alpha" } },
     note = "Arms és Fury: a DPS-modell; Protection: a tank-modell" },
 }
 C.SIM_STATUS_TEXT = {
@@ -350,6 +350,10 @@ C.RULES = {
     source = SIM .. "sim/warlock/pets.go (petStatInheritance)" },
   manaItemCap = { text = "a manaital és a mana gem manát ad, és a maximum fölé adott mana elvész", verified = true,
     source = SIM .. "sim/core/mana.go AddMana (új mana = min(jelenlegi + kapott, maximum)); a harcnapló mana-eseménye kiírja a maximum fölötti részt" },
+  rageCap = { text = "a rage 100-nál megáll, a fölötte kapott rage elvész", verified = true,
+    source = SIM .. "sim/core/rage.go AddRage (új rage = min(jelenlegi + kapott, maximum)); a harcnapló rage-eseménye kiírja a maximum fölötti részt" },
+  hsDump = { text = "a Heroic Strike a következő ütéshez ad sebzést 15 rage-ért", verified = true,
+    source = WH .. "78; " .. SIM .. "sim/warrior/heroic_strike_cleave.go" },
   wandFlat = { text = "a pálca sebzése nem nő a spell powerrel", verified = true,
     source = SIM .. "sim/core/wand.go" },
   lightningShield = { text = "a Lightning Shield megsebzi azt, aki megüt (8-tól)", verified = true,
