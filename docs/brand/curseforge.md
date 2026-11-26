@@ -46,7 +46,7 @@ Which craft brings the most gold when you sell it to a vendor?
 - Fights with no damage dealt (a potion and a vanish) are left out.
 - Look back at your recent fights to see whether a new rotation or item really helped.
 
-### Plan and gear *(Rogue only for now)*
+### Plan and gear *(Rogue and Hunter for now)*
 - **Plan**: what to buy and what to do next, worked out from your level, gold and skills.
 - **Gear**: what is worth replacing and which dungeon or quest drops the upgrade, using a damage
   model of your character.
@@ -82,7 +82,7 @@ A journal of your character's milestones, week by week.
 
 ## Good to know
 - **Language:** the interface is **Hungarian** for now. English is coming.
-- **Plan and gear** are for Rogues for now; the other pages work for every class.
+- **Plan and gear** are for Rogues and Hunters for now, more classes are coming; the other pages work for every class.
 - Your data stays on your computer, in the game's saved variables.
 
 ## Feedback

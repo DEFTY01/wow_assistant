@@ -34,12 +34,13 @@ local function F1(n) return ("%.1f"):format(n) end
 local function Round(n) return math.floor(n + 0.5) end
 M.Round = Round
 
-M.ZERO = { agi = 0, str = 0, ap = 0, crit = 0, hit = 0 }
+M.ZERO = { agi = 0, str = 0, ap = 0, crit = 0, hit = 0, rap = 0 }
 
 -- Wowhead loot stats -> ItemStats (lootStats in src/gear.ts; GameData.lua already has the numbers).
+-- rap: ranged attack power only (hunters); weapon: melee or ranged numbers.
 function M.LootStats(row)
   return {
-    agi = row[15] or 0, str = row[16] or 0, ap = row[17] or 0, crit = row[18] or 0, hit = row[19] or 0,
+    agi = row[15] or 0, str = row[16] or 0, ap = row[17] or 0, crit = row[18] or 0, hit = row[19] or 0, rap = row[23] or 0,
     weapon = row[22] and { min = row[20], max = row[21], speed = row[22] } or nil,
   }
 end
@@ -57,7 +58,8 @@ function M.GameStats(st, dmg)
     str = v("ITEM_MOD_STRENGTH_SHORT"),
     ap = v("ITEM_MOD_ATTACK_POWER_SHORT", "ITEM_MOD_MELEE_ATTACK_POWER_SHORT"),
     crit = v("ITEM_MOD_CRIT_RATING_SHORT", "ITEM_MOD_CRIT_MELEE_RATING_SHORT"),
-    hit = v("ITEM_MOD_HIT_RATING_SHORT", "ITEM_MOD_HIT_MELEE_RATING_SHORT"),
+    hit = math.max(v("ITEM_MOD_HIT_RATING_SHORT", "ITEM_MOD_HIT_MELEE_RATING_SHORT"), v("ITEM_MOD_HIT_RANGED_RATING_SHORT")),
+    rap = v("ITEM_MOD_RANGED_ATTACK_POWER_SHORT"),
     weapon = (type(dmg) == "table" and #dmg == 3 and dmg[3] > 0) and { min = dmg[1], max = dmg[2], speed = dmg[3] } or nil,
   }
 end
@@ -100,37 +102,82 @@ end
 ---------------------------------------------------------------------------
 -- slots, items a rogue can use
 ---------------------------------------------------------------------------
--- Wowhead inventory type -> Blizzard equipment slots.
+-- Wowhead inventory type -> Blizzard equipment slots. 17 two-hand, 15 ranged (bow), 25 thrown,
+-- 26 ranged right (gun, crossbow, wand).
 M.WOWHEAD_SLOTS = {
   [1] = { "HEAD" }, [2] = { "NECK" }, [3] = { "SHOULDER" }, [5] = { "CHEST" }, [20] = { "CHEST" }, [6] = { "WAIST" },
   [7] = { "LEGS" }, [8] = { "FEET" }, [9] = { "WRIST" }, [10] = { "HANDS" }, [11] = { "FINGER_1", "FINGER_2" },
   [12] = { "TRINKET_1", "TRINKET_2" }, [16] = { "BACK" }, [13] = { "MAIN_HAND", "OFF_HAND" }, [21] = { "MAIN_HAND" },
-  [22] = { "OFF_HAND" },
+  [22] = { "OFF_HAND" }, [17] = { "MAIN_HAND" }, [15] = { "RANGED" }, [25] = { "RANGED" }, [26] = { "RANGED" },
 }
+M.WOWHEAD_TWO_HAND = { [17] = true }
 -- Blizzard inventory type (INVTYPE_ without the prefix) -> slots (INV_SLOTS in src/market.ts).
 M.INV_SLOTS = {
   HEAD = { "HEAD" }, NECK = { "NECK" }, SHOULDER = { "SHOULDER" }, CHEST = { "CHEST" }, ROBE = { "CHEST" },
   WAIST = { "WAIST" }, LEGS = { "LEGS" }, FEET = { "FEET" }, WRIST = { "WRIST" }, HAND = { "HANDS" },
   FINGER = { "FINGER_1", "FINGER_2" }, TRINKET = { "TRINKET_1", "TRINKET_2" }, CLOAK = { "BACK" },
   WEAPON = { "MAIN_HAND", "OFF_HAND" }, WEAPONMAINHAND = { "MAIN_HAND" }, WEAPONOFFHAND = { "OFF_HAND" },
+  ["2HWEAPON"] = { "MAIN_HAND" }, RANGED = { "RANGED" }, RANGEDRIGHT = { "RANGED" }, THROWN = { "RANGED" },
 }
-M.ARMOR_SUBS = { [0] = true, [1] = true, [2] = true }
-M.WEAPON_SUBS = { [4] = true, [7] = true, [13] = true, [15] = true }
-local WEAPON_NAMES = { [4] = "Mace", [7] = "Sword", [13] = "Fist", [15] = "Dagger" }
-local WEAPON_SKILLS = { [4] = "Maces", [7] = "Swords", [13] = "Fist Weapons", [15] = "Daggers" }
+M.INV_TWO_HAND = { ["2HWEAPON"] = true }
+
+-- What each class can wear and wield. Armor subclasses: 0 misc, 1 cloth, 2 leather, 3 mail;
+-- Wowhead's own negative ones: -2 ring, -3 neck, -4 trinket, -6 cloak. Weapon subclasses: 0 axe,
+-- 1 two-hand axe, 2 bow, 3 gun, 4 mace, 6 polearm, 7 sword, 8 two-hand sword, 10 staff, 13 fist,
+-- 15 dagger, 16 thrown, 18 crossbow. mailFrom: the level mail armor is learned at.
+local JEWELRY = { [-2] = true, [-3] = true, [-4] = true, [-6] = true }
+M.CLASSES = {
+  ROGUE = {
+    armor = { [0] = true, [1] = true, [2] = true },
+    weapon = { [4] = true, [7] = true, [13] = true, [15] = true },
+    slots = { "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
+  },
+  HUNTER = {
+    armor = { [0] = true, [1] = true, [2] = true, [3] = true }, mailFrom = 40,
+    weapon = { [0] = true, [1] = true, [2] = true, [3] = true, [6] = true, [7] = true, [8] = true, [10] = true,
+      [13] = true, [15] = true, [16] = true, [18] = true },
+    slots = { "RANGED", "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
+  },
+}
+-- Kept for code that still asks about the rogue's list.
+M.ARMOR_SUBS = M.CLASSES.ROGUE.armor
+M.WEAPON_SUBS = M.CLASSES.ROGUE.weapon
+
+-- Can this class (at this level) use an item of this item class and subclass?
+function M.UsableSub(class, itemClass, sub, level)
+  local rules = M.CLASSES[class or "ROGUE"] or M.CLASSES.ROGUE
+  if itemClass == 4 then
+    if JEWELRY[sub] then return true end
+    if not rules.armor[sub] then return false end
+    if sub == 3 and rules.mailFrom and (level or 0) < rules.mailFrom then return false end
+    return true
+  end
+  if itemClass == 2 then return rules.weapon[sub] == true end
+  return false
+end
+
+local WEAPON_NAMES = { [0] = "Axe", [1] = "2H Axe", [2] = "Bow", [3] = "Gun", [4] = "Mace", [6] = "Polearm", [7] = "Sword",
+  [8] = "2H Sword", [10] = "Staff", [13] = "Fist", [15] = "Dagger", [16] = "Thrown", [18] = "Crossbow" }
+M.WEAPON_NAMES = WEAPON_NAMES
+M.WEAPON_SKILLS = { [0] = "Axes", [1] = "Two-Handed Axes", [2] = "Bows", [3] = "Guns", [4] = "Maces", [6] = "Polearms",
+  [7] = "Swords", [8] = "Two-Handed Swords", [10] = "Staves", [13] = "Fist Weapons", [15] = "Daggers", [16] = "Thrown",
+  [18] = "Crossbows" }
+local WEAPON_SKILLS = M.WEAPON_SKILLS
 M.SLOT_HU = {
   HEAD = "fej", NECK = "nyak", SHOULDER = "váll", BACK = "köpeny", CHEST = "mellkas", WRIST = "csukló", HANDS = "kéz",
   WAIST = "öv", LEGS = "láb", FEET = "lábfej", FINGER_1 = "gyűrű", FINGER_2 = "gyűrű", TRINKET_1 = "trinket",
-  TRINKET_2 = "trinket", MAIN_HAND = "főkéz", OFF_HAND = "balkéz",
+  TRINKET_2 = "trinket", MAIN_HAND = "főkéz", OFF_HAND = "balkéz", RANGED = "távolsági", FINGER = "gyűrű", TRINKET = "trinket",
 }
 
 -- GearItem { itemId, name, slot (INV type), itemClass, subclass, reqLevel, itemLevel, quality, stats }
-function M.RogueUsable(item)
+-- level: the character's level (mail armor for hunters from 40); nil = no level limit.
+function M.Usable(class, item, level)
   if not M.INV_SLOTS[item.slot] then return false end
-  if item.itemClass == 4 then return M.ARMOR_SUBS[item.subclass] == true end
-  if item.itemClass == 2 then return M.WEAPON_SUBS[item.subclass] == true and item.stats.weapon ~= nil end
-  return false
+  if not M.UsableSub(class, item.itemClass, item.subclass, level or 99) then return false end
+  if item.itemClass == 2 then return item.stats.weapon ~= nil end
+  return item.itemClass == 4
 end
+function M.RogueUsable(item) return M.Usable("ROGUE", item) end
 
 ---------------------------------------------------------------------------
 -- buffs (src/buffs.ts)
@@ -194,7 +241,25 @@ end
 ---------------------------------------------------------------------------
 -- context: what is needed to score a piece of gear against what is equipped now
 ---------------------------------------------------------------------------
+-- The class's own model: input.class "HUNTER" goes to Hunter.lua, everything else is the rogue.
 function M.Context(input)
+  if input.class == "HUNTER" and WA.Hunter then return WA.Hunter.Context(input) end
+  return M.RogueContext(input)
+end
+
+-- Fields every class's context has besides its numbers: what it can use, which slots an item
+-- goes to, the slot order of the reports.
+function M.Common(ctx, class)
+  ctx.class = class
+  ctx.slotGroups = M.CLASSES[class].slots
+  function ctx.usable(itemClass, sub) return M.UsableSub(class, itemClass, sub, ctx.level) end
+  -- Slots for a Wowhead row (r[7]) or a GearItem's inventory type, and whether it takes both hands.
+  function ctx.lootSlots(wowheadSlot) return M.WOWHEAD_SLOTS[wowheadSlot], M.WOWHEAD_TWO_HAND[wowheadSlot] end
+  function ctx.invSlots(invType) return M.INV_SLOTS[invType], M.INV_TWO_HAND[invType] end
+  return ctx
+end
+
+function M.RogueContext(input)
   local level = input.level
   local equipped = input.equipped or {}
   local notes = {}
@@ -296,10 +361,10 @@ function M.Context(input)
   local equippedIds = {}
   for _, it in pairs(equipped) do if it.id then equippedIds[it.id] = true end end
 
-  local ctx = {
+  local ctx = M.Common({
     level = level, baseline = baseline, unbuffed = unbuffed, buffs = buffs, params = params, sheet = sheet,
     equipped = equipped, equippedIds = equippedIds, combat = combat, slotOrder = input.slotOrder,
-  }
+  }, "ROGUE")
 
   -- Best slot for an item and the DPS it adds there; nil when it is not an upgrade.
   function ctx.score(add, slots)
@@ -367,19 +432,20 @@ function M.GearReport(ctx, lookahead, D)
   local upgrades = {}
   for _, r in ipairs(rows) do
     local id, cls, sub = r[1], r[8], r[9]
-    local ok = not ctx.equippedIds[id]
-    if ok and cls == 4 and not M.ARMOR_SUBS[sub] then ok = false end
-    if ok and cls == 2 and not M.WEAPON_SUBS[sub] then ok = false end
-    local slots = ok and M.WOWHEAD_SLOTS[r[7]]
+    -- mail is checked a few levels ahead: a hunter's mail shows under "later" from 37
+    local ok = not ctx.equippedIds[id] and M.UsableSub(ctx.class, cls, sub, level + lookahead)
+    local slots, twoHand
+    if ok then slots, twoHand = ctx.lootSlots(r[7]) end
     local add = slots and M.LootStats(r)
     if add and cls == 2 and not add.weapon then add = nil end
-    local best = add and ctx.score(add, slots)
+    local best = add and ctx.score(add, slots, twoHand, sub)
     if best then
       local eq = ctx.equipped[best.slot]
       upgrades[#upgrades + 1] = {
         itemId = id, name = r[3], quality = r[4], itemLevel = r[5], reqLevel = r[6], slot = best.slot,
         replaces = eq and eq.name or nil, boss = r[10], dropPct = r[11], dungeon = D.dungeons[r[2]][1], zoneId = r[2],
-        gain = best.gain, gainPct = best.gain / baseline * 100, usableNow = (r[6] or 0) <= level,
+        gain = best.gain, gainPct = best.gain / baseline * 100,
+        usableNow = (r[6] or 0) <= level and M.UsableSub(ctx.class, cls, sub, level),
         detail = ctx.describe(add, sub), warning = ctx.weaponWarning(cls, sub),
       }
     end
@@ -420,7 +486,7 @@ function M.GearReport(ctx, lookahead, D)
   Stable(dungeons, function(a, b) return (a.perRun or a.gain * 0.15) > (b.perRun or b.gain * 0.15) end)
 
   local bySlot = {}
-  for _, slot in ipairs(SLOT_ORDER) do
+  for _, slot in ipairs(ctx.slotGroups or SLOT_ORDER) do
     local best = {}
     for _, u in ipairs(usable) do
       if Group(u.slot) == slot and #best < 3 then best[#best + 1] = u end

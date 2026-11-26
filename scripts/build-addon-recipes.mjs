@@ -102,11 +102,19 @@ console.log(`${out}: ${recipes.length} recept, ${Object.keys(vendor).length} ker
 
 // ---------------------------------------------------------------- GameData.lua
 
-// Wowhead stats -> the damage model's numbers (the same as lootStats in src/gear.ts).
+// Wowhead stats -> the damage model's numbers (the same as lootStats in src/gear.ts). Ranged
+// weapons (bows, guns, crossbows, thrown) carry their numbers as rgd*, and ranged attack power
+// (hunters) as rgdatkpwr. One "+1% hit" is listed as both mlehitpct and rgdhitpct.
+// Wowhead Forever gives hit and crit as ratings: the original "+1% hit" items carry hitrtng 10
+// and the "+1% crit" ones critstrkrtng 14, so the model's percentages are rating / 10 and / 14.
+const HIT_RATING = 10;
+const CRIT_RATING = 14;
+const pct = (v) => Math.round(v * 100) / 100;
 const lootStats = (st) => ({
-  agi: st.agi ?? 0, str: st.str ?? 0, ap: st.atkpwr ?? 0, crit: st.critstrkrtng ?? 0,
-  hit: (st.hitrtng ?? 0) + (st.mlehitpct ?? 0),
-  weapon: st.mlespeed ? [st.mledmgmin, st.mledmgmax, st.mlespeed] : [],
+  agi: st.agi ?? 0, str: st.str ?? 0, ap: st.atkpwr ?? 0, crit: pct((st.critstrkrtng ?? 0) / CRIT_RATING),
+  hit: pct((st.hitrtng ?? 0) / HIT_RATING + Math.max(st.mlehitpct ?? 0, st.rgdhitpct ?? 0)), rap: st.rgdatkpwr ?? 0,
+  weapon: st.mlespeed ? [st.mledmgmin, st.mledmgmax, st.mlespeed]
+    : st.rgdspeed ? [st.rgddmgmin, st.rgddmgmax, st.rgdspeed] : [],
 });
 const dungeons = query("SELECT zone_id, name, min_level, max_level, req_level, kind FROM dungeons ORDER BY zone_id", "A dungeonok");
 const loot = query(
@@ -122,14 +130,15 @@ const data = [
   ...dungeons.map((d) => `    [${d.zone_id}] = { ${lua(d.name)}, ${d.min_level || 0}, ${d.max_level || 0}, ${d.req_level || 0}, ${lua(d.kind ?? "dungeon")} },`),
   "  },",
   "  -- loot: { item, zone, name, quality, item level, required level, Wowhead slot, class, subclass, boss,",
-  "  --         drop %, source, side, quest level, agi, str, ap, crit, hit, weapon min, max, speed }",
+  "  --         drop %, source, side, quest level, agi, str, ap, crit, hit, weapon min, max, speed,",
+  "  --         ranged attack power }",
   "  loot = {",
   ...loot.map((r) => {
     const s = lootStats(JSON.parse(r.stats || "{}"));
     const w = s.weapon;
     return `    { ${r.item_id}, ${r.zone_id}, ${lua(r.name)}, ${n(r.quality)}, ${n(r.item_level)}, ${r.req_level || 0}, ${n(r.slot)}, ` +
       `${n(r.item_class)}, ${n(r.subclass)}, ${r.boss ? lua(r.boss) : "nil"}, ${n(r.drop_pct)}, ${lua(r.source ?? "dungeon")}, ` +
-      `${r.side ?? 0}, ${n(r.quest_level)}, ${s.agi}, ${s.str}, ${s.ap}, ${s.crit}, ${s.hit}, ${n(w[0])}, ${n(w[1])}, ${n(w[2])} },`;
+      `${r.side ?? 0}, ${n(r.quest_level)}, ${s.agi}, ${s.str}, ${s.ap}, ${s.crit}, ${s.hit}, ${n(w[0])}, ${n(w[1])}, ${n(w[2])}, ${s.rap} },`;
   }),
   "  },",
   "  -- buffs: { id, name, source, group, { { level, label, agi, str, ap, crit, statPct }, ... } }",

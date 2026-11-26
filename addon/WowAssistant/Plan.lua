@@ -56,11 +56,71 @@ P.SKIP = {
   ["Crippling Poison"] = "lassítás, főleg PvP",
 }
 local MUST = { Kick = true, ["Slice and Dice"] = true, Evasion = true, Sprint = true, Vanish = true }
+
+-- The same for each class: core, situational, skip, must (bought first), the trainer's name.
+P.CLASS = {
+  ROGUE = { core = P.CORE, situational = P.SITUATIONAL, skip = P.SKIP, must = MUST, trainer = "Rogue trainer" },
+  HUNTER = {
+    trainer = "Hunter trainer",
+    core = {
+      ["Aspect of the Hawk"] = "több ranged AP: harcban mindig ez legyen fent",
+      ["Hunter's Mark"] = "több ranged AP a megjelölt célpont ellen, és látod, hova fut",
+      ["Concussive Shot"] = "lassítás: a futó mob, és kiting pet nélkül",
+      ["Wing Clip"] = "lassítás közelharcban, utána hátralépés lőtávolba",
+      ["Feign Death"] = "aggro-törlés és menekülés; dungeonben életmentő",
+      ["Freezing Trap"] = "tömegkontroll: dungeonben egy mobot kivesz a húzásból",
+      ["Mend Pet"] = "a pet életben tartása; nélküle a pet hamar elhullik",
+      ["Revive Pet"] = "a pet feltámasztása",
+      ["Call Pet"] = "a pet előhívása",
+      ["Tame Beast"] = "pet szelídítése; 10-től a sebzésed jó része a petből jön",
+      ["Feed Pet"] = "a boldog pet többet sebez",
+      ["Rapid Fire"] = "40%-kal gyorsabb lövés 15 mp-re, bossokra",
+      ["Aspect of the Cheetah"] = "gyorsabb utazás",
+      ["Aspect of the Monkey"] = "dodge közelharcban: alacsony szinten, pet nélkül fontos",
+      Disengage = "leveszi rólad az aggrót közelharcban",
+      ["Scare Beast"] = "egy állat elmenekül: második tömegkontroll",
+      Volley = "AoE: dungeonben a sok mobos húzásokra",
+      ["Track Beasts"] = "látod a térképen a vadat",
+      ["Track Humanoids"] = "látod a térképen a humanoidokat",
+    },
+    situational = {
+      ["Serpent Sting"] = "hosszú harcokra; rövid mobokon a mana jobb helyen van az Arcane Shotban",
+      ["Mongoose Bite"] = "csak dodge után, közelharcban",
+      ["Distracting Shot"] = "aggro elhúzása a tanktól vagy a pettől",
+      ["Tranquilizing Shot"] = "enrage leszedése (Molten Core)",
+      ["Viper Sting"] = "mana elvétele casterektől",
+      ["Scorpid Sting"] = "a mob ritkábban talál; inkább PvP",
+      ["Frost Trap"] = "lassító zóna, kitinghez",
+      ["Immolation Trap"] = "tűzsebzés a csapdába lépőre",
+      ["Explosive Trap"] = "AoE csapda",
+      ["Aspect of the Wild"] = "nature resist, csak bizonyos bossokra",
+      ["Aspect of the Pack"] = "csoportos utazás; ha megütnek, elkábít",
+      Flare = "lopakodók felfedése",
+      ["Dual Wield"] = "két egykezes fegyver; a hunter közelharca kicsi, ritkán számít",
+      ["Track Undead"] = "a nyomkövetés kényelmi",
+      ["Track Elementals"] = "a nyomkövetés kényelmi",
+      ["Track Demons"] = "a nyomkövetés kényelmi",
+      ["Track Giants"] = "a nyomkövetés kényelmi",
+      ["Track Dragonkin"] = "a nyomkövetés kényelmi",
+      ["Track Hidden"] = "a nyomkövetés kényelmi",
+    },
+    skip = {
+      ["Aspect of the Beast"] = "az állatok nem látnak; szinte soha nem kell",
+      ["Eyes of the Beast"] = "a pet szemével nézel; kényelmi",
+      ["Beast Lore"] = "információ a vadról; kényelmi",
+      ["Dismiss Pet"] = "a petet el lehet küldeni; ritkán kell",
+    },
+    must = { ["Aspect of the Hawk"] = true, ["Mend Pet"] = true, ["Revive Pet"] = true, ["Feign Death"] = true,
+      ["Freezing Trap"] = true, ["Rapid Fire"] = true, ["Hunter's Mark"] = true, ["Tame Beast"] = true, ["Call Pet"] = true },
+  },
+}
+local function ClassInfo(ctx) return P.CLASS[ctx.class or "ROGUE"] or P.CLASS.ROGUE end
 local function BaseName(n) return (n:gsub("%s+[IVX]+$", "")) end
 local QUALITY = { [0] = "POOR", "COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY" }
 local TIER_ORDER = { dps = 0, core = 1, situational = 2, skip = 3 }
 
 function P.RankSkills(rows, ctx)
+  local info = ClassInfo(ctx)
   local shares = {}
   for _, a in ipairs(ctx.combat and ctx.combat.abilities or {}) do
     local key = BaseName((a.name:gsub(" %(dot%)$", "")))
@@ -76,9 +136,9 @@ function P.RankSkills(rows, ctx)
         tier = "dps"
         gain = (share / 100) * 0.1 * ctx.baseline
         why = ("új rank: ez a képesség most a sebzésed %.1f%%-a"):format(share)
-      elseif P.CORE[base] then tier, why = "core", P.CORE[base]
-      elseif P.SKIP[base] then tier, why = "skip", P.SKIP[base]
-      elseif P.SITUATIONAL[base] then why = P.SITUATIONAL[base]
+      elseif info.core[base] then tier, why = "core", info.core[base]
+      elseif info.skip[base] then tier, why = "skip", info.skip[base]
+      elseif info.situational[base] then why = info.situational[base]
       end
       out[#out + 1] = { name = r.name, level = r.required_level, cost = r.cost_copper, tier = tier, why = why, gain = gain }
     end
@@ -152,11 +212,13 @@ function P.Build(input)
   local gold = input.gold
   local book = input.book
 
+  local info = ClassInfo(ctx)
   local function Option(item, source, cost, where, extra)
     if ctx.equippedIds[item.itemId] then return nil end
-    local slots = M.INV_SLOTS[item.slot]
+    if not ctx.usable(item.itemClass, item.subclass) then return nil end
+    local slots, twoHand = ctx.invSlots(item.slot)
     if not slots then return nil end
-    local s = ctx.score(item.stats, slots)
+    local s = ctx.score(item.stats, slots, twoHand, item.subclass)
     if not s then return nil end
     local eq = ctx.equipped[s.slot]
     local bits = {}
@@ -226,7 +288,7 @@ function P.Build(input)
   local skills = P.RankSkills(input.trainer or {}, ctx)
   for _, s in ipairs(skills) do
     if s.tier == "dps" and s.cost > 0 then
-      all[#all + 1] = { source = "trainer", group = "skill:" .. s.name, title = s.name, detail = s.why, where = "Rogue trainer",
+      all[#all + 1] = { source = "trainer", group = "skill:" .. s.name, title = s.name, detail = s.why, where = info.trainer,
         cost = s.cost, gain = s.gain, gainPct = s.gain / baseline * 100, estimated = true }
     end
   end
@@ -234,14 +296,12 @@ function P.Build(input)
   -- quest rewards
   local questBest, questOrder = {}, {}
   for _, r in ipairs(input.questLoot or {}) do
-    local slots = M.WOWHEAD_SLOTS[r[7]]
+    local slots, twoHand = ctx.lootSlots(r[7])
     local cls, sub = r[8], r[9]
-    local ok = slots and not ctx.equippedIds[r[1]]
-    if ok and cls == 4 and not M.ARMOR_SUBS[sub] then ok = false end
-    if ok and cls == 2 and not M.WEAPON_SUBS[sub] then ok = false end
+    local ok = slots and not ctx.equippedIds[r[1]] and ctx.usable(cls, sub)
     local stats = ok and M.LootStats(r)
     if stats and cls == 2 and not stats.weapon then stats = nil end
-    local s = stats and ctx.score(stats, slots)
+    local s = stats and ctx.score(stats, slots, twoHand, sub)
     if s then
       local eq = ctx.equipped[s.slot]
       local bits = {}
@@ -298,14 +358,14 @@ function P.Build(input)
   local budget = gold or 0
   local basics = {}
   for _, s in ipairs(skills) do
-    if s.tier == "core" and MUST[BaseName(s.name)] then basics[#basics + 1] = s end
+    if s.tier == "core" and info.must[BaseName(s.name)] then basics[#basics + 1] = s end
   end
   M.Stable(basics, function(a, b) return a.cost < b.cost end)
   for _, s in ipairs(basics) do
     if s.cost <= budget then
       budget = budget - s.cost
       reserved[#reserved + 1] = { source = "trainer", group = "skill:" .. s.name, title = s.name,
-        detail = "alap képesség: " .. s.why, where = "Rogue trainer", cost = s.cost, gain = 0, gainPct = 0, estimated = false }
+        detail = "alap képesség: " .. s.why, where = info.trainer, cost = s.cost, gain = 0, gainPct = 0, estimated = false }
     end
   end
   local buy = {}
@@ -386,15 +446,31 @@ function P.Build(input)
   local projected = baseline
   for _, o in ipairs(buy) do projected = projected + o.gain end
   for _, o in ipairs(freeList) do projected = projected + o.gain end
+  -- combat advice: the rogue's comes from Combat.lua, other classes bring their own
   local combat = {}
-  for _, a in ipairs(ctx.combat and ctx.combat.advice or {}) do
+  for _, a in ipairs(ctx.advice or (ctx.combat and ctx.combat.advice) or {}) do
     if a.level ~= "info" then combat[#combat + 1] = a end
+  end
+
+  -- ammo (hunters): the best vendor ammo for this level against what is in the ammo slot
+  local ammo = {}
+  if ctx.ammoGain and ctx.ammoKind then
+    for _, a in ipairs(input.ammo or {}) do
+      if a.kind == ctx.ammoKind and a.reqLevel <= level then
+        local gain = ctx.ammoGain(a.dps)
+        -- what you have, and only the ammo that is better than it
+        if a.current or gain > 0.05 then ammo[#ammo + 1] = { name = a.name, itemId = a.itemId, dps = a.dps, reqLevel = a.reqLevel, gain = gain,
+          gainPct = gain / baseline * 100, current = a.current } end
+      end
+    end
+    M.Stable(ammo, function(a, b) return a.dps > b.dps end)
+    while #ammo > 3 do table.remove(ammo) end
   end
   return {
     name = input.name or "", level = level, gold = gold, baseline = baseline, unbuffed = ctx.unbuffed,
     measuredDps = ctx.combat and ctx.combat.dps or nil, projected = projected,
     buy = buy, spent = spent, left = gold and (gold - spent) or nil, wishlist = wishlist, free = freeList,
     quests = quests, combat = combat, skills = skills, farm = farm, professions = professions, roadmap = roadmap,
-    consumables = consumables, warnings = input.warnings or {},
+    consumables = consumables, warnings = input.warnings or {}, ammo = ammo, class = ctx.class,
   }
 end

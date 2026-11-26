@@ -93,7 +93,7 @@ minden karaktereddel beléptél egyszer, a két régi mappa törölhető.
 
 ### Korlátok
 
-- A sebzésmodell és a vásárlási terv egyelőre csak **rogue** karakterre készült el.
+- A sebzésmodell és a vásárlási terv a **rogue**-ra és a **hunterre** készült el (az addonban; a webapp csak a rogue-ot ismeri). A többi kaszt sorban jön.
 - Az aukciós árak az EU Normal ruleset Horde aukciósházából származnak.
 - A random utótagos tárgyak („of the Tiger") kimaradnak az aukciós ajánlásból.
 

@@ -729,10 +729,10 @@ local function Warnings(list)
 end
 local function Add(out, b) if b then out[#out + 1] = b end end
 
-local function NotRogue(tab, title)
-  UI.head[tab] = { title, "A sebzésmodell a rogue-ra készült" }
-  return { { empty = { "Csak rogue-ra", "A sebzésmodell (és vele a Haditerv és a Felszerelés) a rogue-ra készült, ahogy a webappban is. " ..
-    "A Mesterségek és a Vendor gyártás minden karakteren működik." } } }
+local function NotSupported(tab, title)
+  UI.head[tab] = { title, "A sebzésmodell még nem ismeri ezt a kasztot" }
+  return { { empty = { "Egyelőre rogue és hunter", "A sebzésmodell (és vele a Haditerv és a Felszerelés) egyelőre a rogue-ot és a huntert ismeri; " ..
+    "a többi kaszt sorban jön. A Mesterségek és a Vendor gyártás minden karakteren működik." } } }
 end
 
 local SOURCE_HU = { ah = "AH", craft = "gyártás", trainer = "trainer", owned = "megvan", quest = "quest" }
@@ -757,7 +757,7 @@ local function OptionCols(withCost)
 end
 
 function UI.pages.plan()
-  if not G.IsRogue() then return NotRogue("plan", "Haditerv") end
+  if not G.Supported() then return NotSupported("plan", "Haditerv") end
   local ctx = G.Context()
   local p = WA.Plan.Build(G.PlanInput(ctx))
   UI.head.plan = { "Haditerv", "Mit vegyél, tanulj és hol farmolj abból, amid most van" }
@@ -791,6 +791,16 @@ function UI.pages.plan()
     local tips = {}
     for _, a in ipairs(p.combat) do tips[#tips + 1] = { level = "tip", title = a.title, text = a.text } end
     out[#out + 1] = Section("plan.combat", "Tanácsok a harcaid alapján", { { tips = tips } }, true, #tips)
+  end
+  if p.ammo and #p.ammo > 0 then
+    local rows = {}
+    for _, a in ipairs(p.ammo) do
+      rows[#rows + 1] = { cells = { Cell(Item(a.name, "COMMON") .. (a.current and Muted(" (most ez van nálad)") or ""), a.name),
+        Cell(F1(a.dps), a.dps), Cell(a.current and "–" or Gain(a.gain), a.gain), Cell(a.reqLevel, a.reqLevel) }, itemId = a.itemId,
+        tip = "Lőszer: a kereskedőnél (General Goods, Bowyer, Gunsmith) kapod. Minden Auto Shot és lövés hozzáadja a sebzését." }
+    end
+    out[#out + 1] = Section("plan.ammo", "Lőszer", { { table = { id = "plan.ammo", cols = { { "Lőszer", 0, flex = true },
+      { "DPS-e", 60, "RIGHT" }, { "Neked", 60, "RIGHT" }, { "Szint", 50, "RIGHT" } }, rows = rows } } }, true, #p.ammo)
   end
   if #p.farm > 0 then
     local rows = {}
@@ -991,18 +1001,28 @@ local function Weapon(w)
 end
 
 function UI.pages.gear()
-  if not G.IsRogue() then return NotRogue("gear", "Felszerelés") end
+  if not G.Supported() then return NotSupported("gear", "Felszerelés") end
   local ctx = G.Context()
   local g = WA.Model.GearReport(ctx, 3)
   local sh = g.sheet
   UI.head.gear = { "Felszerelés", "A következő fejlesztés minden helyre: mennyit ad és honnan szerzed" }
   local out = {}
-  out[#out + 1] = { cards = {
-    { label = "Becsült DPS", value = F1(g.baseline), sub = "buffok nélkül " .. F1(g.unbuffed) .. (g.measuredDps and (" · mért " .. F1(g.measuredDps)) or "") },
-    { label = "Attack power", value = tostring(sh.ap or 0), sub = "főkéz " .. Weapon(sh.mh) },
-    { label = "Crit", value = Pct(sh.crit), sub = "balkéz " .. Weapon(sh.oh) },
-    { label = "Hit", value = Pct(sh.hit), sub = "" },
-  } }
+  local dpsCard = { label = "Becsült DPS", value = F1(g.baseline), sub = "buffok nélkül " .. F1(g.unbuffed) .. (g.measuredDps and (" · mért " .. F1(g.measuredDps)) or "") }
+  if ctx.class == "HUNTER" then
+    out[#out + 1] = { cards = {
+      dpsCard,
+      { label = "Ranged AP", value = tostring(math.floor((sh.rap or 0) + 0.5)), sub = "távolsági " .. Weapon(sh.ranged) },
+      { label = "Crit", value = Pct(sh.crit), sub = "lőszer " .. ((sh.ammo or 0) > 0 and (F1(sh.ammo) .. " DPS") or "nincs") },
+      { label = "Hit", value = Pct(sh.hit), sub = (sh.haste or 1) > 1.001 and (("tegez +%d%% sebesség"):format(math.floor((sh.haste - 1) * 100 + 0.5))) or "nincs tegez" },
+    } }
+  else
+    out[#out + 1] = { cards = {
+      dpsCard,
+      { label = "Attack power", value = tostring(sh.ap or 0), sub = "főkéz " .. Weapon(sh.mh) },
+      { label = "Crit", value = Pct(sh.crit), sub = "balkéz " .. Weapon(sh.oh) },
+      { label = "Hit", value = Pct(sh.hit), sub = "" },
+    } }
+  end
   if not WowAssistantData then
     out[#out + 1] = { tips = { { level = "warn", text = "Hiányzik a GameData.lua (dungeon loot): node scripts/build-addon-recipes.mjs --install" } } }
   end

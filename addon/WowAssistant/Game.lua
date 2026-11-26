@@ -59,7 +59,7 @@ function G.GearItem(idOrLink)
       itemClass = classID, subclass = subID, reqLevel = minLevel or 0, itemLevel = ilvl or 0,
       quality = QUALITY[quality or 1] or "COMMON", stats = M.GameStats(st, dmg),
     }
-    if not M.RogueUsable(item) then item = false end
+    if not M.Usable(G.Class(), item) then item = false end
   end
   gearCache[idOrLink] = item
   return item or nil
@@ -72,7 +72,7 @@ end
 G.SLOTS = {
   { "HEAD", 1 }, { "NECK", 2 }, { "SHOULDER", 3 }, { "BACK", 15 }, { "CHEST", 5 }, { "WRIST", 9 }, { "HANDS", 10 },
   { "WAIST", 6 }, { "LEGS", 7 }, { "FEET", 8 }, { "FINGER_1", 11 }, { "FINGER_2", 12 }, { "TRINKET_1", 13 },
-  { "TRINKET_2", 14 }, { "MAIN_HAND", 16 }, { "OFF_HAND", 17 },
+  { "TRINKET_2", 14 }, { "MAIN_HAND", 16 }, { "OFF_HAND", 17 }, { "RANGED", 18 },
 }
 
 function G.Equipped()
@@ -82,8 +82,10 @@ function G.Equipped()
     if link then
       local id = tonumber(link:match("item:(%d+)"))
       local st = getStats and getStats(link) or nil
-      local dmg = (s[1] == "MAIN_HAND" or s[1] == "OFF_HAND") and WA.WeaponNumbers and WA.WeaponNumbers(link) or nil
-      equipped[s[1]] = { id = id, name = (GetItemInfo(link)) or link:match("%[(.-)%]") or ("Item #" .. tostring(id)), stats = M.GameStats(st, dmg), link = link }
+      local dmg = (s[1] == "MAIN_HAND" or s[1] == "OFF_HAND" or s[1] == "RANGED") and WA.WeaponNumbers and WA.WeaponNumbers(link) or nil
+      local sub = GetItemInfoInstant and select(7, GetItemInfoInstant(link)) or nil
+      equipped[s[1]] = { id = id, name = (GetItemInfo(link)) or link:match("%[(.-)%]") or ("Item #" .. tostring(id)), stats = M.GameStats(st, dmg),
+        link = link, sub = sub }
       order[#order + 1] = s[1]
     end
   end
@@ -109,9 +111,23 @@ local function TalentText(tab, index)
   return table.concat(parts, " ")
 end
 
+-- Hunter talents by rank: Lethal Shots +1% ranged crit, Mortal Shots +6% crit damage bonus,
+-- Lightning Reflexes +3% agility per rank.
+local HUNTER_TALENTS = { ["Lethal Shots"] = { "lethal", 1 }, ["Mortal Shots"] = { "mortal", 6 }, ["Lightning Reflexes"] = { "reflexes", 3 } }
+
 function G.Talents()
-  local out = { malice = 0, efficient = 0, coup = 0 }
+  local out = { malice = 0, efficient = 0, coup = 0, lethal = 0, mortal = 0, reflexes = 0 }
   if not GetNumTalentTabs then return out end
+  if G.Class() == "HUNTER" then
+    for tab = 1, GetNumTalentTabs() do
+      for i = 1, (GetNumTalents and GetNumTalents(tab) or 0) do
+        local name, _, _, _, rank = GetTalentInfo(tab, i)
+        local t = name and HUNTER_TALENTS[name]
+        if t and rank and rank > 0 then out[t[1]] = rank * t[2] end
+      end
+    end
+    return out
+  end
   for tab = 1, GetNumTalentTabs() do
     for i = 1, (GetNumTalents and GetNumTalents(tab) or 0) do
       local name, _, _, _, rank = GetTalentInfo(tab, i)
@@ -249,24 +265,100 @@ function G.CombatReport(forModel)
   return WA.Combat.Report(list)
 end
 
+-- "Adds 4.5 damage per second" on an ammo tooltip.
+local function AmmoDps(link)
+  if not (link and C_TooltipInfo and C_TooltipInfo.GetHyperlink) then return nil end
+  local ok, data = pcall(C_TooltipInfo.GetHyperlink, link)
+  if not ok or type(data) ~= "table" or type(data.lines) ~= "table" then return nil end
+  for _, line in ipairs(data.lines) do
+    local t = type(line.leftText) == "string" and line.leftText or ""
+    local v = t:match("Adds ([%d%.]+) damage per second")
+    if v then return tonumber(v) end
+  end
+  return nil
+end
+G.AmmoDps = AmmoDps
+
+-- Spells in the spellbook (Exporter's scan), by name; nil when the book was never read.
+local function KnownSpells()
+  local list = WA.char and WA.char.spells
+  if not list or #list == 0 then return nil end
+  local known = {}
+  for _, s in ipairs(list) do known[s.name] = true end
+  return known
+end
+
+function G.Class() return select(2, UnitClass("player")) end
+function G.IsRogue() return G.Class() == "ROGUE" end
+-- Classes the damage model (and with it the plan and the gear page) knows.
+function G.Supported() return M.CLASSES[G.Class() or ""] ~= nil end
+
 function G.ModelInput()
   local equipped, order = G.Equipped()
   local _, agi = UnitStat("player", 2)
   local _, str = UnitStat("player", 1)
   local base, pos, neg = UnitAttackPower("player")
-  return {
+  local input = {
+    class = G.Class(),
     level = UnitLevel("player"), agi = agi or 0, str = str or 0, ap = (base or 0) + (pos or 0) + (neg or 0),
     crit = GetCritChance and GetCritChance() or 0, hit = GetHitModifier and (GetHitModifier() or 0) or 0,
     equipped = equipped, slotOrder = order, talents = G.Talents(), combat = G.CombatReport(true),
     buffs = WA.charDB and WA.charDB.buffs or {}, skills = WA.char and WA.char.skills,
   }
+  if input.class == "HUNTER" then
+    local rb, rp, rn = 0, 0, 0
+    if UnitRangedAttackPower then rb, rp, rn = UnitRangedAttackPower("player") end
+    input.rap = (rb or 0) + (rp or 0) + (rn or 0)
+    input.rangedCrit = GetRangedCritChance and GetRangedCritChance() or input.crit
+    local w = equipped.RANGED and equipped.RANGED.stats.weapon
+    local speed = UnitRangedDamage and UnitRangedDamage("player")
+    if w and speed and speed > 0 then input.haste = w.speed / speed end
+    local ammoLink = GetInventoryItemLink("player", INVSLOT_AMMO or 0)
+    input.ammoDps = AmmoDps(ammoLink) or 0
+    input.ammoId = ammoLink and tonumber(ammoLink:match("item:(%d+)")) or nil
+    local known = KnownSpells()
+    if known then
+      input.known = { ["Aimed Shot"] = known["Aimed Shot"] or nil, ["Arcane Shot"] = known["Arcane Shot"] or false,
+        ["Multi-Shot"] = known["Multi-Shot"] or false }
+      if (input.level or 0) >= 10 and not known["Call Pet"] then input.hasPet = false end
+    end
+  end
+  return input
 end
 
-function G.IsRogue() return select(2, UnitClass("player")) == "ROGUE" end
-
 function G.Context()
-  if not G.IsRogue() then return nil end
-  return M.Context(G.ModelInput())
+  if not G.Supported() then return nil end
+  local input = G.ModelInput()
+  local ctx = M.Context(input)
+  ctx.ammoId = input.ammoId
+  return ctx
+end
+
+-- Ammo the vendors sell (General Goods, Bowyer, Gunsmith): arrows and bullets by level.
+G.VENDOR_AMMO = { 2512, 2515, 3030, 11285, 2516, 2519, 3033, 11284 }
+local AMMO_KIND = { [2] = "arrow", [3] = "bullet" }
+
+-- { itemId, name, kind, reqLevel, dps, current } for the vendor ammo plus what is in the ammo
+-- slot; items the client has not loaded yet are left out (they load for the next draw).
+function G.Ammo(currentId)
+  local out, seen, ids = {}, {}, {}
+  for _, id in ipairs(G.VENDOR_AMMO) do ids[#ids + 1] = id end
+  if currentId then ids[#ids + 1] = currentId end
+  for _, id in ipairs(ids) do
+    if not seen[id] then
+      seen[id] = true
+      local name, link, _, _, minLevel, _, _, _, _, _, _, classID, subID = GetItemInfo(id)
+      if not name then
+        Request(id)
+      elseif classID == 6 and AMMO_KIND[subID] then
+        local dps = AmmoDps(link)
+        if dps then
+          out[#out + 1] = { itemId = id, name = name, kind = AMMO_KIND[subID], reqLevel = minLevel or 0, dps = dps, current = id == currentId }
+        end
+      end
+    end
+  end
+  return out
 end
 
 function G.Routes(target)
@@ -287,7 +379,7 @@ function G.Offers()
       itemClass = it.cls or 0, subclass = it.sub or 0, reqLevel = it.req or 0, itemLevel = it.ilvl or 0,
       quality = QUALITY[it.q or 1] or "COMMON", stats = M.GameStats(it.st, it.dmg),
     }
-    if not (item.itemClass == 2 and not item.stats.weapon) and M.RogueUsable(item) and (it.price or 0) > 0 then
+    if not (item.itemClass == 2 and not item.stats.weapon) and M.Usable(G.Class(), item) and (it.price or 0) > 0 then
       out[#out + 1] = { item = item, price = it.price, listings = it.count or 0, where = "Aukciósház (játékban szkennelve)" }
     end
   end
@@ -333,7 +425,11 @@ function G.PlanInput(ctx)
   local warnings = {}
   local c = WA.char or {}
   if not c.bankAt then warnings[#warnings + 1] = "A bank tartalma ismeretlen: nyisd meg egyszer a bankot." end
-  if #trainer == 0 then warnings[#warnings + 1] = "Nincs trainer-adat: nyisd meg a rogue trainer ablakát minden szűrővel." end
+  local classHu = ({ ROGUE = "rogue", HUNTER = "hunter" })[ctx.class] or "class"
+  if #trainer == 0 then warnings[#warnings + 1] = ("Nincs trainer-adat: nyisd meg a %s trainer ablakát minden szűrővel."):format(classHu) end
+  if ctx.class == "HUNTER" and not (WA.char and WA.char.spells and #WA.char.spells > 0) then
+    warnings[#warnings + 1] = "A varázskönyved még nincs beolvasva: /reload után az addon megnézi, mit tudsz (Aimed Shot, Multi-Shot, pet)."
+  end
   if not scanAt then
     warnings[#warnings + 1] = "Még nem szkennelted az aukciósházat: /wa ah az aukciósháznál. Enélkül nincs AH-ajánlat és ár."
   elseif #offers == 0 then
@@ -345,5 +441,6 @@ function G.PlanInput(ctx)
   return {
     ctx = ctx, gold = GetMoney(), offers = offers, ownedGear = ownedGear, crafts = crafts, owned = owned, book = G.Book(),
     trainer = trainer, questLoot = quest, routes = routes, warnings = warnings, name = UnitName("player"),
+    ammo = ctx.class == "HUNTER" and G.Ammo(ctx.ammoId) or nil,
   }
 end

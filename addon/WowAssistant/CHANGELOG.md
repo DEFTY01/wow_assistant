@@ -1,3 +1,22 @@
+## 2.5.0
+
+A Haditerv és a Felszerelés oldal mostantól **hunterrel** is működik, 1-től 60-as szintig.
+
+- Hunter sebzésmodell:
+  - Auto Shot, lőszer és tegez-gyorsítás
+  - Arcane Shot, Multi-Shot és Aimed Shot
+  - Raptor Strike és közelharc a pet előtti szinteken
+  - a pet és a Serpent Sting
+  - a rögzített harcaidból kalibrálva
+- Távolsági fegyverek (íj, puska, számszeríj, hajítófegyver), kétkezes fegyverek, mail páncél 40-től.
+- Haditerv:
+  - hunter trainer-képességek fontosság szerint
+  - lőszer-ajánlás a szintedhez
+  - tanácsok a harcaid alapján (kevés Auto Shot, sok közelharc, gyenge pet)
+- Javítás minden kasztnak:
+  - a dungeon-loot hit és crit értékei ratingek voltak, nem százalékok (10 hit rating = 1% hit, 14 crit rating = 1% crit)
+  - a gyűrűk, nyakláncok, trinketek és köpenyek eddig kimaradtak az ajánlásokból
+
 ## 2.4.0
 
 Az addon új neve **Waystone**.
