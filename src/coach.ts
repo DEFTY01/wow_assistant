@@ -91,7 +91,8 @@ export async function coachReport(env: Env, limit = 150): Promise<CoachReport | 
   const evisLow = evisByCp[1] + evisByCp[2];
   // with the target's health in the log, the combat page decides (proven or justified); this
   // average-only tip is for fights without it
-  if (evisTotal >= 8 && evisLow / evisTotal > 0.3 && !evisEvidence(fights).seen) {
+  const evidence = evisEvidence(fights);
+  if (evisTotal >= 8 && evisLow / evisTotal > 0.3 && !(evidence.seen && !evidence.unchecked)) {
     tips.push({
       level: "tip",
       title: "Sok az alacsony combo pontos Eviscerate",

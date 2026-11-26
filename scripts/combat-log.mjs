@@ -97,6 +97,7 @@ export function parseCombatLog(text, character, opts = {}) {
       const died = deaths[e.guid];
       const end = died != null && died >= e.at ? died : Math.max(lastHit[e.guid] ?? e.at, e.at);
       const out = { t: e.t, cp: e.cp, target: e.target, landed: e.landed ?? null, dmg: e.dmg ?? null, crit: e.crit ?? null,
+        blocked: e.blocked || undefined,
         killed: e.killed ?? null, hpBefore: e.hpBefore ?? null, maxHp: e.maxHp ?? null,
         lived: round1(end - e.at), livedKnown: died != null && died >= e.at };
       return out;
@@ -260,6 +261,7 @@ export function parseCombatLog(text, character, opts = {}) {
         e.rec.landed = true;
         e.rec.dmg = amount;
         e.rec.crit = f[38] === "1";
+        e.rec.blocked = Number(f[36]) || 0;
         e.rec.killed = Number(f[33]) >= 0 || hpAfter === 0;
         if (Number.isFinite(hpAfter)) {
           e.rec.hpBefore = hpAfter + amount;

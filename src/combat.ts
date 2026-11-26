@@ -42,38 +42,50 @@ export interface EvisCast {
   crit: boolean | null;
   killed: boolean | null;
   hpBefore: number | null;
+  blocked?: number;
   maxHp: number | null;
   lived: number; // seconds the target lived after it (at least, unless livedKnown)
   livedKnown: boolean;
 }
 
 // A low-point Eviscerate is a proven mistake only when the log shows all of it: it spent 1-2
-// combo points, it hit and the target survived, it could not have been meant to kill (more than
-// twice the damage left, so even a crit would not have killed), and the target lived at least
-// EVIS_ROOM more seconds - two Sinister Strikes' worth of energy. The same rule as the addon's
-// WowAssistant/Combat.lua C.EvisMistake. true = proven, false = low points but justified by the
-// log, null = not a low-point cast or the state is not known.
+// combo points, it hit and the target survived, no roll of it could have killed (more than 4x the
+// hit's non-crit damage left: the highest roll is at most EVIS_SPREAD x the lowest, then a crit),
+// and the target lived at least EVIS_ROOM more seconds - two Sinister Strikes' worth of energy.
+// The same rule as the addon's WowAssistant/Combat.lua C.EvisMistake, which says where the bound
+// comes from. true = proven, false = low points but justified by the log, null = not a low-point
+// cast or the state is not known.
 export const EVIS_ROOM = 8;
+export const EVIS_SPREAD = 2;
 export function evisMistake(e: EvisCast): boolean | null {
   if (!(e.cp >= 1 && e.cp <= 2) || e.landed === false) return null;
   if (e.killed) return false;
   if (e.hpBefore == null || e.dmg == null || e.lived == null) return null;
-  return e.hpBefore > 2 * e.dmg && e.lived >= EVIS_ROOM;
+  const dmg = e.dmg + (e.blocked ?? 0);
+  const killable = (e.crit ? dmg / 2 : dmg) * EVIS_SPREAD * 2;
+  return e.hpBefore > killable && e.lived >= EVIS_ROOM;
 }
 
 export interface EvisEvidence {
   seen: number;
   proven: { start: number; e: EvisCast }[];
   justified: number;
+  /** low-point casts the log cannot decide: no health known, or a fight stored without the data */
+  unchecked: number;
 }
 export function evisEvidence(fights: Fight[]): EvisEvidence {
-  const out: EvisEvidence = { seen: 0, proven: [], justified: 0 };
+  const out: EvisEvidence = { seen: 0, proven: [], justified: 0, unchecked: 0 };
   for (const f of fights) {
-    for (const e of Array.isArray(f.evis) ? f.evis : []) {
-      out.seen++;
-      const x = evisMistake(e);
-      if (x === true) out.proven.push({ start: f.start, e });
-      else if (x === false) out.justified++;
+    if (Array.isArray(f.evis)) {
+      for (const e of f.evis) {
+        out.seen++;
+        const x = evisMistake(e);
+        if (x === true) out.proven.push({ start: f.start, e });
+        else if (x === false) out.justified++;
+        else if (e.cp >= 1 && e.cp <= 2 && e.landed !== false) out.unchecked++;
+      }
+    } else {
+      for (const c of Array.isArray(f.casts) ? f.casts : []) if (c[1] === "Eviscerate" && c[3] >= 1 && c[3] <= 2) out.unchecked++;
     }
   }
   return out;
@@ -91,18 +103,28 @@ export function evisAdvice(ev: EvisEvidence, avgCp: number | null): Advice | nul
     return {
       level: "fix",
       title: "Kevés combo pontos Eviscerate",
-      text: `${ev.proven.length} Eviscerate ment 1–2 combo ponttal úgy, hogy a célpont nem halt meg tőle, több mint kétszer annyi ` +
-        `életereje maradt, mint a sebzés (krittel sem halt volna meg), és utána még legalább ${EVIS_ROOM} mp-ig élt (harcnapló): ` +
+      text: `${ev.proven.length} Eviscerate ment 1–2 combo ponttal úgy, hogy a célpont nem halt meg tőle, több mint négyszer annyi ` +
+        `életereje maradt, mint az ütés normál sebzése (a legnagyobb dobás krittel sem ölt volna), és utána még legalább ${EVIS_ROOM} mp-ig élt (harcnapló): ` +
         lines.join("; ") + (ev.proven.length > 3 ? `; és még ${ev.proven.length - 3}` : "") +
-        ". Ilyenkor építs még 1–2 pontot: az ára ugyanaz a 35 energia, a sebzése pontonként nő.",
+        ". Ilyenkor építs még 1–2 pontot: az ára ugyanaz a 35 energia, a sebzése pontonként nő." +
+        (ev.unchecked ? ` További ${ev.unchecked} kevés pontosnál a célpont élete nem látszik.` : ""),
     };
   }
-  if (ev.seen && ev.justified && avgCp != null && avgCp < 4) {
+  if (ev.justified && !ev.unchecked && avgCp != null && avgCp < 4) {
     return {
       level: "info",
       title: "Kevés pontos Eviscerate, de indokolt",
-      text: `Az Eviscerate-jeid átlagosan ${avgCp.toFixed(1)} combo ponttal mentek; a harcnaplóban egyik 1–2 pontos sem volt hiba: ` +
-        `${ev.justified} ölt vagy kevés életerejű célpontra ment, illetve a célpont hamar meghalt.`,
+      text: `Az Eviscerate-jeid átlagosan ${avgCp.toFixed(1)} combo ponttal mentek. Mind a ${ev.justified} darab 1–2 pontos ` +
+        "ellenőrizhető volt a harcnaplóban, és egyik sem volt hiba: ölt, kevés életerejű célpontra ment, vagy a célpont hamar meghalt.",
+    };
+  }
+  if (avgCp != null && avgCp < 4 && (ev.justified || ev.unchecked)) {
+    return {
+      level: "tip",
+      title: "Kevés combo pontos Eviscerate (nem megállapítható)",
+      text: `Az Eviscerate-jeid átlagosan ${avgCp.toFixed(1)} combo ponttal mennek. Az 1–2 pontosak közül ${ev.justified} a harcnapló ` +
+        `szerint indokolt volt, ${ev.unchecked}-nál/-nél nem látszik a célpont életereje, így ott nem dönthető el, hiba volt-e. ` +
+        "4–5 ponttal több sebzés jut egy energiára, kivéve ha a mob 1–2 ponttal is meghal.",
     };
   }
   return null;

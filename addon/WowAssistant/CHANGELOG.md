@@ -1,3 +1,15 @@
+## 2.9.2
+
+Javítások egy átnézés után. Mindhárom ugyanazt a szabályt sértette: csak azt mondjuk, ami igazolt.
+
+- Kevés pontos Eviscerate:
+  - "Indokolt" csak akkor jelenik meg, ha minden 1–2 pontos ellenőrizhető volt. Ha van ellenőrizetlen (régebbi napló, élő mérő, vagy nem látszik a célpont élete), akkor "nem megállapítható", és kiírja, hány indokolt és hány nem ellenőrizhető.
+  - Hiba csak akkor, ha a célpontnak több mint négyszer annyi élete maradt, mint az ütés normál sebzése. A sebzés dobott része legfeljebb kétszerese a legkisebbnek, ehhez jön a krit (WoWSims Forever: csak a rang alapsebzése szór).
+  - A blokkolt rész is beszámít.
+  - Az ismeretlen max életerő "?", nem 0.
+- Cooldownok: az élő mérő harcai ténylegesen kimaradnak. Eddig, ha volt bennük cast, beszámítottak, pedig a leírás mást mondott.
+- A webes harcoldal és a coach ugyanígy számol.
+
 ## 2.9.1
 
 - Javítva: a Stormstrike cooldownja Foreveren 8 mp (Wowhead Forever), nem 20, mint Classicban. A shaman modell ezért 10 mp-enként számol vele, a cooldownja 80%-ával. A pontszám percenként 6-nál ad teljes pontot (8 mp-es cooldownnal legfeljebb 7,5 lehet), és a szövege is 8 mp-et mond.
@@ -9,7 +21,8 @@
 - A harcnapló castjaiból számolja, hogy a harcidő hány százalékában töltődött egy cooldownos képesség. A módszer a WoWAnalyzer CastEfficiency normál ága: befejezett töltődések, plusz a harc végén még futó töltődés, osztva a harcidővel.
 - Csak a Foreverre ellenőrzött cooldownokkal számol (Wowhead Forever): Shank 10 mp, Blade Flurry 2 perc, Kidney Shot 20 mp, Arcane Shot 6 mp, a shockok közös 6 mp-e, Stormstrike 8 mp.
 - Minden sor mutatja, miből jött: hány harc, mennyi harcidő, abból mennyi töltődés, hány mp húzódott át az előző harcból, és a cooldown forrása.
-- Csak az első használat utáni harcok számítanak, mert előtte lehet, hogy még nem volt meg a képesség. Az élő mérő harcai kimaradnak, mert nincs bennük cast-idő. Amit még sosem használtál, az nem 0%, hanem nincs sora.
+- Csak az első használat utáni harcok számítanak, mert előtte lehet, hogy még nem volt meg a képesség. Amit még sosem használtál, az nem 0%, hanem nincs sora.
+- Csak a harcnapló harcai számítanak (2.9.2-től ténylegesen): az élő mérő harcának ideje a mérő sessionjéből jön, a castjainak ideje a harci óráról, és a kettő nem feltétlenül egyezik.
 - A reaktív képességek (Riposte parry után, Kick egy castra) kimaradnak: hogy mikor lehetett használni, azt egy esemény dönti el, nem a töltődés.
 - Az alacsony érték nem hiba, és nem is így jelenik meg.
 

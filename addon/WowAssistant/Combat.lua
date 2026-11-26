@@ -44,7 +44,7 @@ function C.Report(fights, limit, advise)
   local white, yellow = Empty(), Empty()
   local cp, cpOrder, auraSecs, auraOrder, byLevel, lvOrder = {}, {}, {}, {}, {}, {}
   local seconds, damage, capped, samples, offhandMiss = 0, 0, 0, 0, 0
-  local evisSeen, evisProven, evisJustified = 0, {}, 0
+  local evisSeen, evisProven, evisJustified, evisUnchecked = 0, {}, 0, 0
   for _, f in ipairs(list) do
     seconds = seconds + f.dur
     damage = damage + f.dmg
@@ -72,11 +72,21 @@ function C.Report(fights, limit, advise)
         e.cp = e.cp + (tonumber(c[4]) or 0)
       end
     end
-    for _, e in ipairs(f.evis or {}) do
-      evisSeen = evisSeen + 1
-      local proof = C.EvisMistake(e)
-      if proof == true then evisProven[#evisProven + 1] = { start = f.start, e = e }
-      elseif proof == false then evisJustified = evisJustified + 1 end
+    if type(f.evis) == "table" then
+      for _, e in ipairs(f.evis) do
+        evisSeen = evisSeen + 1
+        local proof = C.EvisMistake(e)
+        local low = (tonumber(e.cp) or 0) >= 1 and (tonumber(e.cp) or 0) <= 2 and e.landed ~= false
+        if proof == true then evisProven[#evisProven + 1] = { start = f.start, e = e }
+        elseif proof == false then evisJustified = evisJustified + 1
+        elseif low then evisUnchecked = evisUnchecked + 1 end
+      end
+    else
+      -- a fight without the data (an older log, or the live meter): its low-point casts are unchecked
+      for _, c in ipairs(f.casts or {}) do
+        local n = tonumber(c[4]) or 0
+        if c[2] == "Eviscerate" and n >= 1 and n <= 2 then evisUnchecked = evisUnchecked + 1 end
+      end
     end
     for _, a in ipairs(f.auras or {}) do
       if auraSecs[a[1]] == nil then auraOrder[#auraOrder + 1] = a[1] end
@@ -109,7 +119,7 @@ function C.Report(fights, limit, advise)
     energyCappedPct = samples > 0 and Pct(capped, samples) or nil,
     offhandMissSharePct = (white.n - Landed(white)) > 0 and Pct(offhandMiss, white.n - Landed(white)) or nil,
     finishers = {}, auras = {}, byLevel = {}, recent = {},
-    evis = { seen = evisSeen, proven = evisProven, justified = evisJustified },
+    evis = { seen = evisSeen, proven = evisProven, justified = evisJustified, unchecked = evisUnchecked },
     cooldowns = C.CooldownUsage(list),
   }
   for _, name in ipairs(cpOrder) do
@@ -143,7 +153,8 @@ end
 -- cooldown still running from the previous fight counts from the pull. Reactive abilities
 -- (Riposte after a parry, Kick on a spellcast) are left out: their availability is an event, so
 -- recharge time does not say what could have been used.
--- Fights without a cast list (the live damage meter) carry no cast times and are left out.
+-- Only log fights count: the live meter's fights record casts too, but their duration comes from
+-- the meter session and their cast times from the combat clock, which need not line up.
 C.COOLDOWNS = {
   { name = "Shank", cd = 10, source = "Wowhead Forever spell=1329283 (10 mp; mellékkéz-fegyver kell)" },
   { name = "Blade Flurry", cd = 120, source = "Wowhead Forever spell=13877 (2 perc)" },
@@ -159,7 +170,9 @@ C.CD_METHOD = "WoWAnalyzer CastEfficiency (19e94d2d), normál cooldownos ág"
 function C.CooldownUse(fights, spec)
   local list = {}
   for _, f in ipairs(fights) do
-    if type(f.casts) == "table" and #f.casts > 0 and (tonumber(f.dur) or 0) > 0 then list[#list + 1] = f end
+    if type(f.casts) == "table" and #f.casts > 0 and (tonumber(f.dur) or 0) > 0 and f.source ~= "live" and f.source ~= "meter" then
+      list[#list + 1] = f
+    end
   end
   table.sort(list, function(a, b) return (a.start or 0) < (b.start or 0) end)
   local function Is(name) return spec.spells and spec.spells[name] or name == spec.name end
@@ -284,12 +297,23 @@ function C.Finding(o)
 end
 
 -- A low-point Eviscerate is a proven mistake only when the log shows all of it (fight.evis, from
--- the uploader): it spent 1-2 combo points, it hit and the target survived, it could not have been
--- meant to kill (the target had more than twice the damage left, so even a crit would not have
--- killed), and the target lived at least EVIS_ROOM more seconds - two Sinister Strikes' worth of
--- energy, time to build more points. Returns true (proven), false (low points, but a kill or an
--- excuse the log shows), or nil (not a low-point cast, or the state is not known).
+-- the uploader): it spent 1-2 combo points, it hit and the target survived, no roll of it could
+-- have killed, and the target lived at least EVIS_ROOM more seconds - two Sinister Strikes' worth
+-- of energy, time to build more points.
+-- "No roll could have killed": in WoWSims Forever (d5144855 sim/rogue/eviscerate.go) only the
+-- rank's base points are rolled; the per-point damage and 4% AP per point add on top, so the
+-- highest roll is at most EVIS_SPREAD x the lowest (the base range's max/min; Forever's rank
+-- ranges are not published, Classic's are at most about 1.8, so 2 is the safe bound). With a crit
+-- (x2) on top: the target must have had more than 4x the hit's non-crit damage (blocked part added
+-- back). Returns true (proven), false (low points, but a kill or an excuse the log shows), or nil
+-- (not a low-point cast, or the state is not known).
 C.EVIS_ROOM = 8
+C.EVIS_SPREAD = 2
+function C.EvisKillable(e)
+  local dmg = (tonumber(e.dmg) or 0) + (tonumber(e.blocked) or 0)
+  local normal = e.crit and dmg / 2 or dmg
+  return normal * C.EVIS_SPREAD * 2
+end
 function C.EvisMistake(e)
   local cp = tonumber(e.cp)
   if not cp or cp < 1 or cp > 2 then return nil end
@@ -297,7 +321,7 @@ function C.EvisMistake(e)
   if e.killed then return false end
   local hp, dmg, lived = tonumber(e.hpBefore), tonumber(e.dmg), tonumber(e.lived)
   if not hp or not dmg or not lived then return nil end
-  if hp <= 2 * dmg or lived < C.EVIS_ROOM then return false end
+  if hp <= C.EvisKillable(e) or lived < C.EVIS_ROOM then return false end
   return true
 end
 
@@ -321,28 +345,31 @@ function C.Advise(r, fights)
   end
   local evis
   for _, f in ipairs(r.finishers) do if f.name == "Eviscerate" then evis = f end end
-  local ev = r.evis or { seen = 0, proven = {}, justified = 0 }
+  local ev = r.evis or { seen = 0, proven = {}, justified = 0, unchecked = 0 }
+  ev.unchecked = ev.unchecked or 0
   if #ev.proven > 0 then
     local lines = {}
     for i = 1, math.min(3, #ev.proven) do
       local p, e = ev.proven[i], ev.proven[i].e
-      lines[i] = ("%s, %s: %d pont, életereje előtte %d / %d, a sebzés %d%s, utána még %s%s mp-ig élt"):format(
-        Clock(p.start, e.t), e.target or "?", e.cp, e.hpBefore, e.maxHp or 0, e.dmg, e.crit and " (krit)" or "",
+      lines[i] = ("%s, %s: %d pont, életereje előtte %d / %s, a sebzés %d%s, utána még %s%s mp-ig élt"):format(
+        Clock(p.start, e.t), e.target or "?", e.cp, e.hpBefore, e.maxHp and tostring(e.maxHp) or "?", e.dmg, e.crit and " (krit)" or "",
         e.livedKnown and "" or "legalább ", F1(e.lived))
     end
     Push({ title = "Kevés combo pontos Eviscerate", fault = true, rule = "evisCp",
-      fact = ("%d Eviscerate ment 1–2 combo ponttal úgy, hogy a célpont nem halt meg tőle, több mint kétszer annyi életereje maradt, mint a sebzés (krittel sem halt volna meg), és utána még legalább %d mp-ig élt (harcnapló):\n- %s%s")
-        :format(#ev.proven, C.EVIS_ROOM, table.concat(lines, "\n- "), #ev.proven > 3 and ("\n- … és még " .. (#ev.proven - 3)) or ""),
+      fact = ("%d Eviscerate ment 1–2 combo ponttal úgy, hogy a célpont nem halt meg tőle, több mint négyszer annyi életereje maradt, mint az ütés normál sebzése (a legnagyobb dobás krittel sem ölt volna), és utána még legalább %d mp-ig élt (harcnapló):\n- %s%s%s")
+        :format(#ev.proven, C.EVIS_ROOM, table.concat(lines, "\n- "), #ev.proven > 3 and ("\n- … és még " .. (#ev.proven - 3)) or "",
+          ev.unchecked > 0 and ("\nTovábbi " .. ev.unchecked .. " kevés pontosnál a célpont élete nem látszik.") or ""),
       advice = "Ilyenkor építs még 1–2 pontot: az ára ugyanaz a 35 energia, a sebzése pontonként nő." })
-  elseif ev.seen > 0 and evis and evis.casts >= 5 and evis.avgCp < 4 then
+  elseif evis and evis.casts >= 5 and evis.avgCp < 4 and ev.unchecked == 0 and ev.justified > 0 then
     Push({ title = "Kevés pontos Eviscerate, de indokolt", rule = "evisCp",
-      fact = ("Az Eviscerate-jeid átlagosan %s combo ponttal mentek; a harcnaplóban egyik 1–2 pontos sem volt hiba: %d ölt vagy kevés életerejű célpontra ment, illetve a célpont hamar meghalt.")
+      fact = ("Az Eviscerate-jeid átlagosan %s combo ponttal mentek. Mind a %d darab 1–2 pontos ellenőrizhető volt a harcnaplóban, és egyik sem volt hiba: ölt, kevés életerejű célpontra ment, vagy a célpont hamar meghalt.")
         :format(F1(evis.avgCp), ev.justified) })
   elseif evis and evis.casts >= 5 and evis.avgCp < 4 then
     Push({ title = "Kevés combo pontos Eviscerate", fault = true, rule = "evisCp",
-      fact = ("Az Eviscerate-jeid átlagosan %s combo ponttal mentek (%d használat)."):format(F1(evis.avgCp), evis.casts),
+      fact = ("Az Eviscerate-jeid átlagosan %s combo ponttal mentek (%d használat)."):format(F1(evis.avgCp), evis.casts) ..
+        (ev.justified > 0 and (" Az 1–2 pontosak közül %d a harcnapló szerint indokolt volt, %d nem ellenőrizhető."):format(ev.justified, ev.unchecked) or ""),
       advice = "4–5 ponttal több sebzés jut egy energiára, kivéve ha a mob 1–2 ponttal is meghal.",
-      missing = "a célpont életereje a cast pillanatában (meghalt volna-e kevesebb ponttal is)" })
+      missing = "a célpont életereje a cast pillanatában (meghalt volna-e kevesebb ponttal is)" .. (ev.unchecked > 0 and (", " .. ev.unchecked .. " kevés pontos Eviscerate-nél") or "") })
   end
   local avgFight = r.seconds / r.fights
   local snd
