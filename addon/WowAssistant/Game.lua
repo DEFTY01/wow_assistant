@@ -365,6 +365,13 @@ function G.ModelInput()
     input.catAp = WA.charDB and WA.charDB.catAp or nil
     local known = KnownSpells()
     if known then input.known = { ["Cat Form"] = known["Cat Form"] or false } end
+  elseif input.class == "WARLOCK" then
+    local _, int = UnitStat("player", 4)
+    input.int = int or 0
+    -- shadow (school 6): Shadow Bolt, Corruption, Bane of Agony
+    input.sp = GetSpellBonusDamage and (GetSpellBonusDamage(6) or 0) or 0
+    input.spellCrit = GetSpellCritChance and (GetSpellCritChance(6) or 0) or 0
+    input.spellHit = GetSpellHitModifier and (GetSpellHitModifier() or 0) or 0
   end
   return input
 end
@@ -470,7 +477,7 @@ function G.PlanInput(ctx)
   local warnings = {}
   local c = WA.char or {}
   if not c.bankAt then warnings[#warnings + 1] = "A bank tartalma ismeretlen: nyisd meg egyszer a bankot." end
-  local classHu = ({ ROGUE = "rogue", HUNTER = "hunter", SHAMAN = "shaman", DRUID = "druid" })[ctx.class] or "class"
+  local classHu = ({ ROGUE = "rogue", HUNTER = "hunter", SHAMAN = "shaman", DRUID = "druid", WARLOCK = "warlock" })[ctx.class] or "class"
   if #trainer == 0 then warnings[#warnings + 1] = ("Nincs trainer-adat: nyisd meg a %s trainer ablakát minden szűrővel."):format(classHu) end
   if ctx.class == "HUNTER" and not (WA.char and WA.char.spells and #WA.char.spells > 0) then
     warnings[#warnings + 1] = "A varázskönyved még nincs beolvasva: /reload után az addon megnézi, mit tudsz (Aimed Shot, Multi-Shot, pet)."

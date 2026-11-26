@@ -178,6 +178,12 @@ M.CLASSES = {
     weapon = { [4] = true, [5] = true, [10] = true, [13] = true, [15] = true },
     slots = { "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
   },
+  -- cloth; daggers, one-hand swords, staves, and a wand in the ranged slot (Warlock.lua)
+  WARLOCK = {
+    armor = { [0] = true, [1] = true },
+    weapon = { [7] = true, [10] = true, [15] = true, [19] = true },
+    slots = { "RANGED", "MAIN_HAND", "OFF_HAND", "HEAD", "NECK", "SHOULDER", "BACK", "CHEST", "WRIST", "HANDS", "WAIST", "LEGS", "FEET", "FINGER", "TRINKET" },
+  },
 }
 -- Kept for code that still asks about the rogue's list.
 M.ARMOR_SUBS = M.CLASSES.ROGUE.armor
@@ -197,7 +203,7 @@ function M.UsableSub(class, itemClass, sub, level)
 end
 
 local WEAPON_NAMES = { [0] = "Axe", [1] = "2H Axe", [2] = "Bow", [3] = "Gun", [4] = "Mace", [5] = "2H Mace", [6] = "Polearm", [7] = "Sword",
-  [8] = "2H Sword", [10] = "Staff", [13] = "Fist", [15] = "Dagger", [16] = "Thrown", [18] = "Crossbow" }
+  [8] = "2H Sword", [10] = "Staff", [13] = "Fist", [15] = "Dagger", [16] = "Thrown", [18] = "Crossbow", [19] = "Wand" }
 M.WEAPON_NAMES = WEAPON_NAMES
 M.WEAPON_SKILLS = { [0] = "Axes", [1] = "Two-Handed Axes", [2] = "Bows", [3] = "Guns", [4] = "Maces", [5] = "Two-Handed Maces", [6] = "Polearms",
   [7] = "Swords", [8] = "Two-Handed Swords", [10] = "Staves", [13] = "Fist Weapons", [15] = "Daggers", [16] = "Thrown",
@@ -282,11 +288,12 @@ end
 -- context: what is needed to score a piece of gear against what is equipped now
 ---------------------------------------------------------------------------
 -- The class's own model: HUNTER goes to Hunter.lua, SHAMAN to Shaman.lua, DRUID to Druid.lua,
--- everything else is the rogue.
+-- WARLOCK to Warlock.lua, everything else is the rogue.
 function M.Context(input)
   if input.class == "HUNTER" and WA.Hunter then return WA.Hunter.Context(input) end
   if input.class == "SHAMAN" and WA.Shaman then return WA.Shaman.Context(input) end
   if input.class == "DRUID" and WA.Druid then return WA.Druid.Context(input) end
+  if input.class == "WARLOCK" and WA.Warlock then return WA.Warlock.Context(input) end
   return M.RogueContext(input)
 end
 

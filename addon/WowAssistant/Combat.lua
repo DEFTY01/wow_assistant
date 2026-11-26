@@ -233,7 +233,8 @@ end
 -- registers these modules (sim/register_all.go): "Alpha" community models, and "GearPlanner"
 -- healer specs, which plan gear only - no HPS or rotation score can be proven from them. The
 -- engine builds a level 60 character only (sim/core/constants.go CharacterLevel = 60). "waystone"
--- marks the classes the addon's own levelling model covers (Model.lua, Hunter.lua, Shaman.lua, Druid.lua).
+-- marks the classes the addon's own levelling model covers (Model.lua, Hunter.lua, Shaman.lua, Druid.lua,
+-- Warlock.lua).
 -- tabs: the talent tabs in the game's order, each with the engine's spec for it.
 C.SIM_SOURCE = "WoWSims Forever d5144855 sim/register_all.go"
 C.CLASS_MODELS = {
@@ -247,7 +248,7 @@ C.CLASS_MODELS = {
   ROGUE = { name = "Rogue", waystone = true, tabs = { { "Assassination", "Alpha" }, { "Combat", "Alpha" }, { "Subtlety", "Alpha" } },
     shared = "egy közös Rogue-modul" },
   SHAMAN = { name = "Shaman", waystone = true, tabs = { { "Elemental", "Alpha" }, { "Enhancement", "Alpha" }, { "Restoration", "GearPlanner" } } },
-  WARLOCK = { name = "Warlock", tabs = { { "Affliction", "Alpha" }, { "Demonology", "Alpha" }, { "Destruction", "Alpha" } },
+  WARLOCK = { name = "Warlock", waystone = true, tabs = { { "Affliction", "Alpha" }, { "Demonology", "Alpha" }, { "Destruction", "Alpha" } },
     shared = "egy közös Warlock-modul" },
   WARRIOR = { name = "Warrior", tabs = { { "Arms", "Alpha" }, { "Fury", "Alpha" }, { "Protection", "Alpha" } },
     note = "Arms és Fury: a DPS-modell; Protection: a tank-modell" },
@@ -341,6 +342,12 @@ C.RULES = {
   -- a playstyle, not a game rule
   druidCat = { text = "a feral druid sebzésének nagyja Cat Formban jön", verified = false,
     source = "játékstílus, nem játékszabály: nem ellenőrizhető" },
+  lifeTapCap = { text = "a Life Tap életerőből ad manát, és a maximum fölé adott mana elvész", verified = true,
+    source = SIM .. "sim/warlock/lifetap.go; sim/core/mana.go AddMana (új mana = min(jelenlegi + kapott, maximum))" },
+  dotTicks = { text = "a Corruption 12 mp-ig, a Bane of Agony 24 mp-ig sebez, tickenként 3, illetve 2 mp-enként", verified = true,
+    source = WH .. "172; " .. WH .. "980; " .. SIM .. "sim/warlock/corruption.go, agony.go" },
+  demonInherit = { text = "a démon a te spell damage-edből örököl (AP 0,17 × S, spell damage 0,10 × S)", verified = true,
+    source = SIM .. "sim/warlock/pets.go (petStatInheritance)" },
   lightningShield = { text = "a Lightning Shield megsebzi azt, aki megüt (8-tól)", verified = true,
     source = WH .. "324" },
 }

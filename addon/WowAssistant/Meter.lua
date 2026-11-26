@@ -47,7 +47,12 @@ local NO_HIT = { ["Slice and Dice"] = true, Stealth = true, Vanish = true, Sprin
   ["Cat Form"] = true, ["Bear Form"] = true, ["Dire Bear Form"] = true, ["Travel Form"] = true, ["Aquatic Form"] = true,
   ["Moonkin Form"] = true, Prowl = true, Dash = true, ["Mark of the Wild"] = true, Thorns = true, ["Healing Touch"] = true,
   Rejuvenation = true, Regrowth = true, Innervate = true, Barkskin = true, ["Shifting Power"] = true, Enrage = true,
-  ["Frenzied Regeneration"] = true }
+  ["Frenzied Regeneration"] = true,
+  -- warlock: armors, buffs, summons, Life Tap, stones
+  ["Demon Skin"] = true, ["Demon Armor"] = true, ["Life Tap"] = true, ["Summon Imp"] = true, ["Summon Voidwalker"] = true,
+  ["Summon Succubus"] = true, ["Summon Felhunter"] = true, ["Health Funnel"] = true, ["Create Healthstone"] = true,
+  ["Create Soulstone"] = true, ["Unending Breath"] = true, ["Shadow Ward"] = true, ["Fel Domination"] = true,
+  ["Demonic Sacrifice"] = true, ["Amplify Curse"] = true }
 
 -- Hunter pet abilities that do damage (the damage meter may list them under the owner).
 local PET_SPELL = { Claw = true, Bite = true, ["Lightning Breath"] = true, ["Scorpid Poison"] = true, Screech = true,

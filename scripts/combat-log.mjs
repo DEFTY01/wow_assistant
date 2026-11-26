@@ -22,6 +22,10 @@
 // damage, whether it killed, and how long the target lived after it (its death, or at least
 // until our last hit on it). The addon decides from these whether a low-point finisher was a
 // mistake.
+//
+// Every Life Tap during a fight is kept (fight.taps): the mana it gave and the part over the
+// maximum, which the energize event states itself (its overEnergize field). That part was paid for
+// with health and lost.
 
 // Everything lives inside the function on purpose: the web app serves this function's own
 // source to the browser (Function.prototype.toString), so it must not lean on module scope.
@@ -38,6 +42,7 @@ export function parseCombatLog(text, character, opts = {}) {
   const PROVABLE = new Set(["Eviscerate", "Ferocious Bite"]);
   const COMBO_POINTS = "4";
   const ENERGY = "3";
+  const MANA = "0";
   // Things done between fights: they must neither start a fight nor glue two fights together.
   const NOT_COMBAT = /^(Skinning|Stealth|Mining|Herb Gathering|Fishing|Pick Pocket|Pick Lock|Disarm Trap|Detect Traps|Find \w+|.*Bandage.*|.*Poison.*)$/;
 
@@ -120,6 +125,7 @@ export function parseCombatLog(text, character, opts = {}) {
       pet,
       overkill: f.overkill,
       evis: evis.length ? evis : undefined,
+      taps: f.taps.length ? f.taps : undefined,
       basis: { dmg: "effective", dur: "own-events", pet: "owner-flags" },
     });
   };
@@ -128,7 +134,7 @@ export function parseCombatLog(text, character, opts = {}) {
     if (fight && t - fight.last > FIGHT_GAP) close();
     if (!fight) {
       fight = { t0: t, last: t, ab: {}, casts: [], targets: {}, levels: {}, auras: {}, auraOn: {}, capped: 0, samples: 0, energyAt: null, overkill: 0,
-        evis: [], evisPending: null };
+        evis: [], evisPending: null, taps: [] };
       // Buffs that were already running when the fight began.
       for (const name of activeAuras) fight.auraOn[name] = t;
       cp = 0; // combo points sit on the target, so a new fight starts from zero
@@ -282,6 +288,12 @@ export function parseCombatLog(text, character, opts = {}) {
       }
     } else if (ev === "SPELL_ENERGIZE") {
       if (f[33] === COMBO_POINTS) cp = Math.min(Number(f[34]) || 5, cp + (Number(f[31]) || 0));
+      // a Life Tap of ours during a fight: the mana it gave and the part over the maximum
+      if (mine && f[10] === "Life Tap" && f[33] === MANA && fight && t - fight.last <= FIGHT_GAP) {
+        const gain = Number(f[31]) || 0;
+        const over = Number(f[32]) || 0;
+        fight.taps.push({ t: Math.round((t - fight.t0) * 10), gain: Math.round(gain), over: Math.round(over), max: Number(f[34]) || null });
+      }
     } else if (ev === "SPELL_CAST_SUCCESS") {
       const name = f[10];
       if (NOT_COMBAT.test(name)) continue;

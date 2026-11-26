@@ -222,6 +222,7 @@ local USABLE = {
   SHAMAN = { armor = { [0] = true, [1] = true, [2] = true, [3] = true, [6] = true },
     weapon = { [0] = true, [1] = true, [4] = true, [5] = true, [10] = true, [13] = true, [15] = true } },
   DRUID = { armor = { [0] = true, [1] = true, [2] = true }, weapon = { [4] = true, [5] = true, [10] = true, [13] = true, [15] = true } },
+  WARLOCK = { armor = { [0] = true, [1] = true }, weapon = { [7] = true, [10] = true, [15] = true, [19] = true } },
 }
 
 local function Usable(classID, subID)

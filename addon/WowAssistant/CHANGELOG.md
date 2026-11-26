@@ -1,3 +1,21 @@
+## 2.12.0
+
+Warlock: saját modell, harcoldal és Haditerv.
+
+- A warlocknak saját sebzésmodellje van (Warlock.lua), a Wowhead Forever és a WoWSims Forever motor adatai alapján:
+  - Shadow Bolt (1,7 mp, a spell power 48,6%-a), DoT-ok, drainek, a démon és a pálca;
+  - a felszerelésnél a spell power és az intellect számít, a strength és az agility nem; a pálca a távolsági helyre megy, a sebzése nem nő a spell powerrel;
+  - szövetpáncél; tőr, egykezes kard, bot és pálca.
+- Harcoldal warlocknak:
+  - pontszám: folyamatos castolás (a pálcalövésekkel együtt), DoT a hosszabb harcban, kárba ment Life Tap;
+  - "Warlock összesítő": honnan jön a sebzés (direkt varázslat, DoT, drain és Wrack, démon, pálca), a DoT-ok a harcidő hány százalékában sebeztek (a tickekből: a Corruption, az Immolate és a Siphon Life 3, a Bane of Agony 2 mp-enként), Life Tap.
+  - A Wrack alatt a DoT-ok gyorsabban tickelnek, ezért ilyenkor a tickekből számolt érték felfelé torzít; az oldal ezt ki is írja.
+- Tanácsok warlocknak:
+  - a Life Tap teli manánál hiba, ha a harcnapló igazolja: a mana-esemény maga mondja meg, mennyi ment a maximum fölé. Hiba, ha egy Life Tap a manája legalább felét elvesztette (az életerőt ugyanúgy kifizetted); a kisebb túlcsordulás csak mért adat;
+  - ritkán sebző DoT-ok (nem megállapítható: a manád és a célpont élete nem látszik), alig sebző démon.
+- A harcnapló-feldolgozó a harc közbeni Life Tapeket is rögzíti, a kapott manával és a maximum fölötti résszel.
+- Ismert hiány: a dungeon-loot adataiban a pálcáknak nincs sebzése, ezért a Felszerelés oldal pálcát nem ajánl; a felvett pálcádat a modell ismeri.
+
 ## 2.11.0
 
 Druid: saját modell, harcoldal és Haditerv.
