@@ -1,3 +1,12 @@
+## 2.18.0
+
+Talentek: a Forever talentfái az addonban.
+
+- Az addon most a teljes talentfádat ismeri, minden kasztnál: mindhárom fa minden talentjét, a helyét, a rangjait, az előfeltételét és a pontjaidat. A fák alakját a játékból olvassa.
+- A rangok szövegét és számait a Wowhead Forever talent-kalkulátorának adataiból veszi (a Forevernek saját talentjei vannak, pl. a rogue Efficient Strikes vagy a mage Heating Up talentje, ezért a Classic adatai nem jók). Ez generált fájl (TalentData.lua): node scripts/build-talents.mjs --install. A CurseForge-os csomagban benne van.
+- Új parancs: /wa talent. Kiírja a fáidat, az elköltött és a szabad pontjaidat, és fánként, hogy a Wowhead Forever adata hány talentben egyezik a játékkal. Ha egy talent a játékban más (másik rangszám vagy hely), vagy az adatban nincs meg, azt megnevezi: így egy Forever-frissítés nem marad észrevétlen.
+- Ez az első lépés: a talentek hatása a sebzésmodellekben, a talentenkénti érték a jelenlegi felszereléseddel és a játékon belüli talent-kalkulátor a következő verziókban jön (docs/tickets, WA-032 – WA-034).
+
 ## 2.17.1
 
 Paladin: a seal a harcnaplóból, és a Seal of Fury is sebző seal.
