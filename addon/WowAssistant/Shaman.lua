@@ -6,16 +6,20 @@
 -- Classic rules the model follows:
 --   * melee attack power = 2 × strength (+ level × 2 − 20); agility gives melee crit only
 --   * one weapon (shamans do not dual wield in Classic): a two-hander or a one-hander + shield;
---     two-hand axes and maces need the Two-Handed Axes and Maces talent, staves do not
+--     two-hand axes and maces need the Two-Handed Axes and Maces talent in Classic; Forever's talent
+--     trees do not have it (Wowhead Forever talent calculator), so there the weapon skill decides
 --   * the weapon imbue multiplies the white damage: Rockbiter early, Flametongue from 10,
 --     Windfury from 30 (strongest on a slow two-hander)
 --   * Earth Shock and Lightning Bolt grow with spell power (coefficient = cast time / 3.5, less
---     for ranks learned before level 20); a spell crit does 1.5× (2× with Elemental Fury)
+--     for ranks learned before level 20); a spell crit does 1.5×, and Elemental Fury raises the
+--     50% bonus by 20% a rank (Forever: 5 ranks, 2× at the fifth)
 --   * intellect gives spell crit and mana; mana is not modeled, so intellect counts for little
---   * Flurry: a melee crit makes the next three swings faster
+--   * Flurry: a melee crit makes the next three swings faster (Forever: 6% a rank)
 --
 -- Extra input besides Model.lua's: int, sp (nature spell power), spellCrit, known = { [spell] =
--- true }, talents = { flurry, thundering, fury, twoHand, elemWeapons, stormstrike, read }.
+-- true }, talents = Talent.lua's T.Effects: flurry, thundering, fury (the numbers of the rank's
+-- Wowhead Forever text), elemRockbiter / elemWindfury / elemFlametongue, stormstrike, twoHand
+-- (ranks), read, absent.
 
 local _, WA = ...
 WA = WA or {}
@@ -98,11 +102,16 @@ local function Apply(sh, remove, add, p)
   }
 end
 
--- the white-damage multiplier of the best imbue at this level
+-- the white-damage multiplier of the best imbue at this level; Elemental Weapons raises the
+-- imbue's own part by its rank's % (Wowhead Forever: Windfury 13/27/40%, Flametongue 5/10/15%,
+-- Rockbiter 7/13/20%)
 local function ImbuePrior(level, mh, tal)
-  if level >= 30 then return (mh and mh.speed >= 3.0) and 1.22 or 1.15 end
-  local base = level >= 10 and 1.10 or 1.06
-  return base + (tal.elemWeapons or 0) * 0.02
+  if level >= 30 then
+    local base = (mh and mh.speed >= 3.0) and 1.22 or 1.15
+    return 1 + (base - 1) * (1 + (tal.elemWindfury or 0) / 100)
+  end
+  if level >= 10 then return 1 + 0.10 * (1 + (tal.elemFlametongue or 0) / 100) end
+  return 1 + 0.06 * (1 + (tal.elemRockbiter or 0) / 100)
 end
 
 ---------------------------------------------------------------------------
@@ -136,7 +145,7 @@ function S.Context(input)
     dodge = 5, spellMiss = 4,
     meleeUptime = mh and (level < 10 and 0.6 or 0.85) or 0,
     imbueMult = ImbuePrior(level, mh, tal),
-    flurry = (tal.flurry or 0) > 0 and (0.05 + 0.05 * tal.flurry) or 0,
+    flurry = (tal.flurry or 0) / 100,
     -- Stormstrike: 8 s cooldown on Forever (Wowhead Forever spell=17364); the prior is about 80% of
     -- that (every 10 s), as the shocks' prior leaves room for mana and the global cooldown
     stormPerSec = (storm and level >= 40) and 1 / 10 or 0,
@@ -144,7 +153,7 @@ function S.Context(input)
     shockDamage = earth and earth[2] or 0, shockCoef = earth and 0.386 * LowLevel(earth[1]) or 0,
     boltPerSec = level < 10 and 1 / 15 or 1 / 40,
     boltDamage = bolt[2], boltCoef = bolt[3] / 3.5 * LowLevel(bolt[1]),
-    spellCritMult = (tal.fury or 0) > 0 and 2 or 1.5,
+    spellCritMult = 1.5 + 0.5 * (tal.fury or 0) / 100,
     totemDps = level >= 10 and 0.12 * level or 0,
     otherDps = 0, notes = notes,
   }
@@ -242,15 +251,23 @@ function S.Context(input)
     equipped = equipped, equippedIds = equippedIds, combat = combat, slotOrder = input.slotOrder,
   }, "SHAMAN")
 
-  -- Two-hand axes and maces need the talent: known from the talent scan, else from level 20
-  -- (the first level the talent can be taken). Staves are fine without it.
-  local function twoHandOk(level2)
+  -- Two-hand axes and maces: where the talent trees have Two-Handed Axes and Maces, it is needed
+  -- (known from the talent scan, else from level 20, the first level it can be taken). Forever's
+  -- trees do not have it (absent): there the game's weapon skill decides, where it is known.
+  -- Staves are fine either way.
+  local skills = input.skills
+  local noTalent = tal.absent and tal.absent["Two-Handed Axes and Maces"]
+  local function twoHandOk(level2, sub)
     if (tal.twoHand or 0) > 0 then return true end
+    if noTalent then
+      if skills and next(skills) then return skills[M.WEAPON_SKILLS[sub]] ~= nil end
+      return true
+    end
     return not tal.read and level2 >= 20
   end
   local baseUsable = ctx.usableAt
   function ctx.usableAt(itemClass, sub, level2)
-    if itemClass == 2 and (sub == 1 or sub == 5) and not twoHandOk(level2) then return false end
+    if itemClass == 2 and (sub == 1 or sub == 5) and not twoHandOk(level2, sub) then return false end
     return baseUsable(itemClass, sub, level2)
   end
 
@@ -298,10 +315,9 @@ function S.Context(input)
     return S.Dps(sh, params) - baseline
   end
 
-  local skills = input.skills
   function ctx.weaponWarning(itemClass, sub)
     if itemClass ~= 2 then return nil end
-    if (sub == 1 or sub == 5) and (tal.twoHand or 0) == 0 then
+    if (sub == 1 or sub == 5) and (tal.twoHand or 0) == 0 and not noTalent then
       return "a Two-Handed Axes and Maces talent kell hozzá (Enhancement)"
     end
     if not skills or not next(skills) then return nil end

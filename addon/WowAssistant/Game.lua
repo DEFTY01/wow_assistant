@@ -99,33 +99,6 @@ function G.Equipped()
   return equipped, order
 end
 
--- Talent values the model uses. The ranks come from the talent API; the numbers from the
--- talent's tooltip with the same patterns the web app applies to the Blizzard text.
-local scanTip
-local function TalentText(tab, index)
-  if not scanTip then
-    scanTip = CreateFrame("GameTooltip", "WowAssistantScanTip", UIParent, "GameTooltipTemplate")
-    scanTip:SetOwner(UIParent, "ANCHOR_NONE")
-  end
-  scanTip:ClearLines()
-  if not pcall(scanTip.SetTalent, scanTip, tab, index) then return "" end
-  local parts = {}
-  for i = 1, scanTip:NumLines() do
-    local line = _G["WowAssistantScanTipTextLeft" .. i]
-    local t = line and line:GetText()
-    if t then parts[#parts + 1] = t end
-  end
-  return table.concat(parts, " ")
-end
-
--- Hunter talents by rank: Lethal Shots +1% ranged crit, Mortal Shots +6% crit damage bonus,
--- Lightning Reflexes +3% agility per rank.
-local HUNTER_TALENTS = { ["Lethal Shots"] = { "lethal", 1 }, ["Mortal Shots"] = { "mortal", 6 }, ["Lightning Reflexes"] = { "reflexes", 3 } }
--- shaman: ranks as they are (Shaman.lua turns them into numbers); read = the talents were scanned
-local SHAMAN_TALENTS = { Flurry = { "flurry", 1 }, ["Thundering Strikes"] = { "thundering", 1 }, ["Elemental Fury"] = { "fury", 1 },
-  ["Two-Handed Axes and Maces"] = { "twoHand", 1 }, ["Elemental Weapons"] = { "elemWeapons", 1 }, Stormstrike = { "stormstrike", 1 } }
-local CLASS_TALENTS = { HUNTER = HUNTER_TALENTS, SHAMAN = SHAMAN_TALENTS }
-
 -- The talent tab with the most points (1-3), nil before the first talent point.
 function G.MainTalentTab()
   if not GetNumTalentTabs then return nil end
@@ -141,33 +114,21 @@ function G.MainTalentTab()
   return best, bestPts
 end
 
+-- Talent values the model uses: every talent of every tab with its rank, turned into the model's
+-- numbers by Talent.lua (T.Effects: the rank's numbers from the Wowhead Forever data, and for each
+-- talent whether the model counts it, or why not).
 function G.Talents()
-  local out = { malice = 0, efficient = 0, coup = 0, lethal = 0, mortal = 0, reflexes = 0 }
-  if not GetNumTalentTabs then return out end
-  local map = CLASS_TALENTS[G.Class() or ""]
-  if map then
+  local ranks = {}
+  if GetNumTalentTabs then
     for tab = 1, GetNumTalentTabs() do
       for i = 1, (GetNumTalents and GetNumTalents(tab) or 0) do
-        local name, _, _, _, rank = GetTalentInfo(tab, i)
-        local t = name and map[name]
-        if t and rank and rank > 0 then out[t[1]] = rank * t[2] end
-        if name then out.read = true end
-      end
-    end
-    return out
-  end
-  for tab = 1, GetNumTalentTabs() do
-    for i = 1, (GetNumTalents and GetNumTalents(tab) or 0) do
-      local name, _, _, _, rank = GetTalentInfo(tab, i)
-      if rank and rank > 0 and (name == "Malice" or name == "Efficient Strikes" or name == "Coup de Grace") then
-        local text = TalentText(tab, i)
-        if name == "Malice" then out.malice = tonumber(text:match("by (%d+)%%")) or rank
-        elseif name == "Efficient Strikes" then out.efficient = tonumber(text:match("by (%d+)")) or 0
-        else out.coup = tonumber(text:match("Eviscerate ability by (%d+)%%")) or 0 end
+        local name, _, _, _, rank, max = GetTalentInfo(tab, i)
+        if name then ranks[#ranks + 1] = { name = name, tab = tab, rank = tonumber(rank) or 0, max = tonumber(max) } end
       end
     end
   end
-  return out
+  if not WA.Talent then return { ranks = {}, status = {} } end
+  return WA.Talent.Effects(G.Class(), ranks)
 end
 
 -- Professions: the skill line API where the client has it, else the profession API.

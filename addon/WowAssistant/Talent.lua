@@ -9,7 +9,9 @@
 --                            spent, unspent, level }
 --   T.Data(class)       -> the generated data for a class, or nil
 --   T.Match(tree, data) -> per tab: the data's tree, matched / missing / differs; and a talent's data by name
---   /wa talent          -> the trees, the points and how far the data matches the game
+--   T.Effects(class, ranks) -> the model's talent input: each counted talent's numbers from the data,
+--                          and for every talent with points whether the model counts it, or why not
+--   /wa talent          -> the trees, the points, how far the data matches the game, and what the model counts
 
 local _, WA = ...
 WA = WA or {}
@@ -108,6 +110,105 @@ function T.RankText(d, rank)
   return d and d.desc and d.desc[rank] or nil
 end
 
+-- A talent's data by class and name; nil when the data does not have it.
+function T.Find(class, name)
+  local data = T.Data(class)
+  for _, d in ipairs(data and data.talents or {}) do if d.name == name then return d end end
+  return nil
+end
+
+---------------------------------------------------------------------------
+-- talent effects: what a talent changes in the class model
+---------------------------------------------------------------------------
+-- Per class, per talent: the model keys it sets. val = which number of the rank's text (the
+-- data's vals) is the value, or "rank" for the rank itself (a talent that gives an ability, or
+-- one the model counts by rank). The number always comes from the Wowhead Forever data of the
+-- rank the character has; the model turns it into its parameters (Model.lua, Hunter.lua, ...).
+-- A talent not listed here is "nem számolt": the class ticket says when it gets counted.
+T.TICKET = { ROGUE = "WA-032a", WARRIOR = "WA-032b", MAGE = "WA-032c", WARLOCK = "WA-032d", HUNTER = "WA-032e",
+  SHAMAN = "WA-032f", DRUID = "WA-032g", PRIEST = "WA-032h", PALADIN = "WA-032i" }
+T.EFFECTS = {
+  ROGUE = {
+    Malice = { { key = "malice", val = 1, what = "crit %" } },
+    ["Efficient Strikes"] = { { key = "efficient", val = 1, what = "Sinister Strike energiaköltség −" } },
+    ["Coup de Grace"] = { { key = "coup", val = 1, what = "Eviscerate sebzés %" } },
+  },
+  HUNTER = {
+    ["Lethal Attacks"] = { { key = "lethal", val = 1, what = "crit %" } },
+    ["Mortal Shots"] = { { key = "mortal", val = 1, what = "távolsági crit-sebzés bónusz %" } },
+    ["Lightning Reflexes"] = { { key = "reflexes", val = 1, what = "agility %" } },
+  },
+  SHAMAN = {
+    Flurry = { { key = "flurry", val = 1, what = "támadási sebesség % a crit utáni 3 ütésre" } },
+    ["Thundering Strikes"] = { { key = "thundering", val = 1, what = "crit %" } },
+    ["Elemental Fury"] = { { key = "fury", val = 1, what = "spell crit-sebzés bónusz %" } },
+    ["Elemental Weapons"] = { { key = "elemRockbiter", val = 1, what = "Rockbiter AP %" },
+      { key = "elemWindfury", val = 2, what = "Windfury %" }, { key = "elemFlametongue", val = 3, what = "Flametongue/Frostbrand sebzés %" } },
+    Stormstrike = { { key = "stormstrike", val = "rank", what = "képesség" } },
+    ["Two-Handed Axes and Maces"] = { { key = "twoHand", val = "rank", what = "kétkezes fejsze és buzogány" } },
+  },
+}
+
+-- The model's talent input from the client's ranks ({ { name, tab, rank, max } }, every tab):
+--   out[key]  = the value (0 when the talent has no points)
+--   out.ranks = { [name] = rank } of every talent, out.read = the client gave talents
+--   out.absent = { [name] = true }: talents the model knows but Forever's trees do not have
+--   out.status = { { name, rank, max, counted, values = { { key, value, what } }, source, reason } }
+--                for every talent with points: counted (with the rank's text as the source) or why not
+function T.Effects(class, ranks)
+  local eff = T.EFFECTS[class or ""] or {}
+  local data = T.Data(class)
+  local out = { ranks = {}, status = {}, absent = {}, counted = 0, uncounted = 0, read = (#(ranks or {}) > 0) or nil }
+  for name, list in pairs(eff) do
+    for _, x in ipairs(list) do out[x.key] = 0 end
+    if data and not T.Find(class, name) then out.absent[name] = true end
+  end
+  for _, r in ipairs(ranks or {}) do
+    out.ranks[r.name] = r.rank
+    if r.rank > 0 then
+      local d = data and T.Find(class, r.name)
+      local list = eff[r.name]
+      local st = { name = r.name, rank = r.rank, max = r.max }
+      if data and not d then
+        st.reason = "nincs a Wowhead Forever adatában"
+      elseif not list then
+        st.reason = ("a modell még nem számol vele (%s)"):format(T.TICKET[class or ""] or "WA-032")
+      elseif not data then
+        st.reason = "a talentadat (TalentData.lua) hiányzik"
+      elseif r.max and r.max > 0 and r.max ~= d.max then
+        st.reason = ("a játék %d, az adat %d rangot ismer"):format(r.max, d.max)
+      else
+        local vals = d.vals and d.vals[math.min(r.rank, d.max)] or {}
+        local got = {}
+        for _, x in ipairs(list) do
+          local v = x.val == "rank" and r.rank or vals[x.val]
+          if v == nil then st.reason = "a rang szövegében nincs meg a szám" break end
+          got[#got + 1] = { key = x.key, value = v, what = x.what }
+        end
+        if not st.reason then
+          for _, g in ipairs(got) do out[g.key] = g.value end
+          st.counted, st.values = true, got
+          st.source = "Wowhead Forever: " .. (T.RankText(d, math.min(r.rank, d.max)) or "")
+        end
+      end
+      if st.counted then out.counted = out.counted + 1 else out.uncounted = out.uncounted + 1 end
+      out.status[#out.status + 1] = st
+    end
+  end
+  return out
+end
+
+-- How many of a class's talents the model counts: { counted, total }.
+function T.Coverage(class)
+  local data = T.Data(class)
+  local total, counted = 0, 0
+  for _, d in ipairs(data and data.talents or {}) do
+    total = total + 1
+    if (T.EFFECTS[class] or {})[d.name] then counted = counted + 1 end
+  end
+  return counted, total
+end
+
 local function Report()
   local class = WA.Game and WA.Game.Class and WA.Game.Class() or select(2, UnitClass("player"))
   local tree = T.ReadTree()
@@ -131,6 +232,30 @@ local function Report()
       for i = 1, math.min(5, #x.missing) do WA.Print("    nincs az adatban: " .. x.missing[i]) end
       for i = 1, math.min(5, #x.differs) do WA.Print("    eltér: " .. x.differs[i]) end
     end
+  end
+  -- what the model does with them: the counted talents with their numbers, the rest with the reason
+  local ranks = {}
+  for tab, t in ipairs(tree.tabs) do
+    for _, x in ipairs(t.talents) do ranks[#ranks + 1] = { name = x.name, tab = tab, rank = x.rank, max = x.max } end
+  end
+  local e = T.Effects(class, ranks)
+  if #e.status > 0 then
+    WA.Print(("A modell számolt talentjei: %d, még nem számolt: %d."):format(e.counted, e.uncounted))
+    for _, st in ipairs(e.status) do
+      if st.counted then
+        local bits = {}
+        for _, v in ipairs(st.values) do bits[#bits + 1] = ("%s %s"):format(v.what, tostring(v.value)) end
+        WA.Print(("    számolt: %s %d/%d · %s"):format(st.name, st.rank, st.max or st.rank, table.concat(bits, ", ")))
+      end
+    end
+    local shown = 0
+    for _, st in ipairs(e.status) do
+      if not st.counted and shown < 5 then
+        shown = shown + 1
+        WA.Print(("    nem számolt: %s · %s"):format(st.name, st.reason))
+      end
+    end
+    if e.uncounted > shown then WA.Print(("    … és még %d nem számolt talent"):format(e.uncounted - shown)) end
   end
   if not data then
     WA.Print("A talentadat (TalentData.lua) hiányzik: node scripts/build-talents.mjs --install")

@@ -13,7 +13,8 @@
 --   * until level 10 there is no pet and a hunter melees a good part of the time (Raptor Strike)
 --
 -- Extra input besides Model.lua's: rap, rangedCrit, ammoDps, ammoKind ("arrow" / "bullet"),
--- haste (≥ 1), known = { [spell name] = true }, hasPet, talents = { lethal, mortal, reflexes }.
+-- haste (≥ 1), known = { [spell name] = true }, hasPet, talents = Talent.lua's T.Effects: lethal (Lethal Attacks crit %),
+-- mortal (Mortal Shots crit damage %), reflexes (Lightning Reflexes agility %), from the Wowhead Forever data.
 
 local _, WA = ...
 WA = WA or {}

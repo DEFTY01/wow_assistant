@@ -1,3 +1,17 @@
+## 2.19.0
+
+Talentek: a talentek hatása egy közös kereten át jut a modellekbe, a Forever számaival.
+
+- A talentek hatását eddig kasztonként, kézzel beírt számok adták (rogue, hunter, shaman). Most egy közös keret adja őket: a számot mindig a rangod Wowhead Forever szövegéből veszi. Például a Malice 3/5 3% crit, mert a 3. rang szövege ezt írja.
+- A /wa talent most azt is kiírja, melyik talentedet számolja a modell (a számmal együtt), és melyiket még nem, indokkal: a kaszt ticketje (WA-032a – WA-032i), vagy hogy a talent nincs meg a Wowhead Forever adatában, vagy hogy a játék más rangszámot mutat. Amelyiket nem számolja, azzal a modell nem számol, és nem is talál ki rá számot.
+- Javítva, mert a Forever talentjei mások, mint a Classicéi:
+  - Hunter: a Classic Lethal Shots helyett a Foreveren Lethal Attacks van (rangonként +1% crit minden támadásra). Az addon eddig a Lethal Shotsot kereste, ezért ezt a talentet sosem találta meg.
+  - Shaman Flurry: Foreveren rangonként 6% (6–30%). Eddig a Classic értékeivel számolt (10–30%), így 1–4. rangon túl sokat adott.
+  - Shaman Elemental Fury: Foreveren 5 rangú, rangonként +20%-kal növeli a spell crit bónuszát (5/5-nél 2×). Eddig már 1 ponttól a teljes 2×-ost számolta.
+  - Shaman Elemental Weapons: a Forever számaival hat az imbue-ra (Windfury 13/27/40%, Flametongue 5/10/15%, Rockbiter 7/13/20%). Az eddigi rangonkénti +2%-nak nem volt forrása.
+  - Shaman, kétkezes fejsze és buzogány: a Forever talentfáiban nincs Two-Handed Axes and Maces talent. Eddig emiatt a játékban a felszerelési javaslat sosem ajánlott kétkezes fejszét vagy buzogányt, és a figyelmeztetés egy nem létező talentet kért. Most a fegyverskilled dönt: ha megvan a Two-Handed Axes vagy Two-Handed Maces skill, ajánlja, ha nincs, a figyelmeztetés a fegyvermestert említi.
+- A többi kaszt talentjei még "nem számolt" állapotban vannak. Kasztonként jönnek: docs/tickets WA-032a – WA-032i.
+
 ## 2.18.0
 
 Talentek: a Forever talentfái az addonban.

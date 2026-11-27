@@ -8,7 +8,7 @@
 --   level, agi, str (effective), ap, crit (%), hit (%)
 --   equipped[SLOT] = { id, name, stats }      Blizzard slot names (MAIN_HAND, FINGER_1, ...)
 --   slotOrder = { SLOT, ... }                 order the equipped items are listed in (display)
---   talents = { malice = crit %, efficient = energy, coup = Eviscerate % }
+--   talents = Talent.lua's T.Effects: malice = crit %, efficient = energy, coup = Eviscerate % (Wowhead Forever data)
 --   combat = report from Combat.lua or nil    calibration from recorded fights
 --   buffs = { [id] = true }                   selected party buffs and consumables
 --   skills = { ["Daggers"] = { rank, max } }  weapon skills, nil when unknown
