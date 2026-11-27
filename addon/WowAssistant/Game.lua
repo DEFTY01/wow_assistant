@@ -317,6 +317,7 @@ function G.ModelInput()
     -- nature (school 4): Lightning Bolt and Earth Shock
     input.sp = GetSpellBonusDamage and (GetSpellBonusDamage(4) or 0) or 0
     input.spellCrit = GetSpellCritChance and (GetSpellCritChance(4) or 0) or 0
+    input.spellHit = GetSpellHitModifier and (GetSpellHitModifier() or 0) or 0
     local known = KnownSpells()
     if known then input.known = { Stormstrike = known.Stormstrike or nil } end
   elseif input.class == "DRUID" then

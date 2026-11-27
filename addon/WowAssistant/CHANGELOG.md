@@ -1,3 +1,17 @@
+## 2.25.0
+
+Shaman: mindhárom talentfa a modellben.
+
+- A shaman mind az 50 talentje besorolva. Amelyik a közelharcod, a shockjaid, a Lightning Bolt vagy a totemjeid sebzését változtatja, azzal a modell most számol, a rangod Wowhead Forever számaival:
+  - Concussion és Call of Flame: a Lightning Bolt, az Earth Shock, a Flame Shock és a tűztotemek. Hogy mennyi a shockjaidból Earth Shock és mennyi Flame Shock, azt a harcnaplóból látja;
+  - Call of Thunder és Lightning Overload: a Lightning Bolt critje és a második, fél sebzésű villám;
+  - Elemental Fury: a varázslataid critje többet sebez;
+  - Ancestral Knowledge, Mental Dexterity, Mental Quickness: több intellect, és abból attack power és spell power. Ezért a felszerelés-értékelés enhancementnél az intellectet is számolja;
+  - a Flurry, az Elemental Weapons és a Stormstrike ahogy eddig; a Thundering Strikes és a Tidal Focus a karakterlapodon már benne van.
+- A varázslataid hitjét a modell most a játékból olvassa (spell hit).
+- Amelyikkel nem számol, annál a /wa talent megmondja, miért: gyógyítás, mana, túlélés, több célpont, cooldown, vagy olyan hatás, ami a varázslataid gyakoriságát változtatja (ezt a modell a harcaidból méri; a rotációs javaslatokkal jön).
+- Talentek nélkül a számok nem változtak.
+
 ## 2.24.0
 
 Hunter: mindhárom talentfa a modellben.

@@ -15,11 +15,15 @@
 --     50% bonus by 20% a rank (Forever: 5 ranks, 2× at the fifth)
 --   * intellect gives spell crit and mana; mana is not modeled, so intellect counts for little
 --   * Flurry: a melee crit makes the next three swings faster (Forever: 6% a rank)
+--   * talents (WA-032f, the numbers of the rank's Wowhead Forever text): Concussion (Lightning
+--     Bolt, Earth Shock), Call of Flame (fire totems, Flame Shock), Call of Thunder (Lightning
+--     Bolt crit), Lightning Overload (a second Lightning Bolt for half damage), Ancestral Knowledge
+--     (intellect), Mental Dexterity / Mental Quickness (intellect as attack power / spell power)
 --
--- Extra input besides Model.lua's: int, sp (nature spell power), spellCrit, known = { [spell] =
--- true }, talents = Talent.lua's T.Effects: flurry, thundering, fury (the numbers of the rank's
--- Wowhead Forever text), elemRockbiter / elemWindfury / elemFlametongue, stormstrike, twoHand
--- (ranks), read, absent.
+-- Extra input besides Model.lua's: int, sp (nature spell power), spellCrit, spellHit, known =
+-- { [spell] = true }, talents = Talent.lua's T.Effects: flurry, thundering, fury, concussion,
+-- callFlame, callThunder, overload, ancestral, mentalDex, mentalQuick, elemRockbiter /
+-- elemWindfury / elemFlametongue, stormstrike, twoHand (ranks), read, absent.
 
 local _, WA = ...
 WA = WA or {}
@@ -81,23 +85,30 @@ function S.Dps(sh, p)
     total = total + p.meleeUptime * avg / sh.mh.speed * haste * whiteF * p.imbueMult
     total = total + p.stormPerSec * avg * yellowF
   end
+  local hitF = 1 - math.max(1, p.spellMiss - (sh.spellHit or 0)) / 100
   local scrit = math.max(0, math.min(sh.spellCrit, 100)) / 100
-  local sf = math.max(0, 1 - p.spellMiss / 100) * (1 + scrit * (p.spellCritMult - 1))
-  total = total + p.shockPerSec * (p.shockDamage + p.shockCoef * sh.sp) * sf * p.stormBonus
-  total = total + p.boltPerSec * (p.boltDamage + p.boltCoef * sh.sp) * sf
+  local sf = hitF * (1 + scrit * (p.spellCritMult - 1))
+  total = total + p.shockPerSec * (p.shockDamage + p.shockCoef * sh.sp) * sf * p.stormBonus * p.shockMult
+  -- Lightning Bolt: Call of Thunder's crit; boltPerSec counts casts, boltMult holds Concussion and
+  -- Lightning Overload's second bolt
+  local bcrit = math.max(0, math.min(sh.spellCrit + p.boltCritAdd, 100)) / 100
+  total = total + p.boltPerSec * (p.boltDamage + p.boltCoef * sh.sp) * hitF * (1 + bcrit * (p.spellCritMult - 1)) * p.boltMult
   return total
 end
 
 local function Apply(sh, remove, add, p)
   local dAgi = ((add.agi or 0) - (remove.agi or 0)) * p.statMult
   local dStr = ((add.str or 0) - (remove.str or 0)) * p.statMult
-  local dInt = ((add.int or 0) - (remove.int or 0)) * p.statMult
+  -- Ancestral Knowledge raises intellect; Mental Dexterity and Mental Quickness turn a part of it
+  -- into attack power and spell power
+  local dInt = ((add.int or 0) - (remove.int or 0)) * p.statMult * p.intMult
   return {
-    ap = sh.ap + (add.ap or 0) - (remove.ap or 0) + 2 * dStr,
+    ap = sh.ap + (add.ap or 0) - (remove.ap or 0) + 2 * dStr + dInt * p.intAp,
     crit = sh.crit + (add.crit or 0) - (remove.crit or 0) + dAgi / p.agiPerCrit,
     hit = sh.hit + (add.hit or 0) - (remove.hit or 0),
-    sp = sh.sp + (add.sp or 0) - (remove.sp or 0),
+    sp = sh.sp + (add.sp or 0) - (remove.sp or 0) + dInt * p.intSp,
     spellCrit = sh.spellCrit + dInt / p.intPerCrit,
+    spellHit = sh.spellHit,
     mh = sh.mh,
   }
 end
@@ -135,7 +146,7 @@ function S.Context(input)
   local mh = eq("MAIN_HAND").weapon
   local sheet = {
     ap = input.ap or 0, crit = crit, hit = input.hit or 0, sp = input.sp or 0,
-    spellCrit = input.spellCrit or 0, mh = mh,
+    spellCrit = input.spellCrit or 0, spellHit = input.spellHit or 0, mh = mh,
   }
 
   local earth, bolt = Rank("earth", level), Rank("bolt", level)
@@ -154,9 +165,23 @@ function S.Context(input)
     boltPerSec = level < 10 and 1 / 15 or 1 / 40,
     boltDamage = bolt[2], boltCoef = bolt[3] / 3.5 * LowLevel(bolt[1]),
     spellCritMult = 1.5 + 0.5 * (tal.fury or 0) / 100,
-    totemDps = level >= 10 and 0.12 * level or 0,
+    -- Call of Flame on the fire totems (the measured totem damage already has it)
+    totemDps = level >= 10 and 0.12 * level * (1 + (tal.callFlame or 0) / 100) or 0,
     otherDps = 0, notes = notes,
+    concussion = tal.concussion or 0, callFlame = tal.callFlame or 0, overload = (tal.overload or 0) / 100,
+    boltCritAdd = tal.callThunder or 0,
+    intMult = 1 + (tal.ancestral or 0) / 100, intAp = (tal.mentalDex or 0) / 100, intSp = (tal.mentalQuick or 0) / 100,
+    -- the shocks' damage by spell: Earth Shock before any fight
+    earthShare = 1, flameShare = 0,
   }
+  -- Concussion on Earth Shock, Call of Flame on Flame Shock: by their share of the shock damage
+  local function ShockMult()
+    params.shockMult = 1 + (params.concussion * params.earthShare + params.callFlame * params.flameShare) / 100
+  end
+  ShockMult()
+  -- Concussion on every Lightning Bolt; Lightning Overload: a second bolt for half damage
+  -- ("causes half damage", Wowhead Forever) on its % of the casts
+  params.boltMult = (1 + params.concussion / 100) * (1 + 0.5 * params.overload)
   -- Stormstrike: +20% nature damage on the next two spells, about every other shock
   params.stormBonus = params.stormPerSec > 0 and 1.1 or 1
 
@@ -186,15 +211,27 @@ function S.Context(input)
       end
     end
     if earth then params.shockPerSec = mix(params.shockPerSec, shockN / secs, secs, 120) end
-    if shockN > 0 then params.spellMiss = mix(params.spellMiss, shockMiss / shockN * 100, shockN, 30) end
+    -- the measured miss is after the sheet's spell hit; the model subtracts that hit itself
+    if shockN > 0 then params.spellMiss = mix(params.spellMiss, shockMiss / shockN * 100 + sheet.spellHit, shockN, 30) end
+    if shockDmg > 0 then
+      params.earthShare = mix(params.earthShare, (ab["Earth Shock"] and ab["Earth Shock"].dmg or 0) / shockDmg, shockLanded, 10)
+      params.flameShare = mix(params.flameShare, (ab["Flame Shock"] and ab["Flame Shock"].dmg or 0) / shockDmg, shockLanded, 10)
+      ShockMult()
+    end
     if shockLanded > 0 then
-      local per = shockDmg / (shockLanded + (params.spellCritMult - 1) * shockCrit)
+      -- one shock without the talents (they are multiplied back in the model)
+      local per = shockDmg / (shockLanded + (params.spellCritMult - 1) * shockCrit) / params.shockMult
       params.shockDamage = mix(params.shockDamage, math.max(0, per - params.shockCoef * sheet.sp), shockLanded, 10)
     end
+    -- Lightning Bolt: the log names Lightning Overload's second bolt Lightning Bolt too, so the
+    -- casts are the hits divided by (1 + overload), and one full bolt without Concussion is the
+    -- average hit × (1 + overload) / (1 + overload / 2) / (1 + Concussion)
     local lb = ab["Lightning Bolt"]
-    params.boltPerSec = mix(params.boltPerSec, (lb and lb.n or 0) / secs, secs, 120)
+    local ov = params.overload
+    params.boltPerSec = mix(params.boltPerSec, (lb and lb.n or 0) / (1 + ov) / secs, secs, 120)
     if lb and landed(lb) > 0 then
       local per = lb.dmg / (landed(lb) + (params.spellCritMult - 1) * (lb.crit or 0))
+      per = per * (1 + ov) / (1 + 0.5 * ov) / (1 + params.concussion / 100)
       params.boltDamage = mix(params.boltDamage, math.max(0, per - params.boltCoef * sheet.sp), landed(lb), 10)
     end
     local ss = ab.Stormstrike

@@ -138,6 +138,7 @@ local MANA = "mana: a modell nem számolja a manát (a mana és a pihenő a rot�
 local RESIST = "a célpont ellenállását (resistance) a modell nem számolja"
 local DEMON = "a démon fajtájától függ; a démon sebzését a modell a harcaidból méri"
 local PET = "a pet sebzését a modell a harcaidból méri; a pet critje és sebessége külön nincs benne"
+local HEAL = "gyógyítás: a gyógyítómodellbe kerül (WA-017), a sebzést nem változtatja"
 local function ROTATION(what, ticket)
   return ("a(z) %s még nincs külön a modellben; a rotációs ticketben jön (%s)"):format(what, ticket)
 end
@@ -447,13 +448,64 @@ T.EFFECTS = {
     ["Ranged Weapon Specialization"] = { { key = "rangedSpec", val = 1, what = "távolsági fegyveres sebzés %" } },
     ["Sniper Shot"] = { reason = ROTATION("Sniper Shot", "WA-011b") },
   },
+  -- Shaman (WA-032f): melee with an imbue, Stormstrike, shocks, Lightning Bolt and totems
+  -- (Shaman.lua); healing talents go to the healer model.
   SHAMAN = {
-    Flurry = { { key = "flurry", val = 1, what = "támadási sebesség % a crit utáni 3 ütésre" } },
-    ["Thundering Strikes"] = { { key = "thundering", val = 1, what = "crit %" } },
-    ["Elemental Fury"] = { { key = "fury", val = 1, what = "spell crit-sebzés bónusz %" } },
+    -- Elemental
+    Convection = { reason = MANA },
+    Concussion = { { key = "concussion", val = 1, what = "Lightning Bolt és Earth Shock sebzés %" }, partial = "a Chain Lightning része (több célpont)" },
+    ["Elemental Devastation"] = { reason = "a közelharci crit-proc fenntartási ideje az aura-idővonalból jön (WA-005)" },
+    Reverberation = { reason = "a shockok gyakoriságát a modell a harcaidból méri; a rövidebb cooldown a rotációs ticketben jön (WA-012a)" },
+    ["Elemental Alacrity"] = { reason = "a Lightning Bolt gyakoriságát a modell a harcaidból méri; a rövidebb cast idő a rotációs ticketben jön (WA-012a)" },
+    ["Call of Flame"] = { { key = "callFlame", val = 1, what = "tűztotemek és Flame Shock sebzés %" }, partial = "a Fire Nova (több célpont) és a hosszabb Flame Shock" },
+    ["Elemental Focus"] = { reason = MANA },
+    ["Elemental Warding"] = { reason = SURVIVAL },
+    ["Trial by Fire"] = { reason = MULTI },
+    ["Eye of the Storm"] = { reason = "a cast-visszalökés (pushback) ellen véd: a modell nem számol azzal, hogy ütnek cast közben" },
+    Earthbound = { reason = UTILITY },
+    ["Elemental Reach"] = { reason = UTILITY },
+    ["Call of Thunder"] = { { key = "callThunder", val = 1, what = "Lightning Bolt crit %" }, partial = "a Chain Lightning része (több célpont)" },
+    ["Lightning Overload"] = { { key = "overload", val = 1, what = "% esély egy második, fél sebzésű Lightning Boltra" }, partial = "a Chain Lightning része (több célpont)" },
+    ["Elemental Fury"] = { { key = "fury", val = 1, what = "spell crit-sebzés bónusz %" }, partial = "a Searing és a Magma Totem critje (a totemek sebzését a modell a harcaidból méri)" },
+    ["Lightning Mastery"] = { reason = COOLDOWN("WA-012a") },
+    -- Restoration
+    ["Improved Healing Wave"] = { reason = HEAL },
+    ["Tidal Focus"] = { { key = "tidalHit", val = 2, what = "hit %" }, sheet = "a játék hit-módosítói (GetHitModifier, GetSpellHitModifier) már tartalmazzák", partial = "a gyógyítás mana-költsége" },
+    Mindfulness = { reason = MANA },
+    ["Natural Grace"] = { reason = THREAT },
+    ["Totemic Focus"] = { reason = MANA },
+    ["Improved Reincarnation"] = { reason = SURVIVAL },
+    ["Ancestral Healing"] = { reason = HEAL },
+    ["Healing Focus"] = { reason = HEAL },
+    ["Water Shield"] = { reason = MANA },
+    ["Tidal Mastery"] = { reason = HEAL },
+    ["Restorative Totems"] = { reason = HEAL },
+    ["Mana Tide Totem"] = { reason = MANA },
+    ["Healing Way"] = { reason = HEAL },
+    ["Nature's Swiftness"] = { reason = COOLDOWN("WA-012a") },
+    Purification = { reason = HEAL },
+    Riptide = { reason = HEAL },
+    -- Enhancement
+    ["Earth's Grasp"] = { reason = UTILITY },
+    ["Thundering Strikes"] = { { key = "thundering", val = 1, what = "crit %" }, sheet = "a játék közelharci és spell critje már tartalmazza" },
+    ["Ancestral Knowledge"] = { { key = "ancestral", val = 1, what = "intellect %" } },
+    ["Guardian Totems"] = { reason = SURVIVAL },
+    ["Mental Dexterity"] = { { key = "mentalDex", val = 1, what = "intellect %-a attack powerként" }, sheet = "a játék attack powere már tartalmazza; a tárgyak intellectjét a modell attack powerként is számolja" },
+    ["Improved Lightning Shield"] = { reason = "a Lightning Shield sebzését a modell a harcaidból méri (egyéb források), külön nem számolja" },
     ["Elemental Weapons"] = { { key = "elemRockbiter", val = 1, what = "Rockbiter AP %" },
       { key = "elemWindfury", val = 2, what = "Windfury %" }, { key = "elemFlametongue", val = 3, what = "Flametongue/Frostbrand sebzés %" } },
+    ["Shamanistic Focus"] = { reason = MANA },
+    Anticipation = { reason = SURVIVAL },
+    Toughness = { reason = SURVIVAL },
+    Flurry = { { key = "flurry", val = 1, what = "támadási sebesség % a crit utáni 3 ütésre" } },
     Stormstrike = { { key = "stormstrike", val = "rank", what = "képesség" } },
+    ["Improved Ghost Wolf"] = { reason = UTILITY },
+    ["Spirit Weapons"] = { reason = THREAT },
+    ["Mental Quickness"] = { { key = "mentalQuick", val = 1, what = "intellect %-a spell powerként" }, sheet = "a modell a játék spell powerét használja; a tárgyak intellectjét spell powerként is számolja" },
+    ["Improved Stormstrike"] = { reason = "a Stormstrike gyakoriságát a modell a harcaidból méri; a mana és a cooldown visszaállása a rotációs ticketben jön (WA-012b)" },
+    ["Maelstrom Weapon"] = { reason = ROTATION("Maelstrom Weapon (rövidebb Lightning Bolt)", "WA-012b") },
+    ["Rage of the Farseer"] = { reason = COOLDOWN("WA-012b") },
+    -- Classic only (Forever's trees do not have it): the two-hand gate in Shaman.lua
     ["Two-Handed Axes and Maces"] = { { key = "twoHand", val = "rank", what = "kétkezes fejsze és buzogány" } },
   },
 }
