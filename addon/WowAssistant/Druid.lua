@@ -17,9 +17,17 @@
 -- Not verified for Forever, kept from Classic and named in the notes: 1 agility = 1 attack power
 -- in Cat Form, 1 strength = 2.
 --
--- Extra input besides Model.lua's: int, sp (nature spell power), spellCrit, form (the shapeshift
--- form at reading: "cat", "bear", "caster", ...), catAp (attack power last read in Cat Form),
--- known = { [spell] = true/false }.
+-- Talents (WA-032g, the numbers of the rank's Wowhead Forever text): Ferocity (cheaper Claw and
+-- Rake), Savage Fury (builders), Natural Instinct (the abilities' crit bonus), Sharpened Claws,
+-- Leader of the Pack and Predatory Strikes (in the forms: on the sheet when read in Cat Form),
+-- Heart of the Wild (intellect, strength in Cat Form), Naturalist (all damage), Vengeance (the
+-- spells' crit bonus), Eclipse (Wrath crit), Moonkin Form (arcane and nature damage, crit aura).
+-- Most points in Balance: the caster model even with Cat Form.
+--
+-- Extra input besides Model.lua's: int, sp (nature spell power), spellCrit, spellHit, form (the
+-- shapeshift form at reading: "cat", "bear", "moonkin", "caster", ...), catAp (attack power last
+-- read in Cat Form), known = { [spell] = true/false }, tab (the talent tab with the most points),
+-- talents = Talent.lua's T.Effects.
 
 local _, WA = ...
 WA = WA or {}
@@ -70,33 +78,38 @@ function D.Dps(sh, p)
   local miss = math.max(0, 5 - sh.hit) / 100
   local dodge = p.dodge / 100
   local whiteF = math.max(0, 1 - miss - dodge - mcrit) + mcrit * 2
-  local yellowF = math.max(0, 1 - miss - dodge) * (1 + mcrit)
+  -- Natural Instinct raises the abilities' crit bonus (yellowCrit = 1 + its %)
+  local yellowF = math.max(0, 1 - miss - dodge) * (1 + mcrit * p.yellowCrit)
   if p.cat then
     local paw = D.PawAvg(sh.mh) + sh.ap / 14
     total = total + p.meleeUptime * paw * whiteF
-    total = total + p.buildPerSec * (paw + p.buildBonus) * yellowF
+    total = total + p.buildPerSec * (paw + p.buildBonus) * yellowF * p.buildMult
     total = total + p.finishDps
   else
     if sh.mh then
       total = total + p.meleeUptime * ((sh.mh.min + sh.mh.max) / 2 + sh.ap / 14 * sh.mh.speed) / sh.mh.speed * whiteF
     end
-    local scrit = math.max(0, math.min(sh.spellCrit, 100)) / 100
-    local sf = math.max(0, 1 - p.spellMiss / 100) * (1 + scrit * 0.5)
-    total = total + p.castPerSec * (p.castDamage + p.castCoef * sh.sp) * sf
+    -- at least 1% of the spells miss; Eclipse adds Wrath's crit by Wrath's share of the casts
+    local hitF = 1 - math.max(1, p.spellMiss - (sh.spellHit or 0)) / 100
+    local scrit = math.max(0, math.min(sh.spellCrit + p.castCritAdd, 100)) / 100
+    local sf = hitF * (1 + scrit * (p.critMult - 1))
+    total = total + p.castPerSec * (p.castDamage + p.castCoef * sh.sp) * sf * p.castMult
   end
-  return total
+  -- Naturalist: all damage
+  return total * p.allMult
 end
 
 local function Apply(sh, remove, add, p)
   local dAgi = ((add.agi or 0) - (remove.agi or 0)) * p.statMult
-  local dStr = ((add.str or 0) - (remove.str or 0)) * p.statMult
-  local dInt = ((add.int or 0) - (remove.int or 0)) * p.statMult
+  local dStr = ((add.str or 0) - (remove.str or 0)) * p.statMult * p.strMult
+  local dInt = ((add.int or 0) - (remove.int or 0)) * p.statMult * p.intMult
   return {
     ap = sh.ap + (add.ap or 0) - (remove.ap or 0) + 2 * dStr + (p.cat and dAgi or 0),
     crit = sh.crit + (add.crit or 0) - (remove.crit or 0) + dAgi / p.agiPerCrit,
     hit = sh.hit + (add.hit or 0) - (remove.hit or 0),
     sp = sh.sp + (add.sp or 0) - (remove.sp or 0),
     spellCrit = sh.spellCrit + dInt / p.intPerCrit,
+    spellHit = sh.spellHit,
     mh = sh.mh,
   }
 end
@@ -108,16 +121,22 @@ function D.Context(input)
   local level = input.level or 1
   local equipped = input.equipped or {}
   local known = input.known or {}
+  local tal = input.talents or {}
   local notes = {}
   local function eq(slot) return equipped[slot] and equipped[slot].stats or M.ZERO end
 
-  -- Cat Form: from the spellbook when it was read, else from level 20 (Classic's level for it)
+  -- Cat Form: from the spellbook when it was read, else from level 20 (Classic's level for it);
+  -- most talent points in Balance (tab 1): the caster model
   local cat
   if known["Cat Form"] ~= nil then cat = known["Cat Form"] == true else cat = level >= 20 end
+  local balance = input.tab == 1
+  if balance then cat = false end
 
   local agi = input.agi or 0
   local crit = input.crit or 0
-  local agiPerCrit = agi / math.max(0.1, crit - 0.9)
+  -- crit in the forms (Sharpened Claws, Leader of the Pack): on the sheet only when read in Cat Form
+  local formCrit = (tal.sharpened or 0) + (tal.lotp or 0)
+  local agiPerCrit = agi / math.max(0.1, crit - 0.9 - (tal.majesty or 0) - (input.form == "cat" and formCrit or 0))
   if not (agiPerCrit > 0.8 and agiPerCrit < 40) then agiPerCrit = 1 + (19 * (level - 1)) / 59 end
   local intPerCrit = 6 + (54 * (level - 1)) / 59
 
@@ -126,15 +145,25 @@ function D.Context(input)
   local ap, apFrom = input.ap or 0, "most, Cat Formban olvasva"
   if cat and input.form ~= "cat" then
     if input.catAp then ap, apFrom = input.catAp, "utoljára Cat Formban olvasva"
-    else ap, apFrom = (input.ap or 0) + agi, "becsült: a mostani AP + agility (Cat Formban olvasva pontosabb)" end
+    else
+      -- Predatory Strikes (a % of the level) and Heart of the Wild's strength only count in a form
+      ap = (input.ap or 0) + agi + level * (tal.predatory or 0) / 100 + 2 * (input.str or 0) * (tal.hotwStr or 0) / 100
+      apFrom = "becsült: a mostani AP + agility (Cat Formban olvasva pontosabb)"
+    end
   end
   local mh = eq("MAIN_HAND").weapon
-  local sheet = { ap = ap, crit = crit, hit = input.hit or 0, sp = input.sp or 0, spellCrit = input.spellCrit or 0, mh = mh }
+  local sheet = { ap = ap, crit = crit, hit = input.hit or 0, sp = input.sp or 0, spellCrit = input.spellCrit or 0,
+    spellHit = input.spellHit or 0, mh = mh }
+  if cat and input.form ~= "cat" then sheet.crit = crit + formCrit end
+  -- Moonkin Form: the caster casts in it; its crit aura is on the sheet only when read there
+  local moonkin = not cat and (tal.moonkinDmg or 0) > 0
+  if moonkin and input.form ~= "moonkin" then sheet.spellCrit = sheet.spellCrit + (tal.moonkinCrit or 0) end
   if cat then
     notes[#notes + 1] = ("Cat Form: a mancs a fegyvered DPS-ét üti másodpercenként (%s), a fegyver sebessége nem számít. Attack power %d (%s); 1 strength = 2 AP, 1 agility = 1 AP (a klasszikus szabály, Foreverre nincs ellenőrizve), 1%% crit ≈ %s agility.")
       :format(F1(D.PawAvg(mh)), Round(ap), apFrom, F1(agiPerCrit))
   else
-    notes[#notes + 1] = ("Cat Form előtt: Wrath, Moonfire és a botod. 1%% spell crit ≈ %s intellect."):format(F1(intPerCrit))
+    notes[#notes + 1] = (balance and "Balance spec: Wrath, Moonfire és a botod%s. 1%% spell crit ≈ %s intellect."
+      or "Cat Form előtt: Wrath, Moonfire és a botod%s. 1%% spell crit ≈ %s intellect."):format(moonkin and ", Moonkin Formban" or "", F1(intPerCrit))
   end
 
   -- caster prior: a Wrath-sized cast every 3 s (mana, moving, Moonfire between); the Wrath of
@@ -143,14 +172,22 @@ function D.Context(input)
     level = level, cat = cat, agiPerCrit = agiPerCrit, intPerCrit = intPerCrit, statMult = 1,
     dodge = 5, spellMiss = 4,
     meleeUptime = cat and 0.85 or (mh and 0.3 or 0),
-    -- energy 10 a second, Claw 45: about 0.22 a second; the prior gives finishers a third
-    buildPerSec = cat and 1 / 6.5 or 0,
+    -- energy 10 a second, Claw 45: about 0.22 a second; the prior gives finishers a third.
+    -- Ferocity makes Claw cheaper (45 - its rank's energy)
+    buildPerSec = cat and 1 / 6.5 * 45 / (45 - (tal.ferocity or 0)) or 0,
     buildBonus = cat and math.max(0, (level - 20) * 2.5) or 0,
     finishDps = 0,
     castPerSec = cat and 0 or 1 / 3,
     castDamage = 14 + 4.4 * (level - 1), castCoef = 1.5 / 3.5 * math.max(0.25, 1 - math.max(0, 20 - level) * 0.0375),
     otherDps = 0, notes = notes,
+    buildMult = 1 + (tal.savage or 0) / 100, yellowCrit = 1 + (tal.natInst or 0) / 100,
+    allMult = 1 + (tal.naturalist or 0) / 100,
+    castMult = moonkin and 1 + (tal.moonkinDmg or 0) / 100 or 1,
+    critMult = 1.5 + 0.5 * (tal.vengeance or 0) / 100,
+    eclipse = tal.eclipse or 0, wrathShare = 1,
+    intMult = 1 + (tal.hotwInt or 0) / 100, strMult = cat and 1 + (tal.hotwStr or 0) / 100 or 1,
   }
+  params.castCritAdd = params.eclipse * params.wrathShare
   params.finishDps = cat and 0.35 * params.buildPerSec * (D.PawAvg(mh) + ap / 14 + params.buildBonus) or 0
 
   local combat = input.combat
@@ -162,7 +199,10 @@ function D.Context(input)
   if combat and combat.seconds > 0 then
     local secs = combat.seconds
     local melee, build, buildDmg, buildLanded, buildCrit, finish, casts, castDmg, castLanded, castCrit, other = nil, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    local wrath = 0
+    local all = params.allMult
     for _, a in ipairs(combat.abilities) do
+      if a.name == "Wrath" then wrath = a.n end
       local k, base = Kind(a.name), Base(a.name)
       if a.name == "Melee" then melee = a
       elseif k == "cat" and D.CAT_BUILD[base] and not IsDot(a.name) then
@@ -176,21 +216,27 @@ function D.Context(input)
       params.meleeUptime = mix(params.meleeUptime, math.min(1, (melee and melee.n or 0) / secs), secs, 120)
       params.buildPerSec = mix(params.buildPerSec, build / secs, secs, 120)
       if buildLanded > 0 then
-        local per = buildDmg / (buildLanded + buildCrit)
+        -- one builder hit without the talents (Natural Instinct's crit, Savage Fury, Naturalist)
+        local per = buildDmg / (buildLanded + buildCrit * params.yellowCrit) / (params.buildMult * all)
         params.buildBonus = mix(params.buildBonus, math.max(0, per - D.PawAvg(mh) - ap / 14), buildLanded, 10)
       end
-      params.finishDps = mix(params.finishDps, finish / secs, secs, 120)
+      params.finishDps = mix(params.finishDps, finish / secs / all, secs, 120)
     else
       if mh then params.meleeUptime = mix(params.meleeUptime, math.min(1, (melee and melee.n or 0) / secs * mh.speed), secs, 120) end
       params.castPerSec = mix(params.castPerSec, casts / secs, secs, 120)
+      if casts > 0 then
+        params.wrathShare = mix(params.wrathShare, wrath / casts, casts, 10)
+        params.castCritAdd = params.eclipse * params.wrathShare
+      end
       if castLanded > 0 then
-        local per = castDmg / (castLanded + 0.5 * castCrit)
+        -- one cast without the talents (Vengeance's crit, Moonkin Form, Naturalist)
+        local per = castDmg / (castLanded + (params.critMult - 1) * castCrit) / (params.castMult * all)
         params.castDamage = mix(params.castDamage, math.max(0, per - params.castCoef * sheet.sp), castLanded, 10)
       end
       other = other + finish
     end
     if melee and melee.n > 0 then params.dodge = mix(params.dodge, (melee.dodge or 0) / melee.n * 100, melee.n, 100) end
-    params.otherDps = mix(0, other / secs, secs, 120)
+    params.otherDps = mix(0, other / secs / all, secs, 120)
     if cat then
       notes[#notes + 1] = ("Kalibrálva %d rögzített harcból (%d mp): mancs az idő %d%%-ában, %s építő képesség percenként (+%d sebzés a mancshoz), finisherek és vérzés %s DPS, egyéb %s DPS.")
         :format(combat.fights, Round(secs), Round(params.meleeUptime * 100), F1(params.buildPerSec * 60), Round(params.buildBonus),

@@ -139,6 +139,8 @@ local RESIST = "a célpont ellenállását (resistance) a modell nem számolja"
 local DEMON = "a démon fajtájától függ; a démon sebzését a modell a harcaidból méri"
 local PET = "a pet sebzését a modell a harcaidból méri; a pet critje és sebessége külön nincs benne"
 local HEAL = "gyógyítás: a gyógyítómodellbe kerül (WA-017), a sebzést nem változtatja"
+local BEAR = "medve (tank): a medvemodell a tankmodellben jön (WA-026)"
+local PUSHBACK = "a cast-visszalökés (pushback) ellen véd: a modell nem számol azzal, hogy ütnek cast közben"
 local function ROTATION(what, ticket)
   return ("a(z) %s még nincs külön a modellben; a rotációs ticketben jön (%s)"):format(what, ticket)
 end
@@ -448,6 +450,66 @@ T.EFFECTS = {
     ["Ranged Weapon Specialization"] = { { key = "rangedSpec", val = 1, what = "távolsági fegyveres sebzés %" } },
     ["Sniper Shot"] = { reason = ROTATION("Sniper Shot", "WA-011b") },
   },
+  -- Druid (WA-032g): Cat Form (paw, builders, finishers and bleeds) or the caster (Wrath-sized
+  -- casts, Moonkin Form), Druid.lua; bear talents go to the tank model, healing to the healer model.
+  DRUID = {
+    -- Feral Combat
+    Ferocity = { { key = "ferocity", val = 1, what = "a Claw és a Rake energiaköltsége kevesebb" }, partial = "a Maul és a Swipe (medve, több célpont)" },
+    Furor = { reason = "formaváltás: a modell nem számolja a formaváltást és a vele kapott rage-et vagy energiát" },
+    ["Feral Swiftness"] = { reason = SURVIVAL },
+    ["Feral Instinct"] = { reason = MULTI },
+    ["Brutal Impact"] = { reason = UTILITY },
+    ["Thick Hide"] = { reason = SURVIVAL },
+    ["Shredding Attacks"] = { reason = "a Shred csak hátulról megy, a Lacerate medve: az építő képességek gyakoriságát a modell a harcaidból méri (WA-013b)" },
+    ["Savage Fury"] = { { key = "savage", val = 1, what = "Claw, Rake és Shred sebzés %" }, partial = "a Maul és a Swipe (medve)" },
+    ["Feral Charge"] = { reason = UTILITY },
+    ["Sharpened Claws"] = { { key = "sharpened", val = 1, what = "crit % formában" }, sheet = "Cat Formban olvasva a karakterlap már tartalmazza; más formában olvasva a modell hozzáadja" },
+    ["Predatory Strikes"] = { { key = "predatory", val = 1, what = "a szinted %-a attack powerként formában" }, sheet = "a Cat Formban olvasott attack power már tartalmazza; becsült attack powerhez a modell hozzáadja" },
+    Lacerate = { reason = BEAR },
+    ["Predatory Discipline"] = { reason = "a Ferocious Bite sebzését a modell a harcaidból méri (finisherek); az energia a rotációs ticketben jön (WA-013b)" },
+    ["Blood Frenzy"] = { reason = "a finisherek gyakoriságát a modell a harcaidból méri; a combo pontok a rotációs ticketben jönnek (WA-013b)" },
+    ["Leader of the Pack"] = { { key = "lotp", val = 2, what = "crit % formában (aura)" }, sheet = "Cat Formban olvasva a karakterlap már tartalmazza; más formában olvasva a modell hozzáadja" },
+    ["Natural Instinct"] = { { key = "natInst", val = 1, what = "a képességek crit-bónusza %" }, partial = "az intellectből jövő gyógyítás" },
+    ["Rend and Tear"] = { reason = "a célpont vérzésének idejét a modell nem követi; az aura-idővonalból jön (WA-005)" },
+    ["Natural Reaction"] = { reason = SURVIVAL },
+    ["Primal Bite"] = { reason = BEAR },
+    ["Shifting Power"] = { reason = MANA },
+    -- Restoration
+    ["Nature's Focus"] = { reason = PUSHBACK },
+    ["Heart of the Wild"] = { { key = "hotwInt", val = 1, what = "intellect %" }, { key = "hotwStr", val = 3, what = "strength % Cat Formban" }, partial = "a medve staminája (tankmodell)" },
+    Naturalist = { { key = "naturalist", val = 2, what = "minden sebzés %" }, partial = "a Healing Touch cast ideje" },
+    Reflection = { reason = MANA },
+    ["Natural Shapeshifter"] = { reason = MANA },
+    Subtlety = { reason = THREAT },
+    ["Gift of Nature"] = { reason = HEAL },
+    Bloom = { reason = HEAL },
+    ["Tranquil Spirit"] = { reason = HEAL },
+    ["Improved Rejuvenation"] = { reason = HEAL },
+    Swiftmend = { reason = HEAL },
+    ["Nature's Swiftness"] = { reason = COOLDOWN("WA-013a") },
+    ["Living Spirit"] = { reason = "spirit: a mana-visszatöltést növeli; a modell nem számolja a manát" },
+    ["Improved Tranquility"] = { reason = HEAL },
+    ["Improved Regrowth"] = { reason = HEAL },
+    ["Wild Growth"] = { reason = HEAL },
+    -- Balance
+    ["Starlight Wrath"] = { reason = "a varázslatok gyakoriságát a modell a harcaidból méri; a rövidebb cast idő a rotációs ticketben jön (WA-013a)" },
+    Genesis = { reason = "a periodikus sebzést (DoT, vérzés) a modell a harcaidból méri (finisherek, egyéb források), külön nem számolja" },
+    Moonglow = { reason = MANA },
+    ["Moon and Stars"] = { reason = ROTATION("Moonfire (a varázslatokat a modell együtt méri)", "WA-013a") },
+    ["Nature's Majesty"] = { { key = "majesty", val = 1, what = "crit %" }, sheet = "a játék közelharci és spell critje már tartalmazza" },
+    ["Nature's Reach"] = { { key = "reachHit", val = 2, what = "hit %" }, sheet = "a játék hit-módosítói (GetHitModifier, GetSpellHitModifier) már tartalmazzák", partial = "a hatótáv" },
+    ["Improved Entangling Roots"] = { reason = UTILITY },
+    ["Nature's Splendor"] = { reason = "a DoT-ok hosszát a modell nem követi (a periodikus sebzést a harcaidból méri)" },
+    ["Insect Swarm"] = { reason = ROTATION("Insect Swarm", "WA-013a") },
+    Vengeance = { { key = "vengeance", val = 1, what = "arcane és nature crit-bónusz %" } },
+    ["Improved Starfire"] = { reason = UTILITY },
+    Overgrowth = { reason = UTILITY },
+    ["Nature's Grace"] = { reason = "a varázslatok gyakoriságát a modell a harcaidból méri; a crit utáni gyorsítás a rotációs ticketben jön (WA-013a)" },
+    Eclipse = { { key = "eclipse", val = 1, what = "Wrath crit %" }, partial = "a Starfire rövidebb cast ideje (rotáció, WA-013a)" },
+    Dreamstate = { reason = MANA },
+    ["Moonkin Form"] = { { key = "moonkinDmg", val = 1, what = "arcane és nature sebzés % Moonkin Formban" }, { key = "moonkinCrit", val = 5, what = "crit % (aura)" },
+      sheet = "a crit-aurát Moonkin Formban olvasva a karakterlap már tartalmazza; más formában olvasva a modell hozzáadja", partial = "a páncél és az Omen of Clarity" },
+  },
   -- Shaman (WA-032f): melee with an imbue, Stormstrike, shocks, Lightning Bolt and totems
   -- (Shaman.lua); healing talents go to the healer model.
   SHAMAN = {
@@ -461,7 +523,7 @@ T.EFFECTS = {
     ["Elemental Focus"] = { reason = MANA },
     ["Elemental Warding"] = { reason = SURVIVAL },
     ["Trial by Fire"] = { reason = MULTI },
-    ["Eye of the Storm"] = { reason = "a cast-visszalökés (pushback) ellen véd: a modell nem számol azzal, hogy ütnek cast közben" },
+    ["Eye of the Storm"] = { reason = PUSHBACK },
     Earthbound = { reason = UTILITY },
     ["Elemental Reach"] = { reason = UTILITY },
     ["Call of Thunder"] = { { key = "callThunder", val = 1, what = "Lightning Bolt crit %" }, partial = "a Chain Lightning része (több célpont)" },

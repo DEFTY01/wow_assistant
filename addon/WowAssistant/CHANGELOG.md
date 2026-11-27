@@ -1,3 +1,17 @@
+## 2.26.0
+
+Druid: mindhárom talentfa a modellben.
+
+- A druid mind az 52 talentje besorolva. Eddig a druid modell egy talentet sem nézett, most a rangod Wowhead Forever számaival számol:
+  - Cat Form: Ferocity, Savage Fury, Natural Instinct; a Sharpened Claws, a Leader of the Pack és a Predatory Strikes. Ha nem Cat Formban nézed a karakterlapot, ezeket a modell hozzáadja;
+  - Heart of the Wild (intellect, Cat Formban strength) és Naturalist (minden sebzés);
+  - varázslás: Vengeance, Eclipse és Moonkin Form (Moonkin Formban számol);
+  - a Nature's Majesty és a Nature's Reach a karakterlapodon már benne van.
+- Ha a legtöbb talentpontod a Balance fában van, a modell varázslóként számol akkor is, ha tudod a Cat Formot.
+- A varázslataid hitjét a modell most a játékból olvassa (spell hit).
+- Amelyikkel nem számol, annál a /wa talent megmondja, miért: medve (tank), gyógyítás, mana, túlélés, több célpont, vagy olyan hatás, ami a képességeid gyakoriságát változtatja (ezt a modell a harcaidból méri; a rotációs javaslatokkal jön).
+- Talentek nélkül a számok nem változtak.
+
 ## 2.25.0
 
 Shaman: mindhárom talentfa a modellben.

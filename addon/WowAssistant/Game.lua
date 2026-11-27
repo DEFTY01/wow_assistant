@@ -326,6 +326,8 @@ function G.ModelInput()
     -- nature (school 4): Wrath and Moonfire's nature part
     input.sp = GetSpellBonusDamage and (GetSpellBonusDamage(4) or 0) or 0
     input.spellCrit = GetSpellCritChance and (GetSpellCritChance(4) or 0) or 0
+    input.spellHit = GetSpellHitModifier and (GetSpellHitModifier() or 0) or 0
+    input.tab = (G.MainTalentTab())
     -- the shapeshift form now (1 Cat, 5 Bear, 8 Dire Bear, 31 Moonkin): attack power read in Cat
     -- Form is kept for when the sheet is read in another form
     local id = GetShapeshiftFormID and GetShapeshiftFormID() or nil
