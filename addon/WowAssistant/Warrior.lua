@@ -16,7 +16,10 @@
 --   * an off-hand weapon hits for half (Dual Wield Specialization adds to it) and misses more
 --
 -- Extra input besides Model.lua's: str, agi, ap, crit, hit, skills, tab (the talent tab with the most
--- points).
+-- points), talents = Talent.lua's T.Effects (the numbers of the rank's Wowhead Forever text):
+-- cruelty (crit, already on the sheet), twoHandSpec (two-hander damage %), impale (abilities' crit
+-- bonus %), weaponmaster (extra attack % with a sword), bastion (damage % with a shield), ohHit
+-- (off-hand hit %), dualWield (off-hand damage %), flurry (attack speed % for 3 swings after a crit).
 
 local _, WA = ...
 WA = WA or {}
@@ -58,28 +61,47 @@ WR.Kind = Kind
 local function Avg(w, ap) return (w.min + w.max) / 2 + (ap / 14) * w.speed end
 local function NormAvg(w, ap, norm) return (w.min + w.max) / 2 + (ap / 14) * (norm or w.speed) end
 
+-- Talents (Wowhead Forever): Flurry speeds the three swings after a crit; Weaponmaster gives a
+-- sword's landed attacks an extra attack; Impale raises the abilities' crit bonus (100%).
+function WR.Haste(crit, p) return 1 + (p.flurry or 0) / 100 * (1 - (1 - math.max(0, math.min(crit, 100)) / 100) ^ 3) end
+local SWORD = { [7] = true, [8] = true }
+local function Extra(w, p) return (w and SWORD[w.sub] and (p.weaponmaster or 0) / 100) or 0 end
+WR.Extra = Extra
+
 function WR.Dps(sh, p)
-  local total = p.otherDps
+  local modeled = 0
   local mcrit = math.max(0, math.min(sh.crit, 100)) / 100
   local miss = math.max(0, 5 - sh.hit) / 100
   local dodge = p.dodge / 100
-  local yellowF = math.max(0, 1 - miss - dodge) * (1 + mcrit)
+  local landed = math.max(0, 1 - miss - dodge)
+  local yellowF = landed * (1 + mcrit * (1 + (p.impale or 0) / 100))
+  local haste = WR.Haste(sh.crit, p)
   if sh.mh then
     local whiteF = math.max(0, 1 - miss - dodge - mcrit) + mcrit * 2
-    local swings = p.meleeUptime / sh.mh.speed
+    local swings = p.meleeUptime / sh.mh.speed * haste
     local avg = Avg(sh.mh, sh.ap)
+    local mult = sh.mh.twoHand and 1 + (p.twoHandSpec or 0) / 100 or 1
     -- a Heroic Strike swing is a yellow hit with the rank's flat damage on top of the white one
     local hs = math.min(p.hsPerSec, swings)
-    total = total + (swings - hs) * avg * whiteF + hs * (avg + p.hsBonus) * yellowF
-    total = total + p.specialPerSec * (NormAvg(sh.mh, sh.ap, sh.mh.norm) + p.specialBonus) * yellowF
+    modeled = modeled + ((swings - hs) * avg * whiteF + hs * (avg + p.hsBonus) * yellowF) * mult
+    modeled = modeled + p.specialPerSec * (NormAvg(sh.mh, sh.ap, sh.mh.norm) + p.specialBonus) * yellowF * mult
+    local extra = Extra(sh.mh, p)
+    if extra > 0 then modeled = modeled + (swings + p.specialPerSec) * landed * extra * avg * whiteF * mult end
   end
   if sh.oh then
-    -- the off hand: half damage, dual wield misses more (+19%)
-    local ohMiss = math.min(1, miss + 0.19)
+    -- the off hand: half damage (Dual Wield Specialization adds to it), dual wield misses more
+    -- (+19%, less with Furious Precision)
+    local ohMiss = math.max(0, math.min(1, miss + 0.19 - (p.ohHit or 0) / 100))
     local whiteF = math.max(0, 1 - ohMiss - dodge - mcrit) + mcrit * 2
-    total = total + p.meleeUptime / sh.oh.speed * Avg(sh.oh, sh.ap) * p.ohMult * whiteF
+    local swings = p.meleeUptime / sh.oh.speed * haste
+    local avg = Avg(sh.oh, sh.ap) * p.ohMult
+    modeled = modeled + swings * avg * whiteF
+    local extra = Extra(sh.oh, p)
+    if extra > 0 then modeled = modeled + swings * math.max(0, 1 - ohMiss - dodge) * extra * avg * whiteF end
   end
-  return total
+  -- Bastion: all damage with a shield (the measured rest has it already)
+  if sh.shield then modeled = modeled * (1 + (p.bastion or 0) / 100) end
+  return p.otherDps + modeled
 end
 
 local function Apply(sh, remove, add, p)
@@ -89,7 +111,7 @@ local function Apply(sh, remove, add, p)
     ap = sh.ap + (add.ap or 0) - (remove.ap or 0) + 2 * dStr,
     crit = sh.crit + (add.crit or 0) - (remove.crit or 0) + dAgi / p.agiPerCrit,
     hit = sh.hit + (add.hit or 0) - (remove.hit or 0),
-    mh = sh.mh, oh = sh.oh,
+    mh = sh.mh, oh = sh.oh, shield = sh.shield,
   }
 end
 
@@ -112,9 +134,10 @@ function WR.Context(input)
   local equipped = input.equipped or {}
   local notes = {}
   local function eq(slot) return equipped[slot] and equipped[slot].stats or M.ZERO end
+  local tal = input.talents or {}
   local agi = input.agi or 0
   local crit = input.crit or 0
-  local agiPerCrit = agi / math.max(0.1, crit)
+  local agiPerCrit = agi / math.max(0.1, crit - (tal.cruelty or 0))
   if not (agiPerCrit > 2 and agiPerCrit < 40) then agiPerCrit = 4 + (16 * (level - 1)) / 59 end
   local combat = input.combat
 
@@ -122,12 +145,19 @@ function WR.Context(input)
   local oh = eq("OFF_HAND").weapon
   local mhItem = equipped.MAIN_HAND
   local twoHand = mhItem and mhItem.sub and (mhItem.sub == 1 or mhItem.sub == 5 or mhItem.sub == 6 or mhItem.sub == 8 or mhItem.sub == 10) or false
-  if mh then mh = { min = mh.min, max = mh.max, speed = mh.speed, twoHand = twoHand, norm = M.NormalizedSpeed(mhItem and mhItem.sub, twoHand) } end
-  local sheet = { ap = input.ap or 0, crit = crit, hit = input.hit or 0, mh = mh, oh = oh }
+  if mh then mh = { min = mh.min, max = mh.max, speed = mh.speed, twoHand = twoHand, norm = M.NormalizedSpeed(mhItem and mhItem.sub, twoHand),
+    sub = mhItem and tonumber(mhItem.sub) } end
+  local ohItem = equipped.OFF_HAND
+  if oh then oh = { min = oh.min, max = oh.max, speed = oh.speed, sub = ohItem and tonumber(ohItem.sub) } end
+  -- a shield in the off hand (Bastion): armor class 4, subclass 6
+  local shield = ohItem and not oh and ohItem.item and ((ohItem.item.classID == 4 and ohItem.item.sub == 6) or ohItem.item.equipLoc == "INVTYPE_SHIELD") or false
+  local sheet = { ap = input.ap or 0, crit = crit, hit = input.hit or 0, mh = mh, oh = oh, shield = shield }
   local hsRank = WR.HsRank(level)
 
   local params = {
-    level = level, agiPerCrit = agiPerCrit, statMult = 1, dodge = 5, ohMult = 0.5,
+    level = level, agiPerCrit = agiPerCrit, statMult = 1, dodge = 5, ohMult = 0.5 * (1 + (tal.dualWield or 0) / 100),
+    twoHandSpec = tal.twoHandSpec or 0, impale = tal.impale or 0, weaponmaster = tal.weaponmaster or 0,
+    bastion = tal.bastion or 0, ohHit = tal.ohHit or 0, flurry = tal.flurry or 0,
     meleeUptime = mh and (level < 10 and 0.65 or 0.85) or 0,
     -- priors: a Heroic Strike every fourth swing, a weapon special every 10 s from level 12
     hsPerSec = mh and 0.25 / mh.speed or 0, hsBonus = hsRank and hsRank[2] or 0,
@@ -154,15 +184,21 @@ function WR.Context(input)
       else other = other + a.dmg end
     end
     if mh then
+      -- the logged swings are faster with Flurry and include Weaponmaster's extra attacks; the
+      -- logged damage has Two-Handed Weapon Specialization, Impale and Bastion in it
       local swings = (melee and melee.n or 0) + (hs and hs.n or 0)
-      params.meleeUptime = mix(params.meleeUptime, math.min(1, swings / secs * mh.speed), secs, 120)
+      local land = math.max(0, 1 - math.max(0, 5 - sheet.hit) / 100 - params.dodge / 100)
+      local per1 = WR.Haste(sheet.crit, params) * (1 + Extra(mh, params) * land)
+      params.meleeUptime = mix(params.meleeUptime, math.min(1, swings / secs * mh.speed / per1), secs, 120)
       params.hsPerSec = mix(params.hsPerSec, (hs and hs.n or 0) / secs, secs, 120)
+      local mult = (mh.twoHand and 1 + params.twoHandSpec / 100 or 1) * (shield and 1 + params.bastion / 100 or 1)
+      local critBonus = 1 + params.impale / 100
       if hs and landed(hs) > 0 then
-        local per = hs.dmg / (landed(hs) + (hs.crit or 0))
+        local per = hs.dmg / (landed(hs) + (hs.crit or 0) * critBonus) / mult
         params.hsBonus = mix(params.hsBonus, math.max(0, per - Avg(mh, sheet.ap)), landed(hs), 10)
       end
       if specialLanded > 0 then
-        local per = specialDmg / (specialLanded + specialCrit)
+        local per = specialDmg / (specialLanded + specialCrit * critBonus) / mult
         params.specialBonus = mix(params.specialBonus, math.max(0, per - NormAvg(mh, sheet.ap, mh.norm)), specialLanded, 10)
       end
     end
@@ -211,7 +247,7 @@ function WR.Context(input)
     local best
     if add.weapon then
       add.weapon = { min = add.weapon.min, max = add.weapon.max, speed = add.weapon.speed, twoHand = twoHand2 == true,
-        norm = M.NormalizedSpeed(sub, twoHand2) }
+        norm = M.NormalizedSpeed(sub, twoHand2), sub = tonumber(sub) }
     end
     for _, slot in ipairs(slots) do
       local remove = eq(slot)
@@ -224,10 +260,11 @@ function WR.Context(input)
       local ok = true
       if slot == "MAIN_HAND" then
         sh.mh = add.weapon or sh.mh
-        if twoHand2 then sh.oh = nil end
+        if twoHand2 then sh.oh, sh.shield = nil, false end
       elseif slot == "OFF_HAND" then
         if add.weapon and (level < 20 or (sheet.mh and sheet.mh.twoHand)) then ok = false end
-        sh.oh = add.weapon
+        -- an off-hand item without weapon numbers and subclass 6 is a shield
+        sh.oh, sh.shield = add.weapon, (not add.weapon and tonumber(sub) == 6) or false
       end
       if ok then
         local gain = WR.Dps(sh, params) - baseline

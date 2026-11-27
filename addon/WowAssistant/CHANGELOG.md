@@ -1,3 +1,18 @@
+## 2.21.0
+
+Warrior: mindhárom talentfa a modellben.
+
+- A warrior mind az 53 talentje besorolva. Amelyik a sebzést, a critet, a sebességet vagy az off-handet változtatja, azzal a modell most számol, a rangod Wowhead Forever számaival:
+  - Two-Handed Weapon Specialization: kétkezes fegyverrel több sebzés;
+  - Bastion: pajzzsal több sebzés. A felszerelési javaslat ezt figyelembe veszi, ha pajzsot cserélsz vagy kétkezesre váltanál;
+  - Impale: a Heroic Strike és a fegyveres specialok critje többet sebez;
+  - Weaponmaster: karddal extra támadás;
+  - Flurry: a crit utáni 3 ütés gyorsabb, így a crit többet ér;
+  - Dual Wield Specialization és Furious Precision: több off-hand sebzés, kevesebb off-hand miss;
+  - a Cruelty a karakterlapodon már benne van.
+- Amelyikkel nem számol, annál a /wa talent megmondja, miért. A leggyakoribb ok a rage: a modell nem szimulálja, ezért a rage-et adó talentek (pl. Anger Management, Unbridled Wrath) a rotációs javaslatokkal jönnek. Más okok: túlélés vagy fenyegetés (a tankmodellbe kerül), több célpont, vagy olyan képesség, amit a modell a harcaidból mér (Mortal Strike, Bloodthirst, Deep Wounds).
+- Talentek nélkül a számok nem változtak.
+
 ## 2.20.0
 
 Rogue: mindhárom talentfa a modellben.

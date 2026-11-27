@@ -131,13 +131,77 @@ T.TICKET = { ROGUE = "WA-032a", WARRIOR = "WA-032b", MAGE = "WA-032c", WARLOCK =
 local SURVIVAL = "túlélés (dodge, parry, kevesebb sebzés): a tankmodellbe kerül (WA-023), a sebzést nem változtatja"
 local UTILITY = "nem sebzés: mozgás, lopakodás, irányítás vagy védekező cooldown"
 local POISON = "a mérgek sebzését a modell a harcaidból méri (egyéb források), külön nem számolja"
+local MULTI = "több célpont: a modell egy célpontra számol"
+local THREAT = "fenyegetés (threat): a tankmodellbe kerül (WA-024)"
+local RAGE = "rage: a modell nem szimulálja a rage-et; a Heroic Strike és a specialok gyakoriságát a harcaidból méri (a rage a rotációs ticketben jön: WA-008a, WA-008b)"
 local function ROTATION(what, ticket)
-  return ("a modell még Sinister Strike + Eviscerate rotációval számol; a(z) %s a rotációs ticketben jön (%s)"):format(what, ticket)
+  return ("a(z) %s még nincs külön a modellben; a rotációs ticketben jön (%s)"):format(what, ticket)
 end
 local function COOLDOWN(ticket)
   return ("aktív képesség cooldownnal: a cooldown ideje nincs a talentadatban, a rotációs ticketben jön (%s)"):format(ticket)
 end
 T.EFFECTS = {
+  -- Warrior (WA-032b): white swings, Heroic Strike and the weapon specials, the rest measured
+  -- (Warrior.lua); rage is not simulated, so the talents that only give rage have that reason.
+  WARRIOR = {
+    -- Arms
+    ["Improved Heroic Strike"] = { reason = RAGE },
+    Deflection = { reason = SURVIVAL },
+    ["Improved Rend"] = { reason = ROTATION("Rend", "WA-008a") },
+    ["Improved Charge"] = { reason = RAGE },
+    ["Improved Tactical Mastery"] = { reason = RAGE },
+    ["Improved Overpower"] = { reason = ROTATION("Overpower (a fegyveres specialok között, együtt mérve)", "WA-008a") },
+    ["Anger Management"] = { reason = RAGE },
+    ["Deep Wounds"] = { reason = "a sebzését a modell a harcaidból méri (Deep Wounds dot, egyéb források); hogy újabb crit újraindítja vagy halmozza, arról nincs Forever-forrás, ezért külön nem számolja" },
+    ["Spearing Strike"] = { reason = ROTATION("Spearing Strike", "WA-008a") },
+    ["Two-Handed Weapon Specialization"] = { { key = "twoHandSpec", val = 1, what = "kétkezes fegyver sebzés %" } },
+    Impale = { { key = "impale", val = 1, what = "képességek crit-sebzés bónusz %" } },
+    Bloodthrill = { reason = ROTATION("Overpower", "WA-008a") },
+    ["Sweeping Strikes"] = { reason = MULTI },
+    Weaponmaster = { { key = "weaponmaster", val = 3, what = "extra támadás esély % (kard)" },
+      partial = "a fejsze/polearm crit része és a buzogány/bot páncéltörése nincs a modellben" },
+    ["Improved Slam"] = { reason = ROTATION("Slam", "WA-008a") },
+    ["Improved Hamstring"] = { reason = UTILITY },
+    ["Mortal Strike"] = { reason = "a fegyveres specialok között a harcaidból méri (gyakoriság és sebzés); külön a rotációs ticketben jön (WA-008a)" },
+    -- Protection
+    ["Improved Bloodrage"] = { reason = RAGE },
+    ["Shield Specialization"] = { reason = SURVIVAL },
+    ["Iron Will"] = { reason = UTILITY },
+    Anticipation = { reason = SURVIVAL },
+    ["Improved Revenge"] = { reason = ROTATION("Revenge", "WA-024") },
+    ["Improved Thunder Clap"] = { reason = RAGE },
+    ["Last Stand"] = { reason = SURVIVAL },
+    ["Master of Defense"] = { reason = SURVIVAL },
+    ["Improved Disarm"] = { reason = UTILITY },
+    Defiance = { reason = THREAT },
+    ["Improved Sunder Armor"] = { reason = RAGE },
+    Vanguard = { reason = UTILITY },
+    ["Improved Shield Bash"] = { reason = UTILITY },
+    ["Improved Shield Wall"] = { reason = SURVIVAL },
+    ["Concussion Blow"] = { reason = UTILITY },
+    ["Focused Rage"] = { reason = RAGE },
+    Bastion = { { key = "bastion", val = 1, what = "sebzés % pajzzsal" } },
+    ["Shield Slam"] = { reason = ROTATION("Shield Slam", "WA-024") },
+    -- Fury
+    ["Booming Voice"] = { reason = RAGE },
+    Cruelty = { { key = "cruelty", val = 1, what = "crit %" }, sheet = "a játék karakterlapja (GetCritChance) már tartalmazza" },
+    ["Lingering Rage"] = { reason = RAGE },
+    ["Unbridled Wrath"] = { reason = RAGE },
+    ["Furious Precision"] = { { key = "ohHit", val = 1, what = "off-hand hit %" } },
+    ["Piercing Howl"] = { reason = UTILITY },
+    ["Blood Craze"] = { reason = SURVIVAL },
+    Enrage = { reason = "a kapott ütésektől függ: hogy milyen gyakran ütnek meg, az a harcadatból még nem jön" },
+    ["Dual Wield Specialization"] = { { key = "dualWield", val = 1, what = "off-hand sebzés %" }, partial = "az off-hand rage része (a rage-et a modell nem szimulálja)" },
+    ["Reckless Swings"] = { reason = RAGE },
+    ["Improved Execute"] = { reason = RAGE },
+    ["Improved Berserker Rage"] = { reason = RAGE },
+    ["Death Wish"] = { reason = COOLDOWN("WA-008b") },
+    ["Gore Drinker"] = { reason = SURVIVAL },
+    ["Improved Intercept"] = { reason = UTILITY },
+    ["Improved Whirlwind"] = { reason = ROTATION("Whirlwind (a fegyveres specialok között, együtt mérve)", "WA-008b") },
+    Flurry = { { key = "flurry", val = 1, what = "támadási sebesség % a crit utáni 3 ütésre" } },
+    Bloodthirst = { reason = "a harcaidból méri (egyéb források); külön a rotációs ticketben jön (WA-008b)" },
+  },
   -- Rogue (WA-032a): the model is Sinister Strike + Eviscerate with white swings (Model.lua); every
   -- talent of the three trees is either counted in it or has its reason.
   ROGUE = {
