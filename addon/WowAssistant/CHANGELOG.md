@@ -1,3 +1,18 @@
+## 2.24.0
+
+Hunter: mindhárom talentfa a modellben.
+
+- A hunter mind az 50 talentje besorolva. Amelyik a lövéseid, a közelharcod, a peted vagy a Serpent Sting sebzését változtatja, azzal a modell most számol, a rangod Wowhead Forever számaival:
+  - Focused Fire (pettel) és Lone Wolf (pet nélkül): minden sebzésed;
+  - Unleashed Fury: a peted sebzése;
+  - Ranged Weapon Specialization, Barrage, Mortal Shots: a távolsági sebzés, a Multi-Shot, az Aimed Shot és a critek;
+  - Improved Stings: a Serpent Sting;
+  - Careful Aim: az intellectből attack power lesz, ezért a felszerelés-értékelés az intellectet is számolja;
+  - Savage Strikes, Predator's Edge, Lightning Reflexes: a közelharc és az agility;
+  - a Surefooted, a Lethal Attacks és a Trueshot Aura a karakterlapodon már benne van.
+- Amelyikkel nem számol, annál a /wa talent megmondja, miért: túlélés, mana, mozgás, a pet fajtájától függő hatás, cooldown, vagy olyan képesség, ami még nincs külön a modellben (Counterattack, Mongoose Bite, Sniper Shot, csapdák…; ezek a rotációs javaslatokkal jönnek).
+- Talentek nélkül a számok nem változtak.
+
 ## 2.23.0
 
 Warlock: mindhárom talentfa a modellben.

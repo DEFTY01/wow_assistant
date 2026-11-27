@@ -137,6 +137,7 @@ local RAGE = "rage: a modell nem szimulálja a rage-et; a Heroic Strike és a sp
 local MANA = "mana: a modell nem számolja a manát (a mana és a pihenő a rotációs ticketben jön)"
 local RESIST = "a célpont ellenállását (resistance) a modell nem számolja"
 local DEMON = "a démon fajtájától függ; a démon sebzését a modell a harcaidból méri"
+local PET = "a pet sebzését a modell a harcaidból méri; a pet critje és sebessége külön nincs benne"
 local function ROTATION(what, ticket)
   return ("a(z) %s még nincs külön a modellben; a rotációs ticketben jön (%s)"):format(what, ticket)
 end
@@ -388,10 +389,63 @@ T.EFFECTS = {
     ["Boot Knife"] = { reason = ROTATION("Shank", "WA-007c") },
     ["Death Mark"] = { reason = ROTATION("Death Mark", "WA-007c") },
   },
+  -- Hunter (WA-032e): Auto Shot, Arcane Shot, Multi-Shot, Aimed Shot, melee and Raptor Strike, the
+  -- pet and Serpent Sting (Hunter.lua).
   HUNTER = {
-    ["Lethal Attacks"] = { { key = "lethal", val = 1, what = "crit %" } },
-    ["Mortal Shots"] = { { key = "mortal", val = 1, what = "távolsági crit-sebzés bónusz %" } },
+    -- Beast Mastery
+    ["Deadly Aspects"] = { reason = "a gyorsító proc fenntartási ideje az aura-idővonalból jön (WA-005)" },
+    ["Endurance Training"] = { reason = SURVIVAL },
+    ["Focused Fire"] = { { key = "focusedFire", val = 1, what = "minden sebzés % pettel" } },
+    ["Improved Aspect of the Monkey"] = { reason = SURVIVAL },
+    ["Improved Revive Pet"] = { reason = UTILITY },
+    Pathfinding = { reason = UTILITY },
+    ["Bestial Swiftness"] = { reason = UTILITY },
+    ["Unleashed Fury"] = { { key = "unleashedFury", val = 1, what = "pet sebzés %" } },
+    ["Improved Mend Pet"] = { reason = UTILITY },
+    Ferocity = { reason = PET },
+    ["Summon Hawk"] = { reason = ROTATION("Summon Hawk", "WA-011a") },
+    ["Spirit Bond"] = { reason = SURVIVAL },
+    Intimidation = { reason = UTILITY },
+    ["Bestial Discipline"] = { reason = MANA },
+    Frenzy = { reason = PET },
+    ["Bestial Wrath"] = { reason = COOLDOWN("WA-011a") },
+    -- Survival
+    ["Improved Tracking"] = { reason = "attól függ, mit követsz (tracking) és milyen típusú a célpont" },
+    Deflection = { reason = SURVIVAL },
+    Entrapment = { reason = UTILITY },
+    ["Savage Strikes"] = { { key = "savageStrikes", val = 1, what = "közelharci képességek crit %" } },
+    Survivalist = { reason = SURVIVAL },
+    ["Improved Wing Clip"] = { reason = UTILITY },
+    ["Clever Traps"] = { reason = ROTATION("csapdák", "WA-011c") },
+    Surefooted = { { key = "surefooted", val = 1, what = "hit %" }, sheet = "a játék karakterlapja (GetHitModifier) már tartalmazza", partial = "a lassítás rövidítése (mozgás)" },
+    Deterrence = { reason = SURVIVAL },
+    ["Survival Tactics"] = { reason = UTILITY },
+    ["Predator's Edge"] = { { key = "predatorCrit", val = 1, what = "közelharci képességek crit-sebzés %" },
+      { key = "predatorOh", val = 2, what = "off-hand sebzés %" } },
+    Counterattack = { reason = ROTATION("Counterattack", "WA-011c") },
+    Resourcefulness = { reason = MANA },
+    ["Expose Prey"] = { reason = ROTATION("Mongoose Bite", "WA-011c") },
+    ["Survivalist's Discipline"] = { reason = UTILITY },
+    ["Strider Kick"] = { reason = ROTATION("Strider Kick", "WA-011c") },
     ["Lightning Reflexes"] = { { key = "reflexes", val = 1, what = "agility %" } },
+    ["Lacerating Strikes"] = { reason = ROTATION("Mongoose Bite", "WA-011c") },
+    -- Marksmanship
+    ["Hawk Eye"] = { reason = UTILITY },
+    ["Improved Concussive Shot"] = { reason = UTILITY },
+    ["Lethal Attacks"] = { { key = "lethal", val = 1, what = "crit %" }, sheet = "a játék karakterlapja (GetRangedCritChance) már tartalmazza" },
+    ["Improved Stings"] = { { key = "impStings", val = 1, what = "Serpent Sting sebzés %" }, partial = "a Viper és a Scorpid Sting része" },
+    Efficiency = { reason = MANA },
+    ["Careful Aim"] = { { key = "carefulAim", val = 1, what = "intellect %-a attack powerként" } },
+    ["Rapid Killing"] = { reason = "ölés utáni hatás és Rapid Fire cooldown: az ölések száma a harcadatból még nem jön" },
+    ["Improved Arcane Shot"] = { reason = "az Arcane Shot gyakoriságát a modell a harcaidból méri; a cooldown a rotációs ticketben jön (WA-011b)" },
+    ["Lone Wolf"] = { { key = "loneWolf", val = 1, what = "minden sebzés % pet nélkül" } },
+    ["Trueshot Aura"] = { { key = "trueshot", val = 2, what = "ranged attack power" }, sheet = "a játék ranged attack powere már tartalmazza, amíg az aura fent van" },
+    ["Mortal Shots"] = { { key = "mortal", val = 1, what = "távolsági crit-sebzés bónusz %" } },
+    ["Rapid Recuperation"] = { reason = MANA },
+    Barrage = { { key = "barrage", val = 1, what = "Multi-Shot és Aimed Shot sebzés %" } },
+    ["Scatter Shot"] = { reason = UTILITY },
+    ["Ranged Weapon Specialization"] = { { key = "rangedSpec", val = 1, what = "távolsági fegyveres sebzés %" } },
+    ["Sniper Shot"] = { reason = ROTATION("Sniper Shot", "WA-011b") },
   },
   SHAMAN = {
     Flurry = { { key = "flurry", val = 1, what = "támadási sebesség % a crit utáni 3 ütésre" } },

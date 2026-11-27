@@ -41,7 +41,7 @@ Méret: **S** néhány óra, **M** egy-két munkamenet, **L** több munkamenet.
 | [WA-032b](WA-032b-talent-warrior.md) | Talenthatások: Warrior, mindhárom fa (kész, 2.21.0) | M | magas | WA-032 |
 | [WA-032c](WA-032c-talent-mage.md) | Talenthatások: Mage, mindhárom fa (kész, 2.22.0) | M | magas | WA-032 |
 | [WA-032d](WA-032d-talent-warlock.md) | Talenthatások: Warlock, mindhárom fa (kész, 2.23.0) | M | magas | WA-032 |
-| [WA-032e](WA-032e-talent-hunter.md) | Talenthatások: Hunter, mindhárom fa | M | magas | WA-032 |
+| [WA-032e](WA-032e-talent-hunter.md) | Talenthatások: Hunter, mindhárom fa (kész, 2.24.0) | M | magas | WA-032 |
 | [WA-032f](WA-032f-talent-shaman.md) | Talenthatások: Shaman, mindhárom fa | M | magas | WA-032 |
 | [WA-032g](WA-032g-talent-druid.md) | Talenthatások: Druid, mindhárom fa | M | magas | WA-032 |
 | [WA-032h](WA-032h-talent-priest.md) | Talenthatások: Priest, mindhárom fa | M | magas | WA-032 |

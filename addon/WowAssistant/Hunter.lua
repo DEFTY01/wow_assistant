@@ -13,8 +13,12 @@
 --   * until level 10 there is no pet and a hunter melees a good part of the time (Raptor Strike)
 --
 -- Extra input besides Model.lua's: rap, rangedCrit, ammoDps, ammoKind ("arrow" / "bullet"),
--- haste (≥ 1), known = { [spell name] = true }, hasPet, talents = Talent.lua's T.Effects: lethal (Lethal Attacks crit %),
--- mortal (Mortal Shots crit damage %), reflexes (Lightning Reflexes agility %), from the Wowhead Forever data.
+-- haste (≥ 1), known = { [spell name] = true }, hasPet, int, talents = Talent.lua's T.Effects (the
+-- numbers of the rank's Wowhead Forever text): lethal (crit %, on the sheet), mortal (ranged crit
+-- bonus %), reflexes (agility %), focusedFire / loneWolf (all damage % with / without a pet),
+-- unleashedFury (pet %), impStings (Serpent Sting %), savageStrikes (melee ability crit %),
+-- predatorCrit / predatorOh (melee ability crit damage %, off-hand %), carefulAim (intellect % as
+-- attack power), barrage (Multi-Shot and Aimed Shot %), rangedSpec (ranged weapon %).
 
 local _, WA = ...
 WA = WA or {}
@@ -63,12 +67,16 @@ function H.Dps(sh, p)
   local crit = math.min(sh.crit, 100) / 100
   local landR = math.max(0, 1 - math.max(0, p.rangedMissBase - sh.hit) / 100 - p.rangedDodge / 100)
   local rf = landR * (1 + crit * (p.critMult - 1))
+  -- talents: all damage (Focused Fire with a pet, Lone Wolf without), the ranged weapon's shots
+  -- (Ranged Weapon Specialization), Multi-Shot and Aimed Shot (Barrage)
+  local m = p.allMult or 1
+  local rw = m * (p.rangedMult or 1)
   if sh.ranged then
     local shot = H.Shot(sh, sh.ranged)
-    total = total + p.rangedUptime * (sh.haste / sh.ranged.speed) * shot * rf
-    total = total + p.multiPerSec * (shot + p.multiBonus) * rf
-    total = total + p.aimedPerSec * (shot + p.aimedBonus) * rf
-    total = total + p.arcanePerSec * p.arcaneDamage * rf
+    total = total + p.rangedUptime * (sh.haste / sh.ranged.speed) * shot * rf * rw
+    total = total + p.multiPerSec * (shot + p.multiBonus) * rf * rw * (p.barrageMult or 1)
+    total = total + p.aimedPerSec * (shot + p.aimedBonus) * rf * rw * (p.barrageMult or 1)
+    total = total + p.arcanePerSec * p.arcaneDamage * rf * m
   end
   if sh.mh then
     local mcrit = math.min(sh.mcrit, 100) / 100
@@ -76,11 +84,13 @@ function H.Dps(sh, p)
     local yellowMiss = math.max(0, 5 - sh.hit) / 100
     local dodge = p.meleeDodge / 100
     local whiteF = math.max(0, 1 - whiteMiss - dodge - mcrit) + mcrit * 2
-    local yellowF = math.max(0, 1 - yellowMiss - dodge) * (1 + mcrit)
+    -- Raptor Strike: Savage Strikes adds crit, Predator's Edge raises its crit bonus (100%)
+    local rcrit = math.min(sh.mcrit + (p.savageStrikes or 0), 100) / 100
+    local yellowF = math.max(0, 1 - yellowMiss - dodge) * (1 + rcrit * (1 + (p.predatorCrit or 0) / 100))
     local function avg(w) return (w.min + w.max) / 2 + (sh.ap / 14) * w.speed end
     local white = avg(sh.mh) / sh.mh.speed
-    if sh.oh then white = white + avg(sh.oh) * 0.5 / sh.oh.speed end
-    total = total + p.meleeUptime * white * whiteF + p.raptorPerSec * (avg(sh.mh) + p.raptorBonus) * yellowF
+    if sh.oh then white = white + avg(sh.oh) * 0.5 * (1 + (p.predatorOh or 0) / 100) / sh.oh.speed end
+    total = total + (p.meleeUptime * white * whiteF + p.raptorPerSec * (avg(sh.mh) + p.raptorBonus) * yellowF) * m
   end
   return total
 end
@@ -90,9 +100,11 @@ local function Apply(sh, remove, add, p)
   local dStr = ((add.str or 0) - (remove.str or 0)) * p.statMult
   local dAp = (add.ap or 0) - (remove.ap or 0)
   local dCrit = (add.crit or 0) - (remove.crit or 0) + dAgi / p.agiPerCrit
+  -- Careful Aim: a part of the intellect as attack power
+  local dIntAp = ((add.int or 0) - (remove.int or 0)) * p.statMult * (p.carefulAim or 0) / 100
   return {
-    ap = sh.ap + dAp + dAgi + dStr,
-    rap = sh.rap + dAp + ((add.rap or 0) - (remove.rap or 0)) + 2 * dAgi,
+    ap = sh.ap + dAp + dAgi + dStr + dIntAp,
+    rap = sh.rap + dAp + ((add.rap or 0) - (remove.rap or 0)) + 2 * dAgi + dIntAp,
     crit = sh.crit + dCrit, mcrit = sh.mcrit + dCrit,
     hit = sh.hit + (add.hit or 0) - (remove.hit or 0),
     ranged = sh.ranged, mh = sh.mh, oh = sh.oh, ammo = sh.ammo, haste = sh.haste,
@@ -138,8 +150,12 @@ function H.Context(input)
     multiPerSec = (known["Multi-Shot"] ~= false and level >= 18) and 1 / 12 or 0, multiBonus = Rank("multi", level) or 0,
     aimedPerSec = known["Aimed Shot"] and 1 / 20 or 0, aimedBonus = Rank("aimed", level) or 0,
     raptorBonus = Rank("raptor", level) or 0,
-    petDps = early and 0 or 0.7 * level,
-    stingDps = level >= 4 and (Rank("serpent", level) or 0) / 15 * 0.5 or 0,
+    petDps = early and 0 or 0.7 * level * (1 + ((tal.unleashedFury or 0) + (tal.focusedFire or 0)) / 100),
+    stingDps = level >= 4 and (Rank("serpent", level) or 0) / 15 * 0.5 * (1 + (tal.impStings or 0) / 100) or 0,
+    allMult = 1 + (early and (tal.loneWolf or 0) or (tal.focusedFire or 0)) / 100,
+    rangedMult = 1 + (tal.rangedSpec or 0) / 100, barrageMult = 1 + (tal.barrage or 0) / 100,
+    savageStrikes = tal.savageStrikes or 0, predatorCrit = tal.predatorCrit or 0, predatorOh = tal.predatorOh or 0,
+    carefulAim = tal.carefulAim or 0,
     otherDps = 0, notes = notes,
   }
   params.raptorPerSec = params.meleeUptime / 6
@@ -176,17 +192,19 @@ function H.Context(input)
       return a
     end
     local arc = rate("Arcane Shot", "arcanePerSec")
+    -- the logged damage has the damage talents in it
     if arc and landed(arc) > 0 then
-      params.arcaneDamage = mix(params.arcaneDamage, arc.dmg / (arc.hit + params.critMult * arc.crit), landed(arc), 10)
+      params.arcaneDamage = mix(params.arcaneDamage, arc.dmg / (arc.hit + params.critMult * arc.crit) / params.allMult, landed(arc), 10)
     end
     local shot = H.Shot(sheet, ranged)
+    local shotMult = params.allMult * params.rangedMult * params.barrageMult
     local multi = rate("Multi-Shot", "multiPerSec")
     if multi and ranged and landed(multi) > 0 then
-      params.multiBonus = mix(params.multiBonus, math.max(0, multi.dmg / (multi.hit + params.critMult * multi.crit) - shot), landed(multi), 10)
+      params.multiBonus = mix(params.multiBonus, math.max(0, multi.dmg / (multi.hit + params.critMult * multi.crit) / shotMult - shot), landed(multi), 10)
     end
     local aimed = rate("Aimed Shot", "aimedPerSec")
     if aimed and ranged and landed(aimed) > 0 then
-      params.aimedBonus = mix(params.aimedBonus, math.max(0, aimed.dmg / (aimed.hit + params.critMult * aimed.crit) - shot), landed(aimed), 10)
+      params.aimedBonus = mix(params.aimedBonus, math.max(0, aimed.dmg / (aimed.hit + params.critMult * aimed.crit) / shotMult - shot), landed(aimed), 10)
     end
     rate("Raptor Strike", "raptorPerSec")
     local sting, pet, other = 0, 0, 0
@@ -292,7 +310,7 @@ function H.Context(input)
   end
 
   function ctx.buffGain(e)
-    local add = { agi = e.agi or 0, str = e.str or 0, ap = e.ap or 0, crit = e.crit or 0, hit = 0, rap = 0 }
+    local add = { agi = e.agi or 0, str = e.str or 0, ap = e.ap or 0, crit = e.crit or 0, hit = 0, rap = 0, int = e.int or 0 }
     return H.Dps(Apply(sheet, M.ZERO, add, params), params) - baseline
   end
 
