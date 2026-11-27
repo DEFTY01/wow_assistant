@@ -1,3 +1,16 @@
+## 2.29.0
+
+Talentérték: mennyit ér egy talent a mostani felszereléseddel.
+
+- A /wa talent most minden számolt talentednél kiírja:
+  - mennyi DPS-t ad most (a modell a talenttel és nélküle);
+  - mennyit adna a következő pont benne;
+  - melyik stat ér miatta többet vagy kevesebbet (pl. a Careful Aim miatt az intellect).
+- A végén: melyik talentbe érné meg most a legjobban a következő pontot tenni. Csak olyan talentet ajánl, amibe a játék szabályai szerint tehetsz pontot.
+- A karakterlapon már benne lévő talenteket (crit, hit) is kiszámolja: a modell a lapról is levonja a részüket.
+- A Felszerelés oldalon egy új sor mutatja, hogy a talentjeid miatt melyik stat mennyit ér.
+- A tank- és gyógyító talentek a hatásukkal szerepelnek, érték nélkül, amíg a tank- és gyógyítómodell nincs kész.
+
 ## 2.28.0
 
 Paladin: mindhárom talentfa a modellben. Ezzel mind a kilenc kaszt talentjei bekerültek.

@@ -395,11 +395,35 @@ function G.EnchantReport(ctx)
   })
 end
 
+-- The talents' effect on the stat weights, as one note line (WA-033); kept until the level, the
+-- gear, the talents or the recorded fights change.
+local shiftCache = {}
+local function TalentNote(input, ctx)
+  if not (WA.Talent and WA.Talent.TalentShift) then return nil end
+  local key = {}
+  key[#key + 1] = tostring(input.level) .. ":" .. tostring(input.form) .. ":" .. tostring(input.combat and input.combat.seconds)
+  for _, r in ipairs(input.talents and input.talents.list or {}) do if r.rank > 0 then key[#key + 1] = r.name .. r.rank end end
+  for slot, it in pairs(input.equipped or {}) do key[#key + 1] = slot .. tostring(it.id) end
+  table.sort(key)
+  local k = table.concat(key, "|")
+  if shiftCache.key ~= k then
+    local shift = WA.Talent.TalentShift(input.class, input, M.Context, ctx)
+    local bits = {}
+    for _, w in ipairs(shift) do
+      bits[#bits + 1] = ("%s %s → %s DPS / %d"):format(w.label, WA.Talent.F2(w.without), WA.Talent.F2(w.with), w.per)
+    end
+    shiftCache = { key = k, note = #bits > 0 and ("A talentjeid miatt a statok értéke (talentek nélkül → velük): %s. Részletek: /wa talent."):format(table.concat(bits, ", ")) or nil }
+  end
+  return shiftCache.note
+end
+
 function G.Context()
   if not G.Supported() then return nil end
   local input = G.ModelInput()
   local ctx = M.Context(input)
   ctx.ammoId = input.ammoId
+  local note = TalentNote(input, ctx)
+  if note and ctx.params and ctx.params.notes then ctx.params.notes[#ctx.params.notes + 1] = note end
   return ctx
 end
 

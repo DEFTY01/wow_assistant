@@ -192,7 +192,7 @@ T.EFFECTS = {
     ["Shield Slam"] = { reason = ROTATION("Shield Slam", "WA-024") },
     -- Fury
     ["Booming Voice"] = { reason = RAGE },
-    Cruelty = { { key = "cruelty", val = 1, what = "crit %" }, sheet = "a játék karakterlapja (GetCritChance) már tartalmazza" },
+    Cruelty = { { key = "cruelty", val = 1, what = "crit %", stat = { "crit" } }, sheet = "a játék karakterlapja (GetCritChance) már tartalmazza" },
     ["Lingering Rage"] = { reason = RAGE },
     ["Unbridled Wrath"] = { reason = RAGE },
     ["Furious Precision"] = { { key = "ohHit", val = 1, what = "off-hand hit %" } },
@@ -226,14 +226,14 @@ T.EFFECTS = {
     ["Improved Fire Ward"] = { reason = SURVIVAL },
     ["Heating Up"] = { reason = ROTATION("Pyroblast", "WA-009b") },
     ["Master of Elements"] = { reason = MANA },
-    ["Critical Mass"] = { { key = "critMass", val = 1, what = "tűz spell crit %" } },
+    ["Critical Mass"] = { { key = "critMass", val = 1, what = "tűz spell crit %", gap = { "spellCritFire", "spellCritFrost" } } },
     ["Blast Wave"] = { reason = MULTI },
     ["Fire Power"] = { reason = "a célponton lévő tűzhatások számától függ: ezt a harcadat még nem adja" },
     Combustion = { reason = COOLDOWN("WA-009b") },
     -- Frost
     ["Frost Warding"] = { reason = SURVIVAL },
     ["Improved Frostbolt"] = { { key = "impFrostbolt", val = 1, what = "Frostbolt cast idő − mp" } },
-    Precision = { { key = "precision", val = 1, what = "spell hit %" }, sheet = "a játék karakterlapja (GetSpellHitModifier) adja; harcnapló mellett a mért miss számít" },
+    Precision = { { key = "precision", val = 1, what = "spell hit %", stat = { "spellHit" } }, sheet = "a játék karakterlapja (GetSpellHitModifier) adja; harcnapló mellett a mért miss számít" },
     ["Ice Shards"] = { { key = "iceShards", val = 1, what = "fagy crit-sebzés bónusz %" } },
     Frostbite = { reason = UTILITY },
     ["Improved Frost Nova"] = { reason = UTILITY },
@@ -292,7 +292,7 @@ T.EFFECTS = {
     Incinerate = { reason = ROTATION("Incinerate", "WA-010c") },
     -- Affliction
     ["Improved Life Tap"] = { reason = MANA },
-    Suppression = { { key = "suppression", val = 1, what = "hit %" }, sheet = "a játék karakterlapja (GetSpellHitModifier) adja; harcnapló mellett a mért miss számít" },
+    Suppression = { { key = "suppression", val = 1, what = "hit %", stat = { "spellHit" } }, sheet = "a játék karakterlapja (GetSpellHitModifier) adja; harcnapló mellett a mért miss számít" },
     ["Improved Corruption"] = { { key = "impCorruption", val = 2, what = "Corruption sebzés %" }, partial = "a cast idő része (a DoT-okat a modell a harcaidból méri)" },
     ["Grim Reach"] = { reason = UTILITY },
     ["Soul Harvest"] = { reason = MANA },
@@ -301,7 +301,7 @@ T.EFFECTS = {
     ["Fel Concentration"] = { reason = UTILITY },
     ["Amplify Curse"] = { reason = COOLDOWN("WA-010a") },
     Pandemic = { reason = "a DoT-ok critjét a modell külön nem számolja (a mért DoT-sebzésben benne van); a rotációs ticketben jön (WA-010a)" },
-    Malevolence = { { key = "malevolence", val = 1, what = "árnyék crit %" } },
+    Malevolence = { { key = "malevolence", val = 1, what = "árnyék crit %", gap = { "spellCrit", "spellCritFire" } } },
     Nightfall = { reason = ROTATION("Shadow Trance (Nightfall)", "WA-010a") },
     ["Curse of Exhaustion"] = { reason = UTILITY },
     ["Siphon Life"] = { reason = "a DoT-ok között a harcaidból méri; külön a rotációs ticketben jön (WA-010a)" },
@@ -339,7 +339,7 @@ T.EFFECTS = {
     ["Lightning Reflexes"] = { reason = SURVIVAL },
     ["Puncturing Wounds"] = { reason = ROTATION("Backstab és a Mutilate", "WA-007a, WA-007c") },
     Deflection = { reason = SURVIVAL },
-    Precision = { { key = "precision", val = 1, what = "hit %" }, sheet = "a játék karakterlapja (GetHitModifier) már tartalmazza" },
+    Precision = { { key = "precision", val = 1, what = "hit %", stat = { "hit" } }, sheet = "a játék karakterlapja (GetHitModifier) már tartalmazza" },
     ["Improved Sprint"] = { reason = UTILITY },
     Endurance = { reason = UTILITY },
     Riposte = { reason = ROTATION("Riposte (parry után)", "WA-007b") },
@@ -357,7 +357,7 @@ T.EFFECTS = {
     -- Assassination
     ["Improved Gouge"] = { reason = UTILITY },
     ["Remorseless Attacks"] = { reason = "ölés utáni hatás: hogy hány ellenfelet öltél, az a harcadatból még nem jön" },
-    Malice = { { key = "malice", val = 1, what = "crit %" }, sheet = "a játék karakterlapja (GetCritChance) már tartalmazza" },
+    Malice = { { key = "malice", val = 1, what = "crit %", stat = { "crit" } }, sheet = "a játék karakterlapja (GetCritChance) már tartalmazza" },
     Ruthlessness = { { key = "ruthlessness", val = 1, what = "finisher utáni combo pont esély %" } },
     ["Improved Expose Armor"] = { reason = ROTATION("Expose Armor", "WA-007a") },
     ["Improved Slice and Dice"] = { reason = ROTATION("Slice and Dice", "WA-007a, WA-007b") },
@@ -421,7 +421,7 @@ T.EFFECTS = {
     Survivalist = { reason = SURVIVAL },
     ["Improved Wing Clip"] = { reason = UTILITY },
     ["Clever Traps"] = { reason = ROTATION("csapdák", "WA-011c") },
-    Surefooted = { { key = "surefooted", val = 1, what = "hit %" }, sheet = "a játék karakterlapja (GetHitModifier) már tartalmazza", partial = "a lassítás rövidítése (mozgás)" },
+    Surefooted = { { key = "surefooted", val = 1, what = "hit %", stat = { "hit" } }, sheet = "a játék karakterlapja (GetHitModifier) már tartalmazza", partial = "a lassítás rövidítése (mozgás)" },
     Deterrence = { reason = SURVIVAL },
     ["Survival Tactics"] = { reason = UTILITY },
     ["Predator's Edge"] = { { key = "predatorCrit", val = 1, what = "közelharci képességek crit-sebzés %" },
@@ -436,7 +436,7 @@ T.EFFECTS = {
     -- Marksmanship
     ["Hawk Eye"] = { reason = UTILITY },
     ["Improved Concussive Shot"] = { reason = UTILITY },
-    ["Lethal Attacks"] = { { key = "lethal", val = 1, what = "crit %" }, sheet = "a játék karakterlapja (GetRangedCritChance) már tartalmazza" },
+    ["Lethal Attacks"] = { { key = "lethal", val = 1, what = "crit %", stat = { "rangedCrit", "crit" } }, sheet = "a játék karakterlapja (GetRangedCritChance) már tartalmazza" },
     ["Improved Stings"] = { { key = "impStings", val = 1, what = "Serpent Sting sebzés %" }, partial = "a Viper és a Scorpid Sting része" },
     Efficiency = { reason = MANA },
     ["Careful Aim"] = { { key = "carefulAim", val = 1, what = "intellect %-a attack powerként" } },
@@ -458,7 +458,7 @@ T.EFFECTS = {
     Deflection = { reason = SURVIVAL },
     Benediction = { reason = MANA },
     ["Improved Judgement"] = { reason = "a Judgement sebzését és gyakoriságát a modell a harcaidból méri; a rövidebb cooldown a rotációs ticketben jön (WA-015a)" },
-    Conviction = { { key = "conviction", val = 1, what = "crit %" }, sheet = "a játék közelharci és spell critje már tartalmazza" },
+    Conviction = { { key = "conviction", val = 1, what = "crit %", stat = { "crit" } }, sheet = "a játék közelharci és spell critje már tartalmazza" },
     ["Sanctified Judgement"] = { reason = MANA },
     Vindication = { reason = SURVIVAL },
     ["Unyielding Faith"] = { reason = UTILITY },
@@ -493,7 +493,7 @@ T.EFFECTS = {
     -- Protection
     ["Divine Intellect"] = { { key = "divineIntellect", val = 1, what = "intellect %" } },
     Redoubt = { reason = SURVIVAL },
-    Precision = { { key = "precision", val = 1, what = "hit %" }, sheet = "a játék hit-módosítója (GetHitModifier) már tartalmazza" },
+    Precision = { { key = "precision", val = 1, what = "hit %", stat = { "hit" } }, sheet = "a játék hit-módosítója (GetHitModifier) már tartalmazza" },
     ["Guardian's Favor"] = { reason = UTILITY },
     ["Sacred Duty"] = { reason = SURVIVAL },
     ["Templar's Bulwark"] = { reason = SURVIVAL },
@@ -534,7 +534,7 @@ T.EFFECTS = {
     -- Holy
     ["Twilight Focus"] = { reason = PUSHBACK },
     ["Improved Renew"] = { reason = HEAL },
-    ["Holy Specialization"] = { { key = "holySpec", val = 1, what = "holy crit %" }, sheet = "ha a játék holy critje ennyivel nagyobb a shadow critnél, már tartalmazza; különben a modell hozzáadja" },
+    ["Holy Specialization"] = { { key = "holySpec", val = 1, what = "holy crit %", gap = { "spellCritHoly", "spellCritShadow" } }, sheet = "ha a játék holy critje ennyivel nagyobb a shadow critnél, már tartalmazza; különben a modell hozzáadja" },
     ["Spell Warding"] = { reason = SURVIVAL },
     ["Divine Fury"] = { { key = "divineFury", val = 1, what = "a Smite és a Holy Fire cast ideje rövidebb (mp)" }, partial = "a Heal és a Greater Heal" },
     ["Holy Nova"] = { reason = MULTI },
@@ -582,12 +582,12 @@ T.EFFECTS = {
     ["Shredding Attacks"] = { reason = "a Shred csak hátulról megy, a Lacerate medve: az építő képességek gyakoriságát a modell a harcaidból méri (WA-013b)" },
     ["Savage Fury"] = { { key = "savage", val = 1, what = "Claw, Rake és Shred sebzés %" }, partial = "a Maul és a Swipe (medve)" },
     ["Feral Charge"] = { reason = UTILITY },
-    ["Sharpened Claws"] = { { key = "sharpened", val = 1, what = "crit % formában" }, sheet = "Cat Formban olvasva a karakterlap már tartalmazza; más formában olvasva a modell hozzáadja" },
-    ["Predatory Strikes"] = { { key = "predatory", val = 1, what = "a szinted %-a attack powerként formában" }, sheet = "a Cat Formban olvasott attack power már tartalmazza; becsült attack powerhez a modell hozzáadja" },
+    ["Sharpened Claws"] = { { key = "sharpened", val = 1, what = "crit % formában", stat = { "crit" }, form = "cat" }, sheet = "Cat Formban olvasva a karakterlap már tartalmazza; más formában olvasva a modell hozzáadja" },
+    ["Predatory Strikes"] = { { key = "predatory", val = 1, what = "a szinted %-a attack powerként formában", stat = { "ap" }, form = "cat", scale = "level" }, sheet = "a Cat Formban olvasott attack power már tartalmazza; becsült attack powerhez a modell hozzáadja" },
     Lacerate = { reason = BEAR },
     ["Predatory Discipline"] = { reason = "a Ferocious Bite sebzését a modell a harcaidból méri (finisherek); az energia a rotációs ticketben jön (WA-013b)" },
     ["Blood Frenzy"] = { reason = "a finisherek gyakoriságát a modell a harcaidból méri; a combo pontok a rotációs ticketben jönnek (WA-013b)" },
-    ["Leader of the Pack"] = { { key = "lotp", val = 2, what = "crit % formában (aura)" }, sheet = "Cat Formban olvasva a karakterlap már tartalmazza; más formában olvasva a modell hozzáadja" },
+    ["Leader of the Pack"] = { { key = "lotp", val = 2, what = "crit % formában (aura)", stat = { "crit" }, form = "cat" }, sheet = "Cat Formban olvasva a karakterlap már tartalmazza; más formában olvasva a modell hozzáadja" },
     ["Natural Instinct"] = { { key = "natInst", val = 1, what = "a képességek crit-bónusza %" }, partial = "az intellectből jövő gyógyítás" },
     ["Rend and Tear"] = { reason = "a célpont vérzésének idejét a modell nem követi; az aura-idővonalból jön (WA-005)" },
     ["Natural Reaction"] = { reason = SURVIVAL },
@@ -615,8 +615,8 @@ T.EFFECTS = {
     Genesis = { reason = "a periodikus sebzést (DoT, vérzés) a modell a harcaidból méri (finisherek, egyéb források), külön nem számolja" },
     Moonglow = { reason = MANA },
     ["Moon and Stars"] = { reason = ROTATION("Moonfire (a varázslatokat a modell együtt méri)", "WA-013a") },
-    ["Nature's Majesty"] = { { key = "majesty", val = 1, what = "crit %" }, sheet = "a játék közelharci és spell critje már tartalmazza" },
-    ["Nature's Reach"] = { { key = "reachHit", val = 2, what = "hit %" }, sheet = "a játék hit-módosítói (GetHitModifier, GetSpellHitModifier) már tartalmazzák", partial = "a hatótáv" },
+    ["Nature's Majesty"] = { { key = "majesty", val = 1, what = "crit %", stat = { "crit", "spellCrit" } }, sheet = "a játék közelharci és spell critje már tartalmazza" },
+    ["Nature's Reach"] = { { key = "reachHit", val = 2, what = "hit %", stat = { "hit", "spellHit" } }, sheet = "a játék hit-módosítói (GetHitModifier, GetSpellHitModifier) már tartalmazzák", partial = "a hatótáv" },
     ["Improved Entangling Roots"] = { reason = UTILITY },
     ["Nature's Splendor"] = { reason = "a DoT-ok hosszát a modell nem követi (a periodikus sebzést a harcaidból méri)" },
     ["Insect Swarm"] = { reason = ROTATION("Insect Swarm", "WA-013a") },
@@ -626,7 +626,7 @@ T.EFFECTS = {
     ["Nature's Grace"] = { reason = "a varázslatok gyakoriságát a modell a harcaidból méri; a crit utáni gyorsítás a rotációs ticketben jön (WA-013a)" },
     Eclipse = { { key = "eclipse", val = 1, what = "Wrath crit %" }, partial = "a Starfire rövidebb cast ideje (rotáció, WA-013a)" },
     Dreamstate = { reason = MANA },
-    ["Moonkin Form"] = { { key = "moonkinDmg", val = 1, what = "arcane és nature sebzés % Moonkin Formban" }, { key = "moonkinCrit", val = 5, what = "crit % (aura)" },
+    ["Moonkin Form"] = { { key = "moonkinDmg", val = 1, what = "arcane és nature sebzés % Moonkin Formban" }, { key = "moonkinCrit", val = 5, what = "crit % (aura)", stat = { "spellCrit" }, form = "moonkin" },
       sheet = "a crit-aurát Moonkin Formban olvasva a karakterlap már tartalmazza; más formában olvasva a modell hozzáadja", partial = "a páncél és az Omen of Clarity" },
   },
   -- Shaman (WA-032f): melee with an imbue, Stormstrike, shocks, Lightning Bolt and totems
@@ -651,7 +651,7 @@ T.EFFECTS = {
     ["Lightning Mastery"] = { reason = COOLDOWN("WA-012a") },
     -- Restoration
     ["Improved Healing Wave"] = { reason = HEAL },
-    ["Tidal Focus"] = { { key = "tidalHit", val = 2, what = "hit %" }, sheet = "a játék hit-módosítói (GetHitModifier, GetSpellHitModifier) már tartalmazzák", partial = "a gyógyítás mana-költsége" },
+    ["Tidal Focus"] = { { key = "tidalHit", val = 2, what = "hit %", stat = { "hit", "spellHit" } }, sheet = "a játék hit-módosítói (GetHitModifier, GetSpellHitModifier) már tartalmazzák", partial = "a gyógyítás mana-költsége" },
     Mindfulness = { reason = MANA },
     ["Natural Grace"] = { reason = THREAT },
     ["Totemic Focus"] = { reason = MANA },
@@ -668,10 +668,10 @@ T.EFFECTS = {
     Riptide = { reason = HEAL },
     -- Enhancement
     ["Earth's Grasp"] = { reason = UTILITY },
-    ["Thundering Strikes"] = { { key = "thundering", val = 1, what = "crit %" }, sheet = "a játék közelharci és spell critje már tartalmazza" },
+    ["Thundering Strikes"] = { { key = "thundering", val = 1, what = "crit %", stat = { "crit", "spellCrit" } }, sheet = "a játék közelharci és spell critje már tartalmazza" },
     ["Ancestral Knowledge"] = { { key = "ancestral", val = 1, what = "intellect %" } },
     ["Guardian Totems"] = { reason = SURVIVAL },
-    ["Mental Dexterity"] = { { key = "mentalDex", val = 1, what = "intellect %-a attack powerként" }, sheet = "a játék attack powere már tartalmazza; a tárgyak intellectjét a modell attack powerként is számolja" },
+    ["Mental Dexterity"] = { { key = "mentalDex", val = 1, what = "intellect %-a attack powerként", stat = { "ap" }, scale = "int" }, sheet = "a játék attack powere már tartalmazza; a tárgyak intellectjét a modell attack powerként is számolja" },
     ["Improved Lightning Shield"] = { reason = "a Lightning Shield sebzését a modell a harcaidból méri (egyéb források), külön nem számolja" },
     ["Elemental Weapons"] = { { key = "elemRockbiter", val = 1, what = "Rockbiter AP %" },
       { key = "elemWindfury", val = 2, what = "Windfury %" }, { key = "elemFlametongue", val = 3, what = "Flametongue/Frostbrand sebzés %" } },
@@ -693,14 +693,15 @@ T.EFFECTS = {
 
 -- The model's talent input from the client's ranks ({ { name, tab, rank, max } }, every tab):
 --   out[key]  = the value (0 when the talent has no points)
---   out.ranks = { [name] = rank } of every talent, out.read = the client gave talents
+--   out.ranks = { [name] = rank } of every talent, out.read = the client gave talents, out.list = the
+--               ranks it was made from (WA-033 builds variants of it)
 --   out.absent = { [name] = true }: talents the model knows but Forever's trees do not have
 --   out.status = { { name, rank, max, counted, values = { { key, value, what } }, source, reason } }
 --                for every talent with points: counted (with the rank's text as the source) or why not
 function T.Effects(class, ranks)
   local eff = T.EFFECTS[class or ""] or {}
   local data = T.Data(class)
-  local out = { ranks = {}, status = {}, absent = {}, counted = 0, uncounted = 0, read = (#(ranks or {}) > 0) or nil }
+  local out = { ranks = {}, status = {}, absent = {}, counted = 0, uncounted = 0, read = (#(ranks or {}) > 0) or nil, list = ranks or {} }
   for name, list in pairs(eff) do
     for _, x in ipairs(list) do out[x.key] = 0 end
     if data and not T.Find(class, name) then out.absent[name] = true end
@@ -755,6 +756,160 @@ function T.Coverage(class)
   return counted, explained, total
 end
 
+---------------------------------------------------------------------------
+-- WA-033: what a talent is worth with the gear you have
+---------------------------------------------------------------------------
+-- The number an effect has at a rank, in the unit of the input field it touches (scale "int": a
+-- % of the intellect, "level": a % of the level).
+local function EffectValue(x, d, rank, input)
+  if rank <= 0 then return 0 end
+  local v = x.val == "rank" and rank or (d.vals and d.vals[math.min(rank, d.max)] or {})[x.val] or 0
+  if x.scale == "int" then v = v * (input.int or 0) / 100 elseif x.scale == "level" then v = v * (input.level or 0) / 100 end
+  return v
+end
+
+-- A copy of a model input with some talents at other ranks (changes = { [name] = rank }). The
+-- talents the character sheet already holds (stat) are taken off or put on the sheet's numbers
+-- too, so the model sees what the game would show: in a form only when the sheet was read in it
+-- (form; Cat Form's attack power is also kept as catAp); a school crit only when the gap shows
+-- the sheet has it (gap; else the model adds it itself).
+function T.Variant(class, input, changes)
+  local eff = T.EFFECTS[class or ""] or {}
+  local list = input.talents and input.talents.list or {}
+  local ranks, old, seen = {}, {}, {}
+  for _, r in ipairs(list) do
+    ranks[#ranks + 1] = { name = r.name, tab = r.tab, rank = changes[r.name] or r.rank, max = r.max }
+    old[r.name], seen[r.name] = r.rank, true
+  end
+  for name, rank in pairs(changes) do
+    if not seen[name] then
+      local d = T.Find(class, name)
+      ranks[#ranks + 1] = { name = name, rank = rank, max = d and d.max }
+      old[name] = 0
+    end
+  end
+  local out = {}
+  for k, v in pairs(input) do out[k] = v end
+  out.talents = T.Effects(class, ranks)
+  for name, rank in pairs(changes) do
+    local d, effects = T.Find(class, name), eff[name]
+    if d and effects and not effects.reason then
+      for _, x in ipairs(effects) do
+        local v0, v1 = EffectValue(x, d, old[name] or 0, input), EffectValue(x, d, rank, input)
+        local delta = v1 - v0
+        if delta ~= 0 and x.gap then
+          local a, b = input[x.gap[1]], input[x.gap[2]]
+          -- the sheet has it now: take it off (or put the next rank's part on) that school's crit
+          if v0 > 0 and a and b and a - b >= v0 - 0.05 then
+            if input.spellCrit and math.abs(input.spellCrit - a) < 1e-9 and x.gap[1] ~= "spellCrit" then out.spellCrit = out.spellCrit + delta end
+            out[x.gap[1]] = a + delta
+          end
+        elseif delta ~= 0 and x.stat then
+          for _, field in ipairs(x.stat) do
+            if not x.form or input.form == x.form then
+              if out[field] ~= nil then out[field] = out[field] + delta end
+            elseif x.form == "cat" and field == "ap" and input.catAp then
+              out.catAp = input.catAp + delta
+            end
+          end
+        end
+      end
+    end
+  end
+  return out
+end
+
+-- What the talents change in the stat weights: for each stat, the DPS 10 points (crit: 1%) give
+-- in one context and in the other. Only the changes that matter (0.05 DPS and 3%).
+T.WEIGHT_STATS = { { "agi", 10, "agility" }, { "str", 10, "strength" }, { "ap", 20, "attack power" }, { "crit", 1, "crit %" },
+  { "int", 10, "intellect" }, { "sp", 10, "spell power" } }
+function T.WeightShift(with, without)
+  local out = {}
+  if not (with and without and with.buffGain and without.buffGain) then return out end
+  for _, s in ipairs(T.WEIGHT_STATS) do
+    local e = { [s[1]] = s[2] }
+    local w1, w0 = with.buffGain(e) or 0, without.buffGain(e) or 0
+    if math.abs(w1 - w0) >= 0.05 and math.abs(w1 - w0) >= 0.03 * math.max(math.abs(w0), math.abs(w1)) then
+      out[#out + 1] = { stat = s[1], label = s[3], per = s[2], without = w0, with = w1 }
+    end
+  end
+  return out
+end
+
+-- Every talent you have points in and every talent you could put the next point in, with what it
+-- is worth now (build = the model, e.g. WA.Model.Context; unspent = free points, nil = unknown):
+--   { baseline, rows = { { name, rank, max, tree, counted, reason, now, nowPct, next, nextPct,
+--     available, weights, note, source } }, best = the available row whose next point is worth most }
+-- now: the model's DPS with the ranks you have minus with none; next: one rank more minus now.
+function T.Values(class, input, build, unspent)
+  local data = T.Data(class)
+  local eff = T.EFFECTS[class or ""] or {}
+  local base = build(input)
+  local out = { baseline = base and base.baseline or 0, rows = {}, unspent = unspent }
+  if not (data and base) then return out end
+  local ranks = input.talents and input.talents.ranks or {}
+  local treePts, spent = {}, 0
+  for _, d in ipairs(data.talents) do
+    local r = ranks[d.name] or 0
+    treePts[d.tree] = (treePts[d.tree] or 0) + r
+    spent = spent + r
+  end
+  out.spent = spent
+  local bl = out.baseline
+  local function Pct(x) return bl > 0 and x / bl * 100 or 0 end
+  for _, d in ipairs(data.talents) do
+    local rank = ranks[d.name] or 0
+    local e = eff[d.name]
+    -- the next rank is open when the tree has the points and the required talent is full
+    local reqOk = not d.req or (ranks[d.req[1]] or 0) >= (d.req[2] or 0)
+    local available = rank < d.max and (treePts[d.tree] or 0) >= (d.reqPoints or 0) and reqOk
+    if rank > 0 or available then
+      local row = { name = d.name, rank = rank, max = d.max, tree = d.tree, available = available,
+        counted = e ~= nil and not e.reason, reason = e and e.reason or (not e and ("a modell még nem számol vele (%s)"):format(T.TICKET[class] or "WA-032")) or nil }
+      if row.counted then
+        if rank > 0 then
+          local without = build(T.Variant(class, input, { [d.name] = 0 }))
+          row.now = bl - without.baseline
+          row.nowPct = Pct(row.now)
+          row.weights = T.WeightShift(base, without)
+          row.source = "Wowhead Forever: " .. (T.RankText(d, math.min(rank, d.max)) or "")
+        end
+        if rank < d.max then
+          local more = build(T.Variant(class, input, { [d.name] = rank + 1 }))
+          row.next = more.baseline - bl
+          row.nextPct = Pct(row.next)
+          if rank == 0 then row.weights = T.WeightShift(more, base) end
+          row.nextSource = "Wowhead Forever: " .. (T.RankText(d, rank + 1) or "")
+        end
+        -- a sheet talent whose sheet part is not in an input field: the model cannot take it off
+        local broken = false
+        for _, x in ipairs(e) do if x.stat or x.gap then broken = true end end
+        if e.sheet and not broken then row.note = "a karakterlapon lévő részét a modell nem bontja ki, ezért az érték kisebb a valódinál" end
+      end
+      out.rows[#out.rows + 1] = row
+      if available and row.counted and row.next and (not out.best or row.next > out.best.next) then out.best = row end
+    end
+  end
+  return out
+end
+
+-- The weights your talents move, all of them together: the model with your talents against the
+-- model with none of the counted ones (for the gear page's note).
+function T.TalentShift(class, input, build, ctx)
+  local changes, any = {}, false
+  local eff = T.EFFECTS[class or ""] or {}
+  for name, rank in pairs(input.talents and input.talents.ranks or {}) do
+    local e = eff[name]
+    if rank > 0 and e and not e.reason then changes[name], any = 0, true end
+  end
+  if not any then return {} end
+  return T.WeightShift(ctx or build(input), build(T.Variant(class, input, changes)))
+end
+
+local function F2(n) return (("%.2f"):format(n):gsub("%.", ",")) end
+local function Signed(n) return (n >= 0 and "+" or "−") .. F2(math.abs(n)) end
+T.F2, T.Signed = F2, Signed
+
 local function Report()
   local class = WA.Game and WA.Game.Class and WA.Game.Class() or select(2, UnitClass("player"))
   local tree = T.ReadTree()
@@ -785,6 +940,20 @@ local function Report()
     for _, x in ipairs(t.talents) do ranks[#ranks + 1] = { name = x.name, tab = tab, rank = x.rank, max = x.max } end
   end
   local e = T.Effects(class, ranks)
+  -- WA-033: each talent's worth with your gear (the model with and without it, and one rank more)
+  local values
+  if WA.Game and WA.Game.Supported and WA.Game.Supported() and WA.Model and WA.Model.Context then
+    local free = tree.unspent or math.max(0, (tree.level or 0) - 9 - tree.spent)
+    local ok, v = pcall(function() return T.Values(class, WA.Game.ModelInput(), WA.Model.Context, free) end)
+    if ok and v then
+      values = v
+      values.byName = {}
+      for _, row in ipairs(values.rows) do values.byName[row.name] = row end
+      WA.Print(("A modell DPS-e a mostani gearrel és talentekkel: %s."):format(F2(values.baseline)))
+    else
+      WA.Print("A talentérték most nem számolható: " .. tostring(v))
+    end
+  end
   if #e.status > 0 then
     WA.Print(("A modell számolt talentjei: %d, még nem számolt: %d."):format(e.counted, e.uncounted))
     for _, st in ipairs(e.status) do
@@ -794,6 +963,15 @@ local function Report()
         local note = st.sheet and (" (" .. st.sheet .. ")") or ""
         if st.partial then note = note .. "; nem számolt: " .. st.partial end
         WA.Print(("    számolt: %s %d/%d · %s%s"):format(st.name, st.rank, st.max or st.rank, table.concat(bits, ", "), note))
+        local row = values and values.byName[st.name]
+        if row and row.now then
+          WA.Print(("      most %s DPS (%s%%)%s%s"):format(Signed(row.now), Signed(row.nowPct),
+            row.next and (", a következő pont %s DPS (%s%%)"):format(Signed(row.next), Signed(row.nextPct)) or ", teljes",
+            row.note and (" · " .. row.note) or ""))
+          for _, w in ipairs(row.weights or {}) do
+            WA.Print(("      %s: %s → %s DPS / %d"):format(w.label, F2(w.without), F2(w.with), w.per))
+          end
+        end
       end
     end
     local shown = 0
@@ -804,6 +982,13 @@ local function Report()
       end
     end
     if e.uncounted > shown then WA.Print(("    … és még %d nem számolt talent"):format(e.uncounted - shown)) end
+    WA.Print("    (a nem számolt talentek érték nélkül, a hatásukkal szerepelnek: a tank- és gyógyítómodell még nincs kész)")
+  end
+  if values and values.best then
+    local b = values.best
+    WA.Print(("A legtöbbet érő következő pont most: %s %d/%d → %d/%d, %s DPS (%s%%)%s. Forrás: %s.")
+      :format(b.name, b.rank, b.max, b.rank + 1, b.max, Signed(b.next), Signed(b.nextPct),
+        (values.unspent or 0) > 0 and "" or " (most nincs szabad pontod)", b.nextSource or "?"))
   end
   if not data then
     WA.Print("A talentadat (TalentData.lua) hiányzik: node scripts/build-talents.mjs --install")
