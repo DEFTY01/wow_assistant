@@ -1,3 +1,15 @@
+## 2.28.0
+
+Paladin: mindhárom talentfa a modellben. Ezzel mind a kilenc kaszt talentjei bekerültek.
+
+- A paladin mind az 51 talentje besorolva. Amelyik az ütéseid, a sealjeid vagy a Holy Strike sebzését változtatja, azzal a modell most számol, a rangod Wowhead Forever számaival:
+  - Seal of Command: ha megvan a talent, a modell vele számol a Seal of Righteousness helyett;
+  - Improved Seals, Sacred Arbiter (Holy Strike) és Two-Handed Weapon Specialization (kétkezes fegyverrel minden sebzésed; a felszerelés-értékelés ezt egy egykezes fegyvernél nem adja meg);
+  - Divine Strength, Divine Intellect és Champion of the Light: az intellectből spell power lesz, ezért a felszerelés-értékelés az intellectet is számolja;
+  - a Conviction és a Precision a karakterlapodon már benne van.
+- Amelyikkel nem számol, annál a /wa talent megmondja, miért: gyógyítás, tank (blokk, a téged érő ütések), mana, túlélés, vagy olyan hatás, amihez az aura-idővonal kell (Vengeance).
+- Talentek nélkül a számok nem változtak.
+
 ## 2.27.0
 
 Priest: mindhárom talentfa a modellben.

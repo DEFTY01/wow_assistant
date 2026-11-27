@@ -141,6 +141,7 @@ local PET = "a pet sebzését a modell a harcaidból méri; a pet critje és seb
 local HEAL = "gyógyítás: a gyógyítómodellbe kerül (WA-017), a sebzést nem változtatja"
 local BEAR = "medve (tank): a medvemodell a tankmodellben jön (WA-026)"
 local PUSHBACK = "a cast-visszalökés (pushback) ellen véd: a modell nem számol azzal, hogy ütnek cast közben"
+local TANK = "blokk, vagy a téged érő ütések és critek után hat: a modell nem számolja, mi ér téged (tankmodell, WA-025)"
 local function ROTATION(what, ticket)
   return ("a(z) %s még nincs külön a modellben; a rotációs ticketben jön (%s)"):format(what, ticket)
 end
@@ -449,6 +450,64 @@ T.EFFECTS = {
     ["Scatter Shot"] = { reason = UTILITY },
     ["Ranged Weapon Specialization"] = { { key = "rangedSpec", val = 1, what = "távolsági fegyveres sebzés %" } },
     ["Sniper Shot"] = { reason = ROTATION("Sniper Shot", "WA-011b") },
+  },
+  -- Paladin (WA-032i): white swings with a seal, Holy Strike, the rest (Judgement, Consecration,
+  -- Exorcism) measured (Paladin.lua); healing and tanking go to their models.
+  PALADIN = {
+    -- Retribution
+    Deflection = { reason = SURVIVAL },
+    Benediction = { reason = MANA },
+    ["Improved Judgement"] = { reason = "a Judgement sebzését és gyakoriságát a modell a harcaidból méri; a rövidebb cooldown a rotációs ticketben jön (WA-015a)" },
+    Conviction = { { key = "conviction", val = 1, what = "crit %" }, sheet = "a játék közelharci és spell critje már tartalmazza" },
+    ["Sanctified Judgement"] = { reason = MANA },
+    Vindication = { reason = SURVIVAL },
+    ["Unyielding Faith"] = { reason = UTILITY },
+    ["Seal of Command"] = { { key = "sealCommand", val = "rank", what = "képesség: Seal of Command a Seal of Righteousness helyett" } },
+    ["Pursuit of Justice"] = { reason = UTILITY },
+    ["Eye for an Eye"] = { reason = TANK },
+    ["Sacred Arbiter"] = { { key = "sacredArbiter", val = 1, what = "Holy Strike sebzés %" }, partial = "a Judgement frissítése" },
+    ["Two-Handed Weapon Specialization"] = { { key = "twoHandSpec", val = 1, what = "fizikai és holy sebzés % kétkezes fegyverrel" }, partial = "a kisebb fenyegetés" },
+    ["Turn Evil"] = { reason = UTILITY },
+    Repentance = { reason = UTILITY },
+    Vengeance = { reason = "crit után 30 mp-ig halmozódik: az aura-idővonalból jön (WA-005)" },
+    ["Champion of the Light"] = { { key = "champion", val = 1, what = "intellect %-a spell powerként" }, sheet = "a modell a játék spell powerét használja; a tárgyak intellectjét spell powerként is számolja", partial = "a Hammer of Wrath cast ideje" },
+    ["Unsealed Wrath"] = { reason = ROTATION("Unsealed Wrath (seal váltás)", "WA-015a") },
+    -- Holy
+    ["Spiritual Focus"] = { reason = PUSHBACK },
+    ["Divine Strength"] = { { key = "divineStrength", val = 1, what = "strength %" } },
+    ["Healing Light"] = { reason = HEAL },
+    Reverence = { reason = MANA },
+    ["Improved Seals"] = { { key = "impSeals", val = 1, what = "seal sebzés %" }, partial = "a Judgement (a modell a harcaidból méri)" },
+    ["Purifying Power"] = { reason = "az Exorcism és a Holy Wrath sebzését a modell a harcaidból méri; a rövidebb cooldown a rotációs ticketben jön (WA-015b)" },
+    ["Divine Favor"] = { reason = HEAL },
+    Illumination = { reason = MANA },
+    ["Holy Conduit"] = { reason = MANA },
+    ["Divine Precision"] = { reason = "a holy varázslatok (Judgement, Exorcism) hitje: ezeket a modell a harcaidból méri" },
+    ["Infusion of Light"] = { reason = HEAL },
+    ["Oath of Light"] = { reason = HEAL },
+    ["Consecrated Ground"] = { reason = MULTI },
+    ["Holy Shock"] = { reason = ROTATION("Holy Shock", "WA-015b") },
+    ["Boundless Light"] = { reason = HEAL },
+    ["Holy Power"] = { reason = HEAL },
+    ["Light's Vigil"] = { reason = HEAL },
+    -- Protection
+    ["Divine Intellect"] = { { key = "divineIntellect", val = 1, what = "intellect %" } },
+    Redoubt = { reason = SURVIVAL },
+    Precision = { { key = "precision", val = 1, what = "hit %" }, sheet = "a játék hit-módosítója (GetHitModifier) már tartalmazza" },
+    ["Guardian's Favor"] = { reason = UTILITY },
+    ["Sacred Duty"] = { reason = SURVIVAL },
+    ["Templar's Bulwark"] = { reason = SURVIVAL },
+    ["Improved Hammer of Justice"] = { reason = UTILITY },
+    ["Shield Specialization"] = { reason = SURVIVAL },
+    Toughness = { reason = SURVIVAL },
+    ["Swift Judgement"] = { reason = ROTATION("Swift Judgement", "WA-015b") },
+    ["Improved Righteous Fury"] = { reason = SURVIVAL },
+    Anticipation = { reason = SURVIVAL },
+    Stoicism = { reason = UTILITY },
+    ["Holy Shield"] = { reason = TANK },
+    Reckoning = { reason = TANK },
+    ["Iron Creed"] = { reason = THREAT },
+    Shieldsworn = { reason = "a Holy Strike gyakoriságát a modell a harcaidból méri; a pajzsos ütés a tankmodellben jön (WA-025)" },
   },
   -- Priest (WA-032h): Smite, Mind Blast, Shadow Word: Pain, Mind Flay, Holy Fire and the wand
   -- (Priest.lua); healing and shields go to the healer model.

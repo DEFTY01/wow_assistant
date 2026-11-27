@@ -23,7 +23,14 @@
 --     per fight); the live meter's fights have none
 --   * attack power = 2 x strength; agility gives crit
 --
--- Extra input besides Model.lua's: str, agi, ap, crit, hit, spHoly, int, skills, tab.
+--   * talents (WA-032i, the numbers of the rank's Wowhead Forever text): Seal of Command (the seal
+--     when the talent is there), Improved Seals (the seals), Sacred Arbiter (Holy Strike),
+--     Two-Handed Weapon Specialization (all damage with a two-hander), Divine Strength / Divine
+--     Intellect (strength, intellect), Champion of the Light (intellect as spell power);
+--     Conviction and Precision are on the sheet
+--
+-- Extra input besides Model.lua's: str, agi, ap, crit, hit, spHoly, int, skills, tab, talents =
+-- Talent.lua's T.Effects.
 
 local _, WA = ...
 WA = WA or {}
@@ -69,7 +76,9 @@ local function Avg(w, ap) return (w.min + w.max) / 2 + (ap / 14) * w.speed end
 local function NormAvg(w, ap, norm) return (w.min + w.max) / 2 + (ap / 14) * (norm or w.speed) end
 
 function PA.Dps(sh, p)
-  local total = p.otherDps
+  -- Two-Handed Weapon Specialization: all of a paladin's damage (physical and holy)
+  local th = (sh.mh and sh.mh.twoHand) and 1 + p.twoHandSpec / 100 or 1
+  local total = p.otherDps * th
   if not sh.mh then return total end
   local mcrit = math.max(0, math.min(sh.crit, 100)) / 100
   local miss = math.max(0, 5 - sh.hit) / 100
@@ -79,25 +88,29 @@ function PA.Dps(sh, p)
   local whiteF = math.max(0, 1 - miss - dodge - mcrit) + mcrit * 2
   local swings = p.meleeUptime / sh.mh.speed
   local avg = Avg(sh.mh, sh.ap)
-  total = total + swings * avg * whiteF
+  total = total + swings * avg * whiteF * th
   -- the seal on the white hits that land: Seal of Command a share of the weapon hit, Seal of
-  -- Righteousness a flat amount with spell power (both holy spells: a crit adds half)
+  -- Righteousness a flat amount with spell power (both holy spells: a crit adds half); Improved
+  -- Seals on both
   local seal = p.socK * avg + p.sorRate * (p.sorPerHit + p.sorCoef * sh.sp)
-  total = total + swings * landF * seal * (1 + mcrit * 0.5)
+  total = total + swings * landF * seal * (1 + mcrit * 0.5) * p.sealMult * th
   if p.hs then
-    total = total + p.hsPerSec * (p.hs[2] * NormAvg(sh.mh, sh.ap, sh.mh.norm) + p.hsFlat + PA.HS_COEF * sh.sp) * yellowF
+    total = total + p.hsPerSec * (p.hs[2] * NormAvg(sh.mh, sh.ap, sh.mh.norm) + p.hsFlat + PA.HS_COEF * sh.sp) * yellowF * p.hsMult * th
   end
   return total
 end
 
 local function Apply(sh, remove, add, p)
   local dAgi = ((add.agi or 0) - (remove.agi or 0)) * p.statMult
-  local dStr = ((add.str or 0) - (remove.str or 0)) * p.statMult
+  -- Divine Strength and Divine Intellect raise the stat; Champion of the Light turns a part of the
+  -- intellect into spell power
+  local dStr = ((add.str or 0) - (remove.str or 0)) * p.statMult * p.strMult
+  local dInt = ((add.int or 0) - (remove.int or 0)) * p.statMult * p.intMult
   return {
     ap = sh.ap + (add.ap or 0) - (remove.ap or 0) + 2 * dStr,
     crit = sh.crit + (add.crit or 0) - (remove.crit or 0) + dAgi / p.agiPerCrit,
     hit = sh.hit + (add.hit or 0) - (remove.hit or 0),
-    sp = sh.sp + (add.sp or 0) - (remove.sp or 0),
+    sp = sh.sp + (add.sp or 0) - (remove.sp or 0) + dInt * p.intSp,
     mh = sh.mh,
   }
 end
@@ -108,11 +121,13 @@ end
 function PA.Context(input)
   local level = input.level or 1
   local equipped = input.equipped or {}
+  local tal = input.talents or {}
   local notes = {}
   local function eq(slot) return equipped[slot] and equipped[slot].stats or M.ZERO end
   local agi = input.agi or 0
   local crit = input.crit or 0
-  local agiPerCrit = agi / math.max(0.1, crit)
+  -- Conviction is on the sheet's crit, not from agility
+  local agiPerCrit = agi / math.max(0.1, crit - (tal.conviction or 0))
   if not (agiPerCrit > 2 and agiPerCrit < 40) then agiPerCrit = 4 + (16 * (level - 1)) / 59 end
   local combat = input.combat
 
@@ -123,8 +138,10 @@ function PA.Context(input)
   local sheet = { ap = input.ap or 0, crit = crit, hit = input.hit or 0, sp = input.spHoly or input.sp or 0, mh = mh }
   local hs = Rank(PA.HOLY_STRIKE, level)
   local sor = Rank(PA.SOR, level)
-  -- Seal of Command is a Retribution talent (level 20); the prior: about 7 procs a minute
-  local soc = input.tab == 3 and level >= 20
+  -- Seal of Command is a Retribution talent: from the talent scan, else (no scan) by the tab from
+  -- level 20; the prior: about 7 procs a minute
+  local soc
+  if tal.read then soc = (tal.sealCommand or 0) > 0 else soc = input.tab == 3 and level >= 20 end
   local speed = mh and mh.speed or 2.5
 
   local params = {
@@ -134,6 +151,8 @@ function PA.Context(input)
     socK = soc and PA.SOC_SHARE * 7 * speed / 60 or 0,
     sorRate = soc and 0 or 1, sorPerHit = (sor[2] / 87 + sor[2] / 25) / 2, sorCoef = (0.0765 + 0.12) / 2,
     otherDps = 0, notes = notes, tab = input.tab,
+    sealMult = 1 + (tal.impSeals or 0) / 100, hsMult = 1 + (tal.sacredArbiter or 0) / 100, twoHandSpec = tal.twoHandSpec or 0,
+    strMult = 1 + (tal.divineStrength or 0) / 100, intMult = 1 + (tal.divineIntellect or 0) / 100, intSp = (tal.champion or 0) / 100,
     -- the enchant section adds a holy spell damage enchant to the spell power
     school = "holy",
   }
@@ -156,29 +175,31 @@ function PA.Context(input)
       elseif a.name == "Seal of Righteousness" then sorA = a
       else other = other + a.dmg end
     end
+    -- the logged damage without the talents' multipliers (the model multiplies them back)
+    local th = (mh and mh.twoHand) and 1 + params.twoHandSpec / 100 or 1
     if mh then
       local whiteLanded = melee and landed(melee) or 0
       params.meleeUptime = mix(params.meleeUptime, math.min(1, (melee and melee.n or 0) / secs * mh.speed), secs, 120)
       if whiteLanded > 0 then
         local avg = Avg(mh, sheet.ap)
         local socDmg = socA and socA.dmg / (1 + 0.5 * (socA.crit or 0) / math.max(1, landed(socA))) or 0
-        params.socK = mix(params.socK, socDmg / whiteLanded / avg, whiteLanded, 20)
+        params.socK = mix(params.socK, socDmg / whiteLanded / avg / (params.sealMult * th), whiteLanded, 20)
         local sorHits = sorA and landed(sorA) or 0
         params.sorRate = mix(params.sorRate, math.min(1, sorHits / whiteLanded), whiteLanded, 20)
         if sorHits > 0 then
-          local per = sorA.dmg / (sorHits + 0.5 * (sorA.crit or 0))
+          local per = sorA.dmg / (sorHits + 0.5 * (sorA.crit or 0)) / (params.sealMult * th)
           params.sorPerHit = mix(params.sorPerHit, math.max(0, per - params.sorCoef * sheet.sp), sorHits, 10)
         end
       end
       if hs then
         params.hsPerSec = mix(params.hsPerSec, (hsA and hsA.n or 0) / secs, secs, 120)
         if hsA and landed(hsA) > 0 then
-          local per = hsA.dmg / (landed(hsA) + (hsA.crit or 0))
+          local per = hsA.dmg / (landed(hsA) + (hsA.crit or 0)) / (params.hsMult * th)
           params.hsFlat = mix(params.hsFlat, math.max(0, per - hs[2] * NormAvg(mh, sheet.ap, mh.norm) - PA.HS_COEF * sheet.sp), landed(hsA), 10)
         end
       end
     end
-    params.otherDps = mix(0, other / secs, secs, 120)
+    params.otherDps = mix(0, other / secs / th, secs, 120)
     notes[#notes + 1] = ("Kalibrálva %d rögzített harcból (%d mp): ütés az idő %d%%-ában, Holy Strike %s percenként, Seal of Command a fegyverütés %d%%-a ütésenként, Seal of Righteousness az ütések %d%%-án (%d), minden más (Judgement, Consecration, Seal of Fury...) %s DPS.")
       :format(combat.fights, Round(secs), Round(params.meleeUptime * 100), F1(params.hsPerSec * 60), Round(params.socK * 100), Round(params.sorRate * 100),
         Round(params.sorPerHit), F1(params.otherDps))
