@@ -1,3 +1,15 @@
+## 2.30.0
+
+Talent-kalkulátor a játékban: új Talentek oldal a /wa ablakban (/wa talentek).
+
+- A három talentfád a játék adataiból: ikon, rang, előfeltételek. Arany: tele, zöld: van benne pont vagy most beletehetsz, szürke: zárva.
+- Tervezés: bal klikk egy pont a tervbe, jobb klikk egy pont ki. A játék szabályai szerint: annyi pont, amennyi van, soronként 5 pont kell alatta, és az előfeltétel. Ha nem megy, megmondja, miért.
+- A terv DPS-e a mostanihoz képest, és talentenként, mennyit ad az a változás, a forrással.
+- Tooltip: a talent leírása, alatta mennyit ér a tervben és a következő pontja a mostani felszereléseddel, melyik stat ér miatta többet, és a forrás.
+- A legtöbbet érő következő pont fénylő kerettel.
+- Tervek mentése karakterenként, és megosztás szövegként (Waystone:KASZT:…), amit egy másik Waystone be tud tölteni.
+- A terv csak terv: a talentet a játék talent-ablakában te tanulod meg.
+
 ## 2.29.0
 
 Talentérték: mennyit ér egy talent a mostani felszereléseddel.

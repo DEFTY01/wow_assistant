@@ -887,7 +887,8 @@ function T.Values(class, input, build, unspent)
         if e.sheet and not broken then row.note = "a karakterlapon lévő részét a modell nem bontja ki, ezért az érték kisebb a valódinál" end
       end
       out.rows[#out.rows + 1] = row
-      if available and row.counted and row.next and (not out.best or row.next > out.best.next) then out.best = row end
+      -- the best next point: only one that adds DPS (+0 says nothing)
+      if available and row.counted and row.next and row.next > 0.005 and (not out.best or row.next > out.best.next) then out.best = row end
     end
   end
   return out
@@ -904,6 +905,231 @@ function T.TalentShift(class, input, build, ctx)
   end
   if not any then return {} end
   return T.WeightShift(ctx or build(input), build(T.Variant(class, input, changes)))
+end
+
+---------------------------------------------------------------------------
+-- WA-034: the talent calculator. A plan is only a plan (ranks by talent name): the addon never
+-- learns a talent, you do that in the game's talent window.
+---------------------------------------------------------------------------
+-- The trees to plan on: the client's shape where the client gives one (tab order, icon, tier,
+-- column, rank, prerequisite), else the data's; each talent with its data (text, numbers,
+-- the points its row needs, the rank its prerequisite needs).
+--   { tabs = { { name, icon, talents = { { name, icon, tier, col, max, rank, req, reqRank, reqPoints, tab, index, data } } } },
+--     byName, client = true when the shape is the client's }
+function T.PlanTrees(class, tree)
+  local data = T.Data(class)
+  local byData = {}
+  for _, d in ipairs(data and data.talents or {}) do byData[d.name] = d end
+  local out = { tabs = {}, byName = {} }
+  local function Add(tab, x)
+    local d = byData[x.name]
+    local t = { name = x.name, tier = x.tier, col = x.col, max = x.max, rank = x.rank or 0, tab = tab.n, index = x.index, data = d,
+      icon = x.icon or (d and d.icon and ("Interface\\Icons\\" .. d.icon)) or "Interface\\Icons\\INV_Misc_QuestionMark",
+      reqPoints = d and d.reqPoints or 5 * ((x.tier or 1) - 1), req = x.req }
+    if t.req then t.reqRank = d and d.req and d.req[1] == t.req and d.req[2] or nil end
+    tab.talents[#tab.talents + 1] = t
+    out.byName[t.name] = t
+  end
+  if tree and tree.tabs and #tree.tabs > 0 then
+    out.client = true
+    for i, ct in ipairs(tree.tabs) do
+      local tab = { n = i, name = ct.name, icon = ct.icon, talents = {} }
+      out.tabs[i] = tab
+      for _, x in ipairs(ct.talents) do Add(tab, x) end
+    end
+  elseif data then
+    local trees = {}
+    for _, tr in ipairs(data.trees or {}) do trees[#trees + 1] = tr end
+    table.sort(trees, function(a, b) return (a.tab or 0) < (b.tab or 0) end)
+    for i, tr in ipairs(trees) do
+      local tab = { n = i, name = tr.name, talents = {} }
+      out.tabs[i] = tab
+      for _, d in ipairs(data.talents) do
+        if d.tree == tr.id then Add(tab, { name = d.name, tier = d.tier, col = d.col, max = d.max, req = d.req and d.req[1] }) end
+      end
+    end
+  end
+  for _, tab in ipairs(out.tabs) do
+    table.sort(tab.talents, function(a, b) if a.tier ~= b.tier then return a.tier < b.tier end return a.col < b.col end)
+    -- the prerequisite's rank: the data's, else all of it (the game's rule)
+    for _, t in ipairs(tab.talents) do
+      if t.req and not t.reqRank then t.reqRank = out.byName[t.req] and out.byName[t.req].max or 1 end
+    end
+  end
+  return out
+end
+
+-- The points you have: what you spent and have free where the client says so, else level - 9
+-- (the first point at level 10).
+function T.PlanPoints(tree)
+  if tree and tree.unspent then return (tree.spent or 0) + tree.unspent end
+  return math.max(0, ((tree and tree.level) or 0) - 9)
+end
+
+function T.PlanSpent(pt, ranks)
+  local n = 0
+  for name in pairs(pt.byName) do n = n + (ranks[name] or 0) end
+  return n
+end
+
+local function TabPoints(tab, ranks, belowTier)
+  local n = 0
+  for _, x in ipairs(tab.talents) do if not belowTier or x.tier < belowTier then n = n + (ranks[x.name] or 0) end end
+  return n
+end
+T.TabPoints = TabPoints
+
+-- Every rule a plan breaks (the game's rules): no more points than you have, no more ranks than a
+-- talent has, the points a row needs in the tree under it, the prerequisite's ranks.
+function T.PlanCheck(pt, ranks, total)
+  local out = {}
+  local spent = T.PlanSpent(pt, ranks)
+  if total and spent > total then out[#out + 1] = ("%d pont van a tervben, de csak %d pontod van"):format(spent, total) end
+  for _, tab in ipairs(pt.tabs) do
+    for _, x in ipairs(tab.talents) do
+      local r = ranks[x.name] or 0
+      if r > 0 then
+        if r > x.max then out[#out + 1] = ("%s: legfeljebb %d rang"):format(x.name, x.max) end
+        if TabPoints(tab, ranks, x.tier) < x.reqPoints then
+          out[#out + 1] = ("%s: %d pont kell alatta a(z) %s fában"):format(x.name, x.reqPoints, tab.name)
+        end
+        if x.req and (ranks[x.req] or 0) < (x.reqRank or 1) then
+          out[#out + 1] = ("%s: előtte %s %d rang kell"):format(x.name, x.req, x.reqRank or 1)
+        end
+      end
+    end
+  end
+  return out
+end
+
+-- One rank more or less in a talent. Only the rules the change itself breaks stop it (a plan
+-- read from a client that differs from the data may break one already). -> new ranks, or nil and why.
+local function Change(pt, ranks, name, step, total)
+  local x = pt.byName[name]
+  if not x then return nil, "nincs ilyen talent: " .. tostring(name) end
+  local new = {}
+  for k, v in pairs(ranks) do new[k] = v end
+  local r = (new[name] or 0) + step
+  if r < 0 then return nil, name .. ": nincs benne pont" end
+  if r > x.max then return nil, ("%s: már %d/%d"):format(name, x.max, x.max) end
+  new[name] = r > 0 and r or nil
+  local before = {}
+  for _, m in ipairs(T.PlanCheck(pt, ranks, total)) do before[m] = true end
+  for _, m in ipairs(T.PlanCheck(pt, new, total)) do
+    if not before[m] then return nil, m end
+  end
+  return new
+end
+function T.PlanAdd(pt, ranks, name, total) return Change(pt, ranks, name, 1, total) end
+function T.PlanRemove(pt, ranks, name, total) return Change(pt, ranks, name, -1, total) end
+
+-- Whether the next point can go into a talent now (for the look of the tree).
+function T.PlanOpen(pt, ranks, name, total)
+  return T.PlanAdd(pt, ranks, name, total) ~= nil
+end
+
+-- The ranks you have now, from the trees.
+function T.PlanCurrent(pt)
+  local out = {}
+  for name, x in pairs(pt.byName) do if (x.rank or 0) > 0 then out[name] = x.rank end end
+  return out
+end
+
+-- What the plan is worth against the talents you have now (build = the model):
+--   { now, plan, diff, diffPct, changes = { { name, from, to, value, counted, reason, source } },
+--     values = T.Values on the plan (each talent's worth and the next point in the plan) }
+-- value: that one change alone against now (the changes together can differ from the sum).
+function T.PlanValue(class, input, build, ranks, free)
+  local cur = input.talents and input.talents.ranks or {}
+  local changes, any = {}, false
+  for name, r in pairs(ranks) do if r ~= (cur[name] or 0) then changes[name], any = r, true end end
+  for name, r in pairs(cur) do if r > 0 and not ranks[name] then changes[name], any = 0, true end end
+  local base = build(input)
+  local out = { now = base and base.baseline or 0, changes = {} }
+  local planInput = any and T.Variant(class, input, changes) or input
+  local planCtx = any and build(planInput) or base
+  out.plan = planCtx and planCtx.baseline or out.now
+  out.diff = out.plan - out.now
+  out.diffPct = out.now > 0 and out.diff / out.now * 100 or 0
+  local eff = T.EFFECTS[class or ""] or {}
+  for name, to in pairs(changes) do
+    local e, d = eff[name], T.Find(class, name)
+    local c = { name = name, from = cur[name] or 0, to = to, counted = e ~= nil and not e.reason }
+    if c.counted then
+      c.value = build(T.Variant(class, input, { [name] = to })).baseline - out.now
+      c.source = d and ("Wowhead Forever: " .. (T.RankText(d, math.max(1, math.min(math.max(to, c.from), d.max))) or "")) or nil
+    else
+      c.reason = e and e.reason or ("a modell még nem számol vele (%s)"):format(T.TICKET[class or ""] or "WA-032")
+    end
+    out.changes[#out.changes + 1] = c
+  end
+  table.sort(out.changes, function(a, b)
+    local va, vb = a.value and math.abs(a.value) or -1, b.value and math.abs(b.value) or -1
+    if va ~= vb then return va > vb end
+    return a.name < b.name
+  end)
+  out.values = T.Values(class, planInput, build, free)
+  return out
+end
+
+-- Sharing as text: "Waystone:CLASS:" and per tree the ranks in row and column order, one digit a
+-- talent, the trees split by "-" (the zeros at the end of a tree left off).
+function T.PlanExport(class, pt, ranks)
+  local parts = {}
+  for i, tab in ipairs(pt.tabs) do
+    local d = {}
+    for j, x in ipairs(tab.talents) do d[j] = tostring(math.min(9, ranks[x.name] or 0)) end
+    parts[i] = (table.concat(d):gsub("0+$", ""))
+  end
+  return ("Waystone:%s:%s"):format(class or "?", (table.concat(parts, "-"):gsub("%-+$", "")))
+end
+
+-- A shared plan back: its ranks, or nil and why (another class, a tree too long, a broken rule).
+function T.PlanImport(class, pt, text, total)
+  local cls, body = tostring(text or ""):match("^%s*Waystone:(%u+):([%d%-]*)%s*$")
+  if not cls then return nil, "ez nem Waystone-terv (Waystone:KASZT:számok)" end
+  if cls ~= class then return nil, ("ez egy %s terv, a karaktered %s"):format(cls, tostring(class)) end
+  local ranks, i = {}, 0
+  for part in (body .. "-"):gmatch("([%d]*)%-") do
+    i = i + 1
+    local tab = pt.tabs[i]
+    if not tab then if part ~= "" then return nil, "több fa van benne, mint a kasztodnak" end
+    else
+      if #part > #tab.talents then return nil, ("a(z) %s fában több talent van benne, mint a fában"):format(tab.name) end
+      for j = 1, #part do
+        local r = tonumber(part:sub(j, j))
+        if r > 0 then ranks[tab.talents[j].name] = r end
+      end
+    end
+  end
+  local broken = T.PlanCheck(pt, ranks, total)
+  if #broken > 0 then return nil, broken[1] end
+  return ranks
+end
+
+-- Saved plans, per character: { { name, ranks } }.
+function T.PlanList()
+  local c = WA.charDB
+  if not c then return {} end
+  c.talentPlans = c.talentPlans or {}
+  return c.talentPlans
+end
+
+-- Saves under a name (the same name: overwritten); -> its index.
+function T.PlanSave(name, ranks)
+  local list = T.PlanList()
+  local copy = {}
+  for k, v in pairs(ranks) do if v > 0 then copy[k] = v end end
+  for i, p in ipairs(list) do
+    if p.name == name then p.ranks = copy return i end
+  end
+  list[#list + 1] = { name = name, ranks = copy }
+  return #list
+end
+
+function T.PlanDelete(i)
+  local list = T.PlanList()
+  if list[i] then table.remove(list, i) end
 end
 
 local function F2(n) return (("%.2f"):format(n):gsub("%.", ",")) end

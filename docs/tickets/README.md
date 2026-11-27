@@ -47,7 +47,7 @@ Méret: **S** néhány óra, **M** egy-két munkamenet, **L** több munkamenet.
 | [WA-032h](WA-032h-talent-priest.md) | Talenthatások: Priest, mindhárom fa (kész, 2.27.0) | M | magas | WA-032 |
 | [WA-032i](WA-032i-talent-paladin.md) | Talenthatások: Paladin, mindhárom fa (kész, 2.28.0) | M | magas | WA-032 |
 | [WA-033](WA-033-talent-ertek.md) | Talentérték a jelenlegi gearrel (kész, 2.29.0) | M | magas | WA-032 |
-| [WA-034](WA-034-talent-kalkulator.md) | Talent calculator a játékban | L | magas | WA-031, WA-033 |
+| [WA-034](WA-034-talent-kalkulator.md) | Talent calculator a játékban (kész, 2.30.0) | L | magas | WA-031, WA-033 |
 
 ### 3. Rotációs javaslatok
 

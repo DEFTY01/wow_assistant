@@ -3,6 +3,7 @@
 --   Harc         combat.ts      the recorded fights: score, abilities, advice
 --   Felszerelés  gear.ts        the next upgrade for every slot, buffs and consumables
 --   Mesterségek  planRoutes     the cheapest way to skill each profession
+--   Talentek     (WA-034)       the talent trees, a plan and what each talent is worth with your gear
 --
 -- Layout: a side menu (character, pages, the addon's other windows) and the page on the right.
 -- A page shows the few numbers that matter as cards, then sections. Only the important sections
@@ -80,6 +81,7 @@ local PAGES = {
   { "gear", "Felszerelés", "Interface\\Icons\\INV_Chest_Leather_09" },
   { "pet", "Pet", "Interface\\Icons\\Ability_Hunter_BeastTaming", class = "HUNTER" },
   { "prof", "Mesterségek", "Interface\\Icons\\Trade_Engineering" },
+  { "talent", "Talentek", "Interface\\Icons\\Ability_Marksmanship" },
 }
 local WINDOWS = {
   { "Vendor gyártás", "Interface\\Icons\\INV_Misc_Coin_02", function() if WA.VC then WA.VC.Toggle() end end },
@@ -542,6 +544,177 @@ local function DrawButtons(child, b, x, y)
   return y + 30
 end
 
+-- A text box with a button after it (b.edit = { text, button, onEnter(text), width }): the text is
+-- selected when the box gets the focus, so it can be copied; Enter or the button hands it back.
+local function DrawEdit(child, b, x, y, w)
+  local e = Acquire("edit", function()
+    local box = CreateFrame("EditBox", nil, child, "InputBoxTemplate")
+    box:SetHeight(20)
+    box:SetAutoFocus(false)
+    box:SetFontObject("WowAssistantFontHighlightSmall")
+    box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+    box:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+    return box
+  end)
+  local bw = b.button and 110 or 0
+  e:SetWidth(b.width or (w - bw - 24))
+  e:SetPoint("TOPLEFT", child, "TOPLEFT", x + 6, -y)
+  -- a redraw while you type or paste keeps your text
+  if not (e.HasFocus and e:HasFocus() == true) then e:SetText(b.text or "") end
+  e:SetScript("OnEnterPressed", function(self) self:ClearFocus() if b.onEnter then b.onEnter(self:GetText() or "") end end)
+  if b.button then
+    local btn = Acquire("button", function() return WA.Style.Button(child, "", 120) end)
+    btn:SetSize(bw, 22)
+    btn:SetPoint("LEFT", e, "RIGHT", 10, 0)
+    btn:SetText(b.button)
+    btn:SetEnabled(true)
+    btn:UnlockHighlight()
+    btn:SetScript("OnClick", function() if b.onEnter then b.onEnter(e:GetText() or "") end end)
+  end
+  return y + 30
+end
+
+-- The talent trees (WA-034): three panels side by side, each talent an icon at its row and column
+-- with its rank, the prerequisite lines, the open talents lit, the best next point marked.
+--   b.talents = { tabs (T.PlanTrees), ranks (the plan), cur (now), open(name) -> bool,
+--                 best = name, tip(x, tooltip), onClick(x, button) }
+local TICON, TCX, TCY, THEAD = 34, 54, 46, 28
+local function DrawTalents(child, b, x, y, w)
+  local tb = b.talents
+  local n = #tb.tabs
+  if n == 0 then return y end
+  local gap = 12
+  local tw = math.floor((w - (n - 1) * gap) / n)
+  local tiers = 1
+  for _, tab in ipairs(tb.tabs) do for _, t in ipairs(tab.talents) do if t.tier > tiers then tiers = t.tier end end end
+  local th = THEAD + tiers * TCY + 8
+  local needle = WA.Style.Lower(UI.filter or "")
+  local lvl = (child.GetFrameLevel and child:GetFrameLevel() or 1)
+  for i, tab in ipairs(tb.tabs) do
+    local px = x + (i - 1) * (tw + gap)
+    local panel = Acquire("talentTree", function()
+      local fr = CreateFrame("Frame", nil, child, "BackdropTemplate")
+      WA.Style.Panel(fr, WA.Style.C.card, WA.Style.C.edge, 0.4)
+      fr.icon = fr:CreateTexture(nil, "ARTWORK")
+      fr.icon:SetSize(18, 18)
+      fr.icon:SetPoint("TOPLEFT", 8, -6)
+      fr.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+      fr.title = fr:CreateFontString(nil, "OVERLAY", "WowAssistantFontHeader")
+      fr.title:SetPoint("LEFT", fr.icon, "RIGHT", 6, 0)
+      fr.title:SetJustifyH("LEFT")
+      fr.title:SetWordWrap(false)
+      fr.points = fr:CreateFontString(nil, "OVERLAY", "WowAssistantFontMuted")
+      fr.points:SetPoint("TOPRIGHT", -8, -9)
+      fr.lines = {}
+      return fr
+    end)
+    panel:SetFrameLevel(lvl + 1)
+    panel:SetSize(tw, th)
+    panel:SetPoint("TOPLEFT", child, "TOPLEFT", px, -y)
+    panel.icon:SetTexture(tab.icon or (tab.talents[1] and tab.talents[1].icon))
+    panel.title:SetText(tab.name or "")
+    local pts, ptsNow = WA.Talent.TabPoints(tab, tb.ranks), WA.Talent.TabPoints(tab, tb.cur)
+    panel.points:SetText(pts ~= ptsNow and ("%d pont (most %d)"):format(pts, ptsNow) or ("%d pont"):format(pts))
+    -- where a talent sits inside the panel
+    local left = math.floor((tw - 4 * TCX) / 2) + math.floor((TCX - TICON) / 2)
+    local function At(t) return left + (t.col - 1) * TCX, THEAD + (t.tier - 1) * TCY end
+    -- prerequisite lines: from the required talent across to the column, then down to the talent
+    local nl = 0
+    local function Line(lx, ly, lw, lh, on)
+      nl = nl + 1
+      local l = panel.lines[nl]
+      if not l then l = panel:CreateTexture(nil, "ARTWORK") panel.lines[nl] = l end
+      l:ClearAllPoints()
+      l:SetPoint("TOPLEFT", panel, "TOPLEFT", lx, -ly)
+      l:SetSize(math.max(1, lw), math.max(1, lh))
+      if on then l:SetColorTexture(1, 0.82, 0, 0.85) else l:SetColorTexture(0.45, 0.42, 0.36, 0.7) end
+      l:Show()
+    end
+    local byName = {}
+    for _, t in ipairs(tab.talents) do byName[t.name] = t end
+    for _, t in ipairs(tab.talents) do
+      local r = t.req and byName[t.req]
+      if r then
+        local on = (tb.ranks[r.name] or 0) >= (t.reqRank or 1)
+        local rx, ry = At(r)
+        local ax, ay = At(t)
+        local mid = math.floor(TICON / 2) - 1
+        if r.tier == t.tier then
+          local a, z = math.min(rx, ax) + TICON, math.max(rx, ax)
+          Line(a, ry + mid, z - a, 3, on)
+        else
+          if r.col ~= t.col then
+            local a, z = math.min(rx, ax) + mid, math.max(rx, ax) + mid
+            if rx < ax then a = rx + TICON end
+            if rx > ax then z = rx end
+            Line(a, ry + mid, z - a + 3, 3, on)
+            Line(ax + mid, ry + mid, 3, ay - ry - mid, on)
+          else
+            Line(ax + mid, ry + TICON, 3, ay - ry - TICON, on)
+          end
+          Line(ax + mid - 2, ay - 5, 7, 4, on) -- the arrowhead
+        end
+      end
+    end
+    for k = nl + 1, #panel.lines do panel.lines[k]:Hide() end
+    -- the talents
+    for _, t in ipairs(tab.talents) do
+      local btn = Acquire("talentBtn", function()
+        local bt = CreateFrame("Button", nil, child)
+        bt:SetSize(TICON, TICON)
+        if bt.RegisterForClicks then bt:RegisterForClicks("LeftButtonUp", "RightButtonUp") end
+        bt.edge = bt:CreateTexture(nil, "BACKGROUND")
+        bt.edge:SetPoint("TOPLEFT", -2, 2)
+        bt.edge:SetPoint("BOTTOMRIGHT", 2, -2)
+        bt.icon = bt:CreateTexture(nil, "ARTWORK")
+        bt.icon:SetAllPoints()
+        bt.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        bt.glow = bt:CreateTexture(nil, "OVERLAY")
+        bt.glow:SetTexture("Interface\\Buttons\\CheckButtonHilight")
+        bt.glow:SetBlendMode("ADD")
+        bt.glow:SetPoint("TOPLEFT", -6, 6)
+        bt.glow:SetPoint("BOTTOMRIGHT", 6, -6)
+        bt.rankBg = Fill(bt:CreateTexture(nil, "OVERLAY"), 0, 0, 0, 0.85)
+        bt.rankBg:SetSize(26, 13)
+        bt.rankBg:SetPoint("BOTTOMRIGHT", 6, -5)
+        bt.rank = bt:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
+        bt.rank:SetPoint("CENTER", bt.rankBg, "CENTER", 0, 0)
+        local hl = Fill(bt:CreateTexture(nil, "HIGHLIGHT"), 1, 1, 1, 0.15)
+        hl:SetAllPoints()
+        bt:SetScript("OnEnter", function(self)
+          if not self.talent or not self.tipFn then return end
+          GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+          self.tipFn(self.talent, GameTooltip)
+          GameTooltip:Show()
+        end)
+        bt:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        bt:SetScript("OnClick", function(self, button) if self.clickFn then self.clickFn(self.talent, button) end end)
+        return bt
+      end)
+      btn:SetFrameLevel(lvl + 3)
+      local ix, iy = At(t)
+      btn:SetPoint("TOPLEFT", child, "TOPLEFT", px + ix, -(y + iy))
+      local r, now = tb.ranks[t.name] or 0, tb.cur[t.name] or 0
+      local open = tb.open(t.name)
+      btn.talent, btn.tipFn, btn.clickFn = t, tb.tip, tb.onClick
+      btn.icon:SetTexture(t.icon)
+      btn.icon:SetDesaturated(r == 0 and not open)
+      -- the edge: gold full, green with points or open, grey locked
+      if r >= t.max then Fill(btn.edge, 1, 0.82, 0, 1)
+      elseif r > 0 or open then Fill(btn.edge, 0.25, 0.85, 0.25, 1)
+      else Fill(btn.edge, 0.3, 0.28, 0.24, 1) end
+      local rc = r >= t.max and HEX.gold or ((r > 0 or open) and HEX.good or HEX.muted)
+      if r ~= now then rc = "66ccff" end -- the plan differs from now here
+      btn.rank:SetText(Color(rc, ("%d/%d"):format(r, t.max)))
+      btn.glow:SetShown(tb.best == t.name)
+      local hit = needle == "" or WA.Style.Lower(t.name):find(needle, 1, true)
+      if needle ~= "" and hit then UI.hits = (UI.hits or 0) + 1 end
+      btn:SetAlpha(hit and 1 or 0.25)
+    end
+  end
+  return y + th + 12
+end
+
 local DrawBlocks
 
 -- A section: a header bar (click: open/close; "Több oszlop" when its table has extra columns)
@@ -637,6 +810,10 @@ function DrawBlocks(child, blocks, x, y, w, detail)
       y = DrawChecks(child, b, x, y, w)
     elseif b.buttons then
       y = DrawButtons(child, b, x, y)
+    elseif b.edit then
+      y = DrawEdit(child, b.edit, x, y, w)
+    elseif b.talents then
+      y = DrawTalents(child, b, x, y, w)
     elseif b.empty then
       local t = Text(child, "WowAssistantFontHeader")
       t:SetWidth(w)
@@ -1898,6 +2075,212 @@ function UI.pages.prof()
 end
 
 ---------------------------------------------------------------------------
+-- Talentek (WA-034): the trees, a plan, and each talent's worth with the gear you have
+---------------------------------------------------------------------------
+local function Same(a, b)
+  for k, v in pairs(a) do if (b[k] or 0) ~= v then return false end end
+  for k, v in pairs(b) do if (a[k] or 0) ~= v then return false end end
+  return true
+end
+local function CopyRanks(t) local o = {} for k, v in pairs(t) do if v > 0 then o[k] = v end end return o end
+
+-- The plan being drawn, per character (kept over a /reload): while it is the same as your
+-- talents, it follows them when you learn a new one.
+local draftLocal
+local function Draft(class, cur)
+  local c = WA.charDB
+  local st = c and c.talentDraft or draftLocal
+  if not st or st.class ~= class then
+    st = { class = class, ranks = CopyRanks(cur), seen = CopyRanks(cur) }
+  elseif st.seen and Same(st.ranks, st.seen) and not Same(st.ranks, cur) then
+    st.ranks, st.saved = CopyRanks(cur), nil
+  end
+  st.seen = CopyRanks(cur)
+  if c then c.talentDraft = st else draftLocal = st end
+  return st
+end
+
+local function TalentRedraw(msg)
+  UI.talentMsg = msg
+  UI.cache.talent = nil
+  UI.Draw()
+end
+UI.TalentRedraw = TalentRedraw
+
+local function S2(n) return WA.Talent.Signed(n) end
+
+function UI.pages.talent()
+  local T = WA.Talent
+  local class = G.Class()
+  UI.head.talent = { "Talentek", "A Forever talentfái, a pontjaid és egy terv, minden talent értéke a mostani gearrel" }
+  local tree = T.ReadTree()
+  local pt = T.PlanTrees(class, tree)
+  if #pt.tabs == 0 then
+    return { { empty = { "Nincs talentfa", "A játék nem adott talentfát, és a talentadat (TalentData.lua) sincs meg: node scripts/build-talents.mjs --install" } } }
+  end
+  local total = T.PlanPoints(tree)
+  local cur = T.PlanCurrent(pt)
+  local st = Draft(class, cur)
+  local ranks = st.ranks
+  local spent, spentNow = T.PlanSpent(pt, ranks), T.PlanSpent(pt, cur)
+  local free = math.max(0, total - spent)
+
+  -- the plan's worth (the model with your gear): the whole plan, each change, each talent
+  local value, err
+  if G.Supported() and WA.Model and WA.Model.Context then
+    local ok, v = pcall(function() return T.PlanValue(class, G.ModelInput(), WA.Model.Context, ranks, free) end)
+    if ok then value = v else err = tostring(v) end
+  end
+  local rows = {}
+  for _, row in ipairs(value and value.values and value.values.rows or {}) do rows[row.name] = row end
+  local best = value and value.values and value.values.best
+  if free <= 0 then best = nil end
+
+  local out = {}
+  if UI.talentMsg then Add(out, { tips = { { level = UI.talentMsg.level, title = UI.talentMsg.title, text = UI.talentMsg.text } } }) end
+  local plans = T.PlanList()
+  Add(out, { cards = {
+    { label = "Pontok a tervben", value = ("%d / %d"):format(spent, total), sub = ("%d szabad · most %d elköltve"):format(free, spentNow),
+      tip = tree.unspent and "A pontjaid: az elköltött és a szabad pontok (a játék adja)." or "A pontjaid: szint − 9 (az első pont a 10. szinten)." },
+    { label = "A terv DPS-e", value = value and T.F2(value.plan) or "–",
+      sub = value and ("%s (%s%%) a mostanihoz képest"):format(S2(value.diff), S2(value.diffPct)) or (G.Supported() and "nem számolható" or "ehhez a kaszthoz nincs modell"),
+      tip = value and ("A modell DPS-e a mostani gearrel: most %s, a tervvel %s."):format(T.F2(value.now), T.F2(value.plan)) or err },
+    { label = "Legjobb következő pont", value = best and best.name or "–",
+      sub = best and ("%s DPS (%s%%)"):format(S2(best.next), S2(best.nextPct)) or (free <= 0 and "nincs szabad pont a tervben" or "egy nyitott talent sem ad most DPS-t"),
+      tip = best and best.nextSource and ("Forrás: " .. best.nextSource) or nil },
+    { label = "Mentett tervek", value = tostring(#plans), sub = st.saved and plans[st.saved] and ("betöltve: " .. plans[st.saved].name) or "a mostani terv nincs mentve" },
+  } })
+
+  -- what to do with the plan
+  Add(out, { buttons = {
+    { label = "Mostani talentek", width = 130, onClick = function() st.ranks, st.saved = CopyRanks(cur), nil TalentRedraw() end },
+    { label = "Üres terv", width = 100, onClick = function() st.ranks, st.saved = {}, nil TalentRedraw() end },
+    { label = "Mentés", width = 90, onClick = function()
+      local name = st.saved and plans[st.saved] and plans[st.saved].name or (#plans + 1) .. ". terv"
+      st.saved = T.PlanSave(name, st.ranks)
+      TalentRedraw({ level = "good", title = "Mentve:", text = name })
+    end },
+    { label = "Mentés újként", width = 120, onClick = function()
+      local name = (#plans + 1) .. ". terv"
+      st.saved = T.PlanSave(name, st.ranks)
+      TalentRedraw({ level = "good", title = "Mentve:", text = name })
+    end },
+    { label = "Törlés", width = 80, onClick = function()
+      if not (st.saved and plans[st.saved]) then return TalentRedraw({ level = "warn", title = "Nincs betöltött terv,", text = "nincs mit törölni." }) end
+      local name = plans[st.saved].name
+      T.PlanDelete(st.saved)
+      st.saved = nil
+      TalentRedraw({ level = "info", title = "Törölve:", text = name })
+    end },
+  } })
+  if #plans > 0 then
+    local line = {}
+    for i, p in ipairs(plans) do
+      line[#line + 1] = { label = p.name, width = 90, active = st.saved == i, onClick = function()
+        st.ranks, st.saved = CopyRanks(p.ranks), i
+        TalentRedraw()
+      end }
+      if #line == 7 or i == #plans then Add(out, { buttons = line }) line = {} end
+    end
+  end
+
+  -- the trees
+  local function Open(name) return T.PlanOpen(pt, ranks, name, total) end
+  local function Why(name)
+    local _, why = T.PlanAdd(pt, ranks, name, total)
+    return why
+  end
+  local function Tip(x, tt)
+    local r, now = ranks[x.name] or 0, cur[x.name] or 0
+    local usedGame = pt.client and x.index and tt.SetTalent and pcall(tt.SetTalent, tt, x.tab, x.index)
+    if not usedGame then
+      tt:AddLine(x.name, 1, 0.82, 0)
+      tt:AddLine(("Rang: %d/%d"):format(r, x.max), 1, 1, 1)
+      local d = x.data
+      if d and d.desc then
+        tt:AddLine(WA.Fix(d.desc[math.max(1, math.min(r, x.max))] or ""), 1, 0.82, 0.5, true)
+        if r > 0 and r < x.max and d.desc[r + 1] then
+          tt:AddLine(" ")
+          tt:AddLine(WA.Fix("Következő rang:"), 1, 1, 1)
+          tt:AddLine(WA.Fix(d.desc[r + 1]), 1, 0.82, 0.5, true)
+        end
+      end
+    end
+    tt:AddLine(" ")
+    if r ~= now then tt:AddLine(WA.Fix(("Terv: %d/%d (most %d/%d)"):format(r, x.max, now, x.max)), 0.4, 0.8, 1) end
+    if r < x.max and not Open(x.name) then
+      local why = Why(x.name)
+      if why then tt:AddLine(WA.Fix("Nem tehető bele: " .. why), 1, 0.35, 0.35, true) end
+    end
+    tt:AddLine(WA.Fix("Waystone, a mostani gearrel:"), 1, 0.82, 0)
+    local row = rows[x.name]
+    if not value then
+      tt:AddLine(WA.Fix(G.Supported() and ("A modell most nem számol: " .. tostring(err)) or "Ehhez a kaszthoz még nincs DPS-modell."), 0.62, 0.57, 0.48, true)
+    elseif row and row.counted then
+      if row.now then tt:AddLine(WA.Fix(("A tervben lévő %d rang: %s DPS (%s%%)"):format(r, S2(row.now), S2(row.nowPct))), 1, 1, 1) end
+      if row.next then tt:AddLine(WA.Fix(("A következő pont: %s DPS (%s%%)"):format(S2(row.next), S2(row.nextPct))), 1, 1, 1) end
+      for _, wt in ipairs(row.weights or {}) do
+        tt:AddLine(WA.Fix(("Miatta %s: %s → %s DPS / %d"):format(wt.label, T.F2(wt.without), T.F2(wt.with), wt.per)), 0.8, 0.8, 0.8)
+      end
+      if row.note then tt:AddLine(WA.Fix(row.note), 1, 0.6, 0.2, true) end
+      local src = row.nextSource or row.source
+      if src then tt:AddLine(WA.Fix("Forrás: " .. src), 0.62, 0.57, 0.48, true) end
+    elseif row and row.reason then
+      tt:AddLine(WA.Fix("Érték nélkül: " .. row.reason), 0.62, 0.57, 0.48, true)
+    else
+      local e = (T.EFFECTS[class] or {})[x.name]
+      if e and e.reason then tt:AddLine(WA.Fix("Érték nélkül: " .. e.reason), 0.62, 0.57, 0.48, true)
+      else tt:AddLine(WA.Fix("Az értékét akkor számolja, ha a tervben beletehetsz pontot."), 0.62, 0.57, 0.48, true) end
+    end
+    if best and best.name == x.name then tt:AddLine(WA.Fix("Ez most a legtöbbet érő következő pont."), 0.37, 0.88, 0.37) end
+    tt:AddLine(WA.Fix("Bal klikk: +1 pont a tervbe · jobb klikk: −1 pont"), 0.62, 0.57, 0.48)
+  end
+  local function Click(x, button)
+    local fn = button == "RightButton" and T.PlanRemove or T.PlanAdd
+    local new, why = fn(pt, st.ranks, x.name, total)
+    if not new then return TalentRedraw({ level = "warn", title = button == "RightButton" and "Nem vehető ki:" or "Nem tehető bele:", text = why }) end
+    st.ranks = new
+    TalentRedraw()
+  end
+  Add(out, { talents = { tabs = pt.tabs, ranks = ranks, cur = cur, open = Open, best = best and best.name, tip = Tip, onClick = Click } })
+  Add(out, { p = "Bal klikk: pont a tervbe, jobb klikk: pont ki. A terv csak terv: a talentet a játék talent-ablakában te tanulod meg. Kék rang: a terv itt eltér a mostanitól; arany keret: a legtöbbet érő következő pont.", muted = true })
+
+  -- the plan against now, change by change
+  local diffRows = {}
+  for _, c in ipairs(value and value.changes or {}) do
+    diffRows[#diffRows + 1] = { cells = {
+      c.name, Cell(("%d → %d"):format(c.from, c.to), c.to - c.from),
+      c.value and Cell(S2(c.value), c.value) or Muted("–"),
+      c.counted and (c.source or "") or Muted(c.reason or ""),
+    }, tip = c.source or c.reason }
+  end
+  local diffBlocks = {}
+  if value then
+    Add(diffBlocks, { p = ("A modell DPS-e: most %s, a tervvel %s, a különbség %s (%s%%). Soronként: az az egy változás a mostanihoz képest; együtt eltérhetnek az összegüktől.")
+      :format(T.F2(value.now), T.F2(value.plan), S2(value.diff), S2(value.diffPct)) })
+  elseif err then
+    Add(diffBlocks, { p = Color(HEX.bad, "A terv értéke most nem számolható: " .. err) })
+  end
+  Add(diffBlocks, { table = { id = "talent.diff", cols = { { "Talent", 0, flex = true }, { "Rang", 70, "RIGHT" }, { "DPS", 70, "RIGHT" }, { "Forrás", 260 } },
+    rows = diffRows, empty = "A terv ugyanaz, mint a mostani talentjeid.", limit = 12 } })
+  Add(out, Section("talent.diff", "A terv a mostanihoz képest", diffBlocks, true, #diffRows))
+
+  -- sharing
+  Add(out, Section("talent.share", "Megosztás szövegként", {
+    { p = "Másold ki a szöveget (kattints bele, Ctrl+C), vagy illessz be egy másik tervet, és nyomd meg a Betöltést.", muted = true },
+    { edit = { text = T.PlanExport(class, pt, ranks), button = "Betöltés", onEnter = function(text)
+      local new, why = T.PlanImport(class, pt, text, total)
+      if not new then return TalentRedraw({ level = "warn", title = "Nem tölthető be:", text = why }) end
+      st.ranks, st.saved = new, nil
+      TalentRedraw({ level = "good", title = "Betöltve:", text = ("%d pont"):format(T.PlanSpent(pt, new)) })
+    end } },
+  }, false))
+  UI.talentMsg = nil
+  UI.status = WowAssistantTalents and ("Talentadat: Wowhead Forever, %s"):format(WowAssistantTalents.fetched or "?") or "nincs talentadat"
+  return out
+end
+
+---------------------------------------------------------------------------
 -- events: keep the open page current
 ---------------------------------------------------------------------------
 local ev = CreateFrame("Frame")
@@ -1929,3 +2312,4 @@ WA.Command("harc", function() UI.Show("combat") end) -- old name
 WA.Command("gear", function() UI.Show("gear") end)
 WA.Command("prof", function() UI.Show("prof") end)
 WA.Command("pet", function() UI.Show("pet") end)
+WA.Command("talentek", function() UI.Show("talent") end, "/wa talentek – a talent-kalkulátor: a fáid, egy terv és minden talent értéke")
