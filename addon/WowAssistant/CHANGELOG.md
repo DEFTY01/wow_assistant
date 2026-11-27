@@ -1,3 +1,12 @@
+## 2.31.0
+
+Specfelismerés: a modell tudja, melyik specben vagy, és kiírja, miből tudja.
+
+- A spec az a talentfa, amelyikben a legtöbb pontod van. Egyenlő pontszámnál a mélyebb talent dönt. Bizonyítékként a fa mély talentjei is látszanak.
+- Vegyes fánál kézzel is választhatsz specet a Harc oldalon, a "Modell a kasztodhoz" szakaszban. Ez a modellre és az enchant-ajánlásra is hat.
+- A Harc oldalon a szakasz címe és első sora, a Felszerelés oldalon a modell első megjegyzése mondja meg, melyik spec szerint számol.
+- A specfüggő részek (Balance druid, a mage fő varázslata, a priest Mind Flayje, a paladin seal-je) mostantól ebből dolgoznak.
+
 ## 2.30.0
 
 Talent-kalkulátor a játékban: új Talentek oldal a /wa ablakban (/wa talentek).

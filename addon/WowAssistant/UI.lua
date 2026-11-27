@@ -1570,15 +1570,15 @@ function UI.pages.combat()
     local class = G.Class()
     local cm = C.CLASS_MODELS[class or ""]
     if cm then
-      local mainTab, pts
-      if G.MainTalentTab then mainTab, pts = G.MainTalentTab() end
+      local spec = G.Spec and G.Spec() or {}
+      local mainTab, pts = spec.tab, spec.tab and (spec.points[spec.tab] or 0) or 0
       local level = UnitLevel and UnitLevel("player") or 0
       local rows5 = {}
       for i, t in ipairs(cm.tabs) do
         local mine = mainTab == i
         rows5[#rows5 + 1] = { (mine and "> " or "") .. cm.name .. " " .. t[1], t[2],
           cm.waystone and "van (szintezési modell)" or "nincs",
-          C.SIM_STATUS_TEXT[t[2]] .. (mine and (" · a te fád (" .. pts .. " pont)") or "") }
+          C.SIM_STATUS_TEXT[t[2]] .. (mine and (" · a modell e szerint számol (" .. pts .. " pont)") or "") }
       end
       local refs = {}
       local function Ref(label, value, from) refs[#refs + 1] = { label, value, from } end
@@ -1605,7 +1605,16 @@ function UI.pages.combat()
         Ref("Démon örökölt AP / spell damage", ("+%d / +%d"):format(math.floor(ap + 0.5), math.floor(sp + 0.5)),
           ("S = max(%d shadow, %d fire) = %d (a játék iskolánkénti értéke már tartalmazza az általános bónuszt); 0,17 × S és 0,10 × S (%s)"):format(shadow, fire, s, C.REF.demonSource))
       end
+      -- WA-030: which spec the model counts for and why; chosen by hand for a mixed build
+      local specButtons = { { label = "Spec: automatikus", width = 140, active = not spec.manual, onClick = function()
+        WA.charDB.spec = nil UI.Refresh() end } }
+      for i, name in ipairs(WA.Model.SPEC_NAMES[class] or {}) do
+        specButtons[#specButtons + 1] = { label = name, width = 110, active = spec.manual and spec.tab == i, onClick = function()
+          WA.charDB.spec = i UI.Refresh() end }
+      end
       local blocks5 = {
+        { p = ("%s %s."):format(Color(HEX.gold, spec.name and ("A modell a(z) %s spec szerint számol:"):format(spec.name) or "Spec:"), spec.from or "–") },
+        { buttons = specButtons },
         { p = ("WoWSims Forever (%s): a %s%s. A motor csak 60-as karaktert épít%s."):format(C.SIM_SOURCE, cm.name,
           cm.shared and (" " .. cm.shared .. " szerint modellezett") or " specjei külön modellek",
           level > 0 and level < 60 and (", ezért a te szinteden (" .. level .. ") nincs szintazonos referencia; a saját mért adataid ettől még használhatók") or ""), muted = true },
@@ -1616,7 +1625,7 @@ function UI.pages.combat()
         blocks5[#blocks5 + 1] = { h = "Referenciafüggvények (a modell bemenetei)" }
         blocks5[#blocks5 + 1] = { table = { id = "combat.refs", cols = { { "Mi", 190 }, { "Érték", 90, "RIGHT" }, { "Miből", 0, flex = true } }, rows = refs } }
       end
-      out[#out + 1] = Section("combat.models", "Modell a kasztodhoz", blocks5, false, #rows5)
+      out[#out + 1] = Section("combat.models", "Modell a kasztodhoz" .. (spec.name and (" · " .. spec.name) or ""), blocks5, false, #rows5)
     end
   end
   if r.cooldowns and #r.cooldowns > 0 then

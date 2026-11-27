@@ -99,19 +99,28 @@ function G.Equipped()
   return equipped, order
 end
 
--- The talent tab with the most points (1-3), nil before the first talent point.
-function G.MainTalentTab()
-  if not GetNumTalentTabs then return nil end
-  local best, bestPts = nil, 0
-  for tab = 1, GetNumTalentTabs() do
-    local pts = 0
-    for i = 1, (GetNumTalents and GetNumTalents(tab) or 0) do
-      local _, _, _, _, rank = GetTalentInfo(tab, i)
-      pts = pts + (tonumber(rank) or 0)
+-- The spec (WA-030, Model.lua M.Spec): the points of every talent tab from the client, the
+-- talents for the proof, and the spec chosen by hand on the Harc page (WA.charDB.spec).
+function G.Spec()
+  local pts, any = {}, false
+  if GetNumTalentTabs then
+    for tab = 1, GetNumTalentTabs() do
+      local p = 0
+      for i = 1, (GetNumTalents and GetNumTalents(tab) or 0) do
+        local _, _, _, _, rank = GetTalentInfo(tab, i)
+        p = p + (tonumber(rank) or 0)
+      end
+      pts[tab], any = p, true
     end
-    if pts > bestPts then best, bestPts = tab, pts end
   end
-  return best, bestPts
+  local tal = G.Talents()
+  return M.Spec(G.Class(), any and pts or nil, tal and tal.list, WA.charDB and WA.charDB.spec)
+end
+
+-- The spec's talent tab (1-3) and its points; nil before the first talent point (unless chosen by hand).
+function G.MainTalentTab()
+  local s = G.Spec()
+  return s.tab, s.tab and (s.points[s.tab] or 0) or 0
 end
 
 -- Talent values the model uses: every talent of every tab with its rank, turned into the model's
@@ -377,6 +386,9 @@ function G.ModelInput()
     input.spHoly = GetSpellBonusDamage and (GetSpellBonusDamage(2) or 0) or 0
     input.tab = (G.MainTalentTab())
   end
+  -- every class gets the spec (WA-030); the models that branch on it read input.tab
+  input.spec = G.Spec()
+  input.tab = input.spec.tab
   return input
 end
 
@@ -424,6 +436,11 @@ function G.Context()
   ctx.ammoId = input.ammoId
   local note = TalentNote(input, ctx)
   if note and ctx.params and ctx.params.notes then ctx.params.notes[#ctx.params.notes + 1] = note end
+  -- WA-030: which spec the model counts for, first among the notes
+  local sp = input.spec
+  if sp and ctx.params and ctx.params.notes then
+    table.insert(ctx.params.notes, 1, ("Spec: %s – %s."):format(sp.name or "nincs még", sp.from or ""))
+  end
   return ctx
 end
 

@@ -361,7 +361,7 @@ end
 ---------------------------------------------------------------------------
 -- The class's own model: HUNTER goes to Hunter.lua, SHAMAN to Shaman.lua, DRUID to Druid.lua,
 -- WARLOCK to Warlock.lua, everything else is the rogue.
-function M.Context(input)
+local function ClassContext(input)
   if input.class == "HUNTER" and WA.Hunter then return WA.Hunter.Context(input) end
   if input.class == "SHAMAN" and WA.Shaman then return WA.Shaman.Context(input) end
   if input.class == "DRUID" and WA.Druid then return WA.Druid.Context(input) end
@@ -371,6 +371,91 @@ function M.Context(input)
   if input.class == "PRIEST" and WA.Priest then return WA.Priest.Context(input) end
   if input.class == "PALADIN" and WA.Paladin then return WA.Paladin.Context(input) end
   return M.RogueContext(input)
+end
+
+-- input.spec (M.Spec) goes with the context, so every page can say which spec the model counts for.
+function M.Context(input)
+  local ctx = ClassContext(input)
+  if ctx then ctx.spec = input.spec end
+  return ctx
+end
+
+---------------------------------------------------------------------------
+-- WA-030: the spec. The talent tree with the most points; on a tie the one with the deeper
+-- talent, then the first. The tree's deep talents (row 5 and below) are named as the proof
+-- (e.g. Mortal Strike, Adrenaline Rush). A spec chosen by hand on the Harc page wins.
+---------------------------------------------------------------------------
+M.SPEC_NAMES = {
+  ROGUE = { "Assassination", "Combat", "Subtlety" }, WARRIOR = { "Arms", "Fury", "Protection" },
+  MAGE = { "Arcane", "Fire", "Frost" }, WARLOCK = { "Affliction", "Demonology", "Destruction" },
+  HUNTER = { "Beast Mastery", "Marksmanship", "Survival" }, SHAMAN = { "Elemental", "Enhancement", "Restoration" },
+  DRUID = { "Balance", "Feral", "Restoration" }, PRIEST = { "Discipline", "Holy", "Shadow" },
+  PALADIN = { "Holy", "Protection", "Retribution" },
+}
+
+-- class; points = { [tab] = points } from the client (nil: counted from list); list = the
+-- talents with their ranks ({ name, tab, rank }); override = the tab chosen by hand.
+-- -> { tab, name, points, keys = { deep talents }, manual, from (why, in Hungarian) }; tab is nil
+--    before the first talent point (the models then use their own default).
+function M.Spec(class, points, list, override)
+  local names = M.SPEC_NAMES[class or ""] or {}
+  local T = WA.Talent
+  local data = T and T.Data(class)
+  local treeTab = {}
+  for _, tr in ipairs(data and data.trees or {}) do treeTab[tr.id] = tr.tab end
+  local count = points == nil
+  local pts = {}
+  for k, v in pairs(points or {}) do pts[k] = v end
+  local deep, keys = {}, {}
+  for _, r in ipairs(list or {}) do
+    if (r.rank or 0) > 0 then
+      local d = T and T.Find(class, r.name)
+      local tab = r.tab or (d and treeTab[d.tree])
+      if tab then
+        if count then pts[tab] = (pts[tab] or 0) + r.rank end
+        local tier = d and d.tier or 0
+        if tier > (deep[tab] or 0) then deep[tab] = tier end
+        if tier >= 5 then
+          keys[tab] = keys[tab] or {}
+          keys[tab][#keys[tab] + 1] = { name = r.name, tier = tier }
+        end
+      end
+    end
+  end
+  local out = { class = class, points = pts, names = names }
+  local best, tie
+  for tab = 1, #names do
+    local p = pts[tab] or 0
+    if p > 0 then
+      if not best or p > pts[best] then best, tie = tab, false
+      elseif p == pts[best] then
+        tie = true
+        if (deep[tab] or 0) > (deep[best] or 0) then best = tab end
+      end
+    end
+  end
+  if override and names[override] then
+    out.tab, out.manual = override, true
+  else
+    out.tab = best
+  end
+  if not out.tab then
+    out.from = "még nincs talentpontod: a modell a kaszt alapértelmezése szerint számol"
+    return out
+  end
+  out.name = names[out.tab]
+  local k = keys[out.tab] or {}
+  table.sort(k, function(a, b) if a.tier ~= b.tier then return a.tier > b.tier end return a.name < b.name end)
+  out.keys = {}
+  for i = 1, math.min(2, #k) do out.keys[i] = k[i].name end
+  if out.manual then
+    out.from = ("kézzel választva a Harc oldalon (a talentjeid szerint: %s)"):format(best and names[best] or "nincs még")
+  else
+    out.from = ("a legtöbb pontod (%d) a(z) %s fában van%s%s"):format(pts[out.tab], out.name,
+      #out.keys > 0 and (", és megvan: " .. table.concat(out.keys, ", ")) or "",
+      tie and " (egyenlő pontszám: a mélyebb talent döntött)" or "")
+  end
+  return out
 end
 
 -- Fields every class's context has besides its numbers: what it can use, which slots an item
