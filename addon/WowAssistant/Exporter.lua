@@ -60,13 +60,21 @@ local function ScanBags(bags)
 end
 
 local function ScanInventory()
-  char.bags = ScanBags({ 0, 1, 2, 3, 4 })
+  local bags = { 0, 1, 2, 3, 4 }
+  -- the reagent bag (retail engine) holds items too
+  local reagent = Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag
+  if type(reagent) == "number" and reagent > 4 then bags[#bags + 1] = reagent end
+  char.bags = ScanBags(bags)
   char.bagsAt = time()
 end
 
 local function ScanBank()
   local bags = { BANK_CONTAINER or -1 }
-  local first = (NUM_BAG_SLOTS or 4) + 1
+  -- bank bags come after every bag the character wears (the reagent bag included)
+  local last = NUM_TOTAL_EQUIPPED_BAG_SLOTS or NUM_BAG_SLOTS or 4
+  local reagent = Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag
+  if type(reagent) == "number" and reagent > last then last = reagent end
+  local first = last + 1
   for bag = first, first + (NUM_BANKBAGSLOTS or 6) - 1 do bags[#bags + 1] = bag end
   char.bank = ScanBags(bags)
   char.bankAt = time()
@@ -465,11 +473,11 @@ local function FinishFull()
   for _ in pairs(f.prices) do priced = priced + 1 end
   local note = f.closed and (L"the auction house closed, partial") or nil
   if WowAssistantVC and f.books then WowAssistantVC.SetBooks(f.books, time()) end
-  if WA.Flip then WA.Flip.Finish(time()) end
+  if WA.Flip then WA.Flip.Finish(time(), f.closed or (f.blanks or 0) > 0) end
   char.ah = {
     at = time(), mode = "full", note = note, items = f.items,
     prices = f.prices, qty = f.qty, pricesAt = time(),
-    dbg = { auctions = f.n, read = f.i, priced = priced, gear = #f.items, unresolved = f.unresolved or 0,
+    dbg = { auctions = f.n, read = f.i, priced = priced, gear = #f.items, unresolved = f.unresolved or 0, blank = f.blanks or 0,
       seconds = math.floor(Now() - f.t0 + 0.5) },
   }
   Announce(string.format(L"Full AH scan done in %d s: %d auctions, %d item prices, %d gear items%s. Save: /wa save",
@@ -538,55 +546,105 @@ local function ResolvePending(tries)
   StartDetails()
 end
 
+local function Plain(v)
+  if issecretvalue and issecretvalue(v) then return nil end
+  return v
+end
+
+-- One auction of the downloaded list; false when its row is still blank (the client fills
+-- such rows in a moment later).
+local function ReadAuction(i)
+  local AH = C_AuctionHouse
+  local _, _, count, _, _, reqLevel, _, _, _, buyout, _, _, _, owner, _, _, itemID, hasAll = AH.GetReplicateItemInfo(i)
+  itemID, buyout, count, reqLevel, owner = Plain(itemID), Plain(buyout), Plain(count), Plain(reqLevel), Plain(owner)
+  if type(itemID) ~= "number" then return false end
+  if type(buyout) ~= "number" or buyout <= 0 then return true end -- bid only
+  -- the AH → vendor list (Flip.lua) gets every auction, and leaves your own out itself
+  if WA.Flip then WA.Flip.Add(itemID, buyout, count, owner, i, hasAll) end
+  -- Your own auctions cannot be bought: they are left out of the prices you could pay.
+  if WA.Flip and WA.Flip.IsMine(owner) then return true end
+  count = (type(count) == "number" and count > 0) and count or 1
+  local unit = math.floor(buyout / count)
+  local p = full.prices[itemID]
+  if not p or unit < p then full.prices[itemID] = unit end
+  full.qty[itemID] = (full.qty[itemID] or 0) + count
+  -- Every listing of a crafting reagent, for the vendor-craft calculator (VendorCraft.lua).
+  -- Reagents stack, so they are commodities and can be bought in any amount.
+  if WowAssistantVC and WowAssistantVC.reagents[itemID] then
+    local b = full.books[itemID]
+    if not b then b = {} full.books[itemID] = b end
+    b[#b + 1] = { buyout / count, count, 0 }
+  end
+  local level = full.level
+  local slot, cls, sub = Equip(itemID)
+  if slot and (type(reqLevel) ~= "number" or reqLevel == 0 or (reqLevel >= level - 8 and reqLevel <= level + 4)) then
+    local rec = { id = itemID, buyout = buyout, count = count, slot = slot, cls = cls, sub = sub, idx = i }
+    local link = hasAll and Plain(AH.GetReplicateItemLink(i))
+    if type(link) == "string" then AddGear(rec, link) else full.pending[#full.pending + 1] = rec end
+  end
+  return true
+end
+
+-- Rows that were blank in the first pass, read again while the list is still there.
+local function BlankPass(tries)
+  if not full then return end
+  local still = {}
+  if not full.closed then
+    for _, i in ipairs(full.blank) do
+      if not ReadAuction(i) then still[#still + 1] = i end
+    end
+  end
+  full.blank = still
+  if #still > 0 and tries < 3 and not full.closed then
+    Later(function() BlankPass(tries + 1) end, 2)
+    return
+  end
+  full.blanks = #still
+  full.phase = "pending"
+  ResolvePending(0)
+end
+
 -- Read the downloaded list in chunks. Replicate indices start at 0.
 local function ScanStep()
   if not full then return end
   local AH = C_AuctionHouse
+  -- the list can still grow after its first event
+  local now = not full.closed and Plain(AH.GetNumReplicateItems()) or 0
+  if type(now) == "number" and now > full.n then full.n = now end
   local stop = full.closed and full.i or math.min(full.n, full.i + SCAN_CHUNK)
-  local level = full.level
   for i = full.i, stop - 1 do
-    local _, _, count, _, _, reqLevel, _, _, _, buyout, _, _, _, owner, _, _, itemID, hasAll = AH.GetReplicateItemInfo(i)
-    -- Your own auctions cannot be bought: they are left out of the prices you could pay.
-    local mine = WA.Flip and WA.Flip.IsMine(owner)
-    if itemID and buyout and buyout > 0 and WA.Flip then WA.Flip.Add(itemID, buyout, count, owner) end
-    if itemID and buyout and buyout > 0 and not mine then
-      count = (count and count > 0) and count or 1
-      local unit = math.floor(buyout / count)
-      local p = full.prices[itemID]
-      if not p or unit < p then full.prices[itemID] = unit end
-      full.qty[itemID] = (full.qty[itemID] or 0) + count
-      -- Every listing of a crafting reagent, for the vendor-craft calculator (VendorCraft.lua).
-      -- Reagents stack, so they are commodities and can be bought in any amount.
-      if WowAssistantVC and WowAssistantVC.reagents[itemID] then
-        local b = full.books[itemID]
-        if not b then b = {} full.books[itemID] = b end
-        b[#b + 1] = { buyout / count, count, 0 }
-      end
-      local slot, cls, sub = Equip(itemID)
-      if slot and (not reqLevel or reqLevel == 0 or (reqLevel >= level - 8 and reqLevel <= level + 4)) then
-        local rec = { id = itemID, buyout = buyout, count = count, slot = slot, cls = cls, sub = sub, idx = i }
-        local link = hasAll and AH.GetReplicateItemLink(i)
-        if link then AddGear(rec, link) else full.pending[#full.pending + 1] = rec end
-      end
-    end
+    if not ReadAuction(i) then full.blank[#full.blank + 1] = i end
   end
   full.i = stop
   if stop < full.n and not full.closed then
     if full.i % 40000 < SCAN_CHUNK then Print(string.format(L"AH: %d / %d auctions processed", full.i, full.n)) end
     Later(ScanStep)
   else
-    full.phase = "pending"
-    ResolvePending(0)
+    BlankPass(0)
   end
+end
+
+-- The list arrives in parts: the scan starts once its size held still for a second (10 s at most).
+local function Settle(last, still)
+  if not full or full.phase ~= "settle" then return end
+  local n = Plain(C_AuctionHouse.GetNumReplicateItems()) or 0
+  if full.closed then return end
+  still = (n == last and n > 0) and still + 1 or 0
+  if still < 2 and Now() - full.settleT < 10 then
+    Later(function() Settle(n, still) end, 0.5)
+    return
+  end
+  full.phase, full.n = "scan", n
+  Announce(string.format(L"AH: %d auctions arrived (%d s), processing...", n, math.floor(Now() - full.t0 + 0.5)))
+  ScanStep()
 end
 
 local function OnReplicateList()
   if not full or full.phase ~= "wait" then return end
-  local n = C_AuctionHouse.GetNumReplicateItems() or 0
+  local n = Plain(C_AuctionHouse.GetNumReplicateItems()) or 0
   if n == 0 then return end
-  full.phase, full.n = "scan", n
-  Announce(string.format(L"AH: %d auctions arrived (%d s), processing...", n, math.floor(Now() - full.t0 + 0.5)))
-  ScanStep()
+  full.phase, full.settleT = "settle", Now()
+  Settle(n, 0)
 end
 
 local function StartFullScan()
@@ -601,7 +659,7 @@ local function StartFullScan()
     return
   end
   full = { phase = "wait", level = UnitLevel("player"), prices = {}, qty = {}, gear = {}, pending = {}, items = {}, books = {},
-    i = 0, n = 0, t0 = Now() }
+    blank = {}, i = 0, n = 0, t0 = Now() }
   WA.db.lastFullScan = time()
   if WA.Flip then WA.Flip.Begin() end
   C_AuctionHouse.ReplicateItems()
@@ -617,7 +675,7 @@ end
 
 local function OnAuctionClosed()
   if full then
-    if full.phase == "wait" then
+    if full.phase == "wait" or full.phase == "settle" then
       full = nil
       Print(L"Full AH scan interrupted: you closed the auction house.")
     else

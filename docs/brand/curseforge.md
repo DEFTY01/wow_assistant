@@ -70,10 +70,13 @@ Which craft brings the most gold when you sell it to a vendor?
 
 ### AH → vendor: auctions below the merchant price
 - One full auction house scan finds every auction that sells for less than a merchant pays for it.
-  Buying on the auction house has no fee, so the profit shown is exact.
+  Buying on the auction house has no fee, so the profit shown is exact. Gear is priced by its own
+  link, random-suffix variants included.
 - Click an item: it is searched again, and **Buy** takes only what is still there and still pays,
-  one click per purchase, never more than your gold covers.
-- At a merchant, **Sell AH buys** sells exactly the stacks you bought this way.
+  one click per purchase, never more than your gold covers. Stackable items are bought only at the
+  total the game quoted and you confirmed.
+- At a merchant, **Sell AH buys** sells exactly the stacks you bought this way. Your result counts
+  only what you really sold.
 
 ### Professions
 - The cheapest route to the next skill cap, with a shopping list.

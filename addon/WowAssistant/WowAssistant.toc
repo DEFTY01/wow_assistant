@@ -40,6 +40,7 @@ Game.lua
 Talent.lua
 Rotation.lua
 Meter.lua
+AHLine.lua
 VendorCraft.lua
 Flip.lua
 Session.lua

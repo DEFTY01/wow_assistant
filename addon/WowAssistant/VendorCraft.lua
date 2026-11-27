@@ -129,31 +129,20 @@ local function UpdateBook(id, list, complete)
   if VC.Refresh then VC.Refresh() end
 end
 
-local function OnCommodityResults(itemID)
-  if not VC.reagents[itemID] then return end
-  local AH = C_AuctionHouse
+-- One live search's answer (AHLine.lua). Your own units cannot be bought. An item row is a set of
+-- like auctions, one item each, at the row's buyout (the price of ONE).
+local function OnLive(id, res)
+  if not res or not VC.reagents[id] then return end
   local list = {}
-  for i = 1, AH.GetNumCommoditySearchResults(itemID) or 0 do
-    local r = AH.GetCommoditySearchResultInfo(itemID, i)
-    -- your own units cannot be bought
-    local qty = r and r.quantity and (r.quantity - (r.numOwnerItems or 0))
-    if r and r.unitPrice and r.unitPrice > 0 and qty and qty > 0 then list[#list + 1] = { r.unitPrice, qty, 0 } end
-  end
-  UpdateBook(itemID, list, AH.HasFullCommoditySearchResults and AH.HasFullCommoditySearchResults(itemID))
-end
-
-local function OnItemResults(itemKey)
-  if not itemKey or not VC.reagents[itemKey.itemID] then return end
-  local AH = C_AuctionHouse
-  local list = {}
-  for i = 1, AH.GetNumItemSearchResults(itemKey) or 0 do
-    local r = AH.GetItemSearchResultInfo(itemKey, i)
-    local qty = r and r.quantity or 1
-    if r and r.buyoutAmount and r.buyoutAmount > 0 and not r.containsOwnerItem then
-      list[#list + 1] = { r.buyoutAmount / qty, qty, qty > 1 and 1 or 0 }
+  for _, r in ipairs(res.rows) do
+    if res.commodity then
+      local qty = r.qty - r.own
+      if r.unit > 0 and qty > 0 then list[#list + 1] = { r.unit, qty, 0 } end
+    elseif r.buyout and not r.own then
+      list[#list + 1] = { r.buyout, r.qty, 0 }
     end
   end
-  UpdateBook(itemKey.itemID, list, AH.HasFullItemSearchResults and AH.HasFullItemSearchResults(itemKey))
+  UpdateBook(id, list, res.full)
 end
 
 -- Quantity-weighted average, ignoring listings over 3x the median.
@@ -461,33 +450,17 @@ end
 ---------------------------------------------------------------------------
 -- live price requests ("Árak frissítése")
 ---------------------------------------------------------------------------
-local queue, waiting = {}, nil
-
-local function AHOpen() return AuctionHouseFrame and AuctionHouseFrame:IsShown() end
-
-local function SendNext()
-  if waiting or #queue == 0 or not AHOpen() then return end
-  local AH = C_AuctionHouse
-  if AH.IsThrottledMessageSystemReady and not AH.IsThrottledMessageSystemReady() then return end
-  local id = table.remove(queue, 1)
-  waiting = id
-  local sorts = { { sortOrder = Enum.AuctionHouseSortOrder.Price, reverseSort = false } }
-  local ok = pcall(AH.SendSearchQuery, AH.MakeItemKey(id), sorts, true)
-  if not ok then waiting = nil end
-  C_Timer.After(3, function() if waiting == id then waiting = nil SendNext() end end)
-end
+local function AHOpen() return WA.AHLine and WA.AHLine.IsOpen() end
 
 function VC.RequestPrices(ids, quiet)
   if not AHOpen() then
     if not quiet then Print(L"Open the auction house for live prices.") end
     return
   end
-  local queued = {}
-  for _, id in ipairs(queue) do queued[id] = true end
+  -- background searches: one at a time, after anything the player clicked
   for _, id in ipairs(ids) do
-    if not queued[id] and id ~= waiting then queue[#queue + 1] = id queued[id] = true end
+    WA.AHLine.Search(id, function(res) OnLive(id, res) end)
   end
-  SendNext()
 end
 
 -- Live prices for the reagents of the best crafts of every profession, whatever the filter
@@ -537,13 +510,6 @@ function VC.RefreshTop(quiet)
     end
   end
   return #ids, profs, crafts
-end
-
-local function Received(id)
-  if waiting == id then
-    waiting = nil
-    C_Timer.After(0.2, SendNext)
-  end
 end
 
 ---------------------------------------------------------------------------
@@ -915,7 +881,7 @@ function VC.Toggle()
   frame.qtyBox:SetText(VC.filter.qty and tostring(VC.filter.qty) or "")
   frame.qtyBox.setting = false
   frame:ClearAllPoints()
-  if AHOpen() then frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 4, 0) else frame:SetPoint("CENTER") end
+  if AHOpen() and AuctionHouseFrame then frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 4, 0) else frame:SetPoint("CENTER") end
   dirty = true
   frame:Show()
   VC.Refresh()
@@ -935,17 +901,7 @@ end
 
 local ahButton
 ev:SetScript("OnEvent", function(_, event, ...)
-  if event == "COMMODITY_SEARCH_RESULTS_UPDATED" then
-    local id = ...
-    pcall(OnCommodityResults, id)
-    Received(id)
-  elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
-    local key = ...
-    pcall(OnItemResults, key)
-    if key then Received(key.itemID) end
-  elseif event == "AUCTION_HOUSE_THROTTLED_SYSTEM_READY" then
-    SendNext()
-  elseif event == "AUCTION_HOUSE_SHOW" then
+  if event == "AUCTION_HOUSE_SHOW" then
     if not ahButton and AuctionHouseFrame then
       ahButton = CreateFrame("Button", nil, AuctionHouseFrame, "UIPanelButtonTemplate")
       ahButton:SetSize(130, 22)
@@ -957,10 +913,10 @@ ev:SetScript("OnEvent", function(_, event, ...)
       frame:ClearAllPoints()
       frame:SetPoint("TOPLEFT", AuctionHouseFrame, "TOPRIGHT", 4, 0)
       VC.Refresh()
-      VC.RefreshTop(true)
+      -- after the game's own first searches (and once the line knows the house is open)
+      C_Timer.After(0.5, function() if AHOpen() then VC.RefreshTop(true) end end)
     end
   elseif event == "AUCTION_HOUSE_CLOSED" then
-    queue, waiting = {}, nil
     if frame and frame:IsShown() then VC.Refresh() end
   elseif event == "TRADE_SKILL_SHOW" or event == "TRADE_SKILL_LIST_UPDATE" or event == "TRADE_SKILL_UPDATE" then
     pcall(ScanKnown)
@@ -972,8 +928,7 @@ ev:SetScript("OnEvent", function(_, event, ...)
     dirty = true
   end
 end)
-for _, e in ipairs({ "COMMODITY_SEARCH_RESULTS_UPDATED", "ITEM_SEARCH_RESULTS_UPDATED", "AUCTION_HOUSE_THROTTLED_SYSTEM_READY",
-  "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_UPDATE",
+for _, e in ipairs({ "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_UPDATE",
   "CRAFT_SHOW", "CRAFT_UPDATE", "GET_ITEM_INFO_RECEIVED", "SKILL_LINES_CHANGED" }) do
   pcall(ev.RegisterEvent, ev, e)
 end
