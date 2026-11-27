@@ -1,3 +1,13 @@
+## 2.37.0
+
+AH → vendor: auctions that sell for less than a merchant pays for them.
+
+- **New window, AH → vendor** (`/wa flip`, or the button at the auction house). The full auction house scan (`/wa ah`) now compares every auction with the merchant price the game client reports, and lists the ones you can buy and sell to any merchant at a profit. Buying on the auction house has no fee, so the profit is exact.
+- Items the client had not loaded during the scan are loaded afterwards and checked too. Items no merchant buys are left out.
+- **Buying with one click each**: click an item and it is searched again on the auction house. Buy takes only the auctions that are still there and still pay, and only as many as your gold covers. For stackable items the game quotes its final price first: Waystone confirms it only while it still pays, otherwise it cancels.
+- **Selling**: bought items arrive in your mailbox. At a merchant, the "Sell AH buys" button sells exactly the stacks you bought this way, at most 12 at a time, so the buyback tab can undo them. The window keeps a tally of what you spent and earned.
+- **Vendor crafting, more accurate**: your own auctions are no longer counted as materials you could buy, in the scan and in live prices. An orange * marks a cost whose AH price is over an hour old, and the shopping list says how old each price is. When the materials cost more than your gold, it says how many crafts you can pay for.
+
 ## 2.36.0
 
 Waystone now speaks English, and you can switch it to Hungarian.

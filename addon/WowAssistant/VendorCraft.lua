@@ -135,7 +135,9 @@ local function OnCommodityResults(itemID)
   local list = {}
   for i = 1, AH.GetNumCommoditySearchResults(itemID) or 0 do
     local r = AH.GetCommoditySearchResultInfo(itemID, i)
-    if r and r.unitPrice and r.unitPrice > 0 and r.quantity then list[#list + 1] = { r.unitPrice, r.quantity, 0 } end
+    -- your own units cannot be bought
+    local qty = r and r.quantity and (r.quantity - (r.numOwnerItems or 0))
+    if r and r.unitPrice and r.unitPrice > 0 and qty and qty > 0 then list[#list + 1] = { r.unitPrice, qty, 0 } end
   end
   UpdateBook(itemID, list, AH.HasFullCommoditySearchResults and AH.HasFullCommoditySearchResults(itemID))
 end
@@ -147,7 +149,7 @@ local function OnItemResults(itemKey)
   for i = 1, AH.GetNumItemSearchResults(itemKey) or 0 do
     local r = AH.GetItemSearchResultInfo(itemKey, i)
     local qty = r and r.quantity or 1
-    if r and r.buyoutAmount and r.buyoutAmount > 0 then
+    if r and r.buyoutAmount and r.buyoutAmount > 0 and not r.containsOwnerItem then
       list[#list + 1] = { r.buyoutAmount / qty, qty, qty > 1 and 1 or 0 }
     end
   end
@@ -275,6 +277,41 @@ local function CostOf(reag, crafts)
   return crafts, spent, first, buyers
 end
 
+-- When the AH prices a craft uses were seen: the oldest of the reagents bought on the AH (a live
+-- search, or the scan / the web app's data). nil when everything comes from a merchant.
+local STALE = 3600
+local function PricesAt(reag, buyers)
+  local m = Market()
+  local oldest
+  for k, B in ipairs(buyers or {}) do
+    if B.ahUnits > 0 then
+      local t = m.live[reag[k * 2 - 1]] or m.at
+      if t and (not oldest or t < oldest) then oldest = t end
+    end
+  end
+  return oldest
+end
+VC.STALE = STALE
+
+-- How many of `crafts` your gold pays for, cheapest listings first.
+local function Affordable(reag, crafts, money)
+  local buyers = {}
+  for i = 1, #reag, 2 do buyers[#buyers + 1] = NewBuyer(reag[i]) end
+  local spent = 0
+  for n = 1, crafts do
+    local c = 0
+    for k, B in ipairs(buyers) do
+      local x = Take(B, reag[k * 2])
+      if not x then return n - 1 end
+      c = c + x
+    end
+    if spent + c > money then return n - 1 end
+    spent = spent + c
+  end
+  return crafts
+end
+VC.Affordable = Affordable
+
 -- Your professions and skill (Game.lua: skill lines or the profession API, whichever the client has).
 local function MyProfessions()
   local mine = {}
@@ -314,14 +351,14 @@ local function Compute()
     end
     if pass then
       local income = each * r.min
-      local made, profit, cost, first
+      local made, profit, cost, first, buyers
       local want = f.qty and math.max(1, math.min(MAX_CRAFTS, f.qty)) or nil
       if r.cd > 0 then want = want and 1 end
       if want then
-        made, cost, first = CostOf(r.reagents, want)
+        made, cost, first, buyers = CostOf(r.reagents, want)
         profit = income * made - cost
       else
-        made, profit, cost, first = Simulate(r.reagents, income, r.cd > 0 and 1 or MAX_CRAFTS, true)
+        made, profit, cost, first, buyers = Simulate(r.reagents, income, r.cd > 0 and 1 or MAX_CRAFTS, true)
       end
       if not first then
         unpriced = unpriced + 1
@@ -353,6 +390,7 @@ local function Compute()
             costEach = cost / items, gainEach = profit / items, product = ItemName(r.product),
             capped = not want and r.cd == 0 and made >= MAX_CRAFTS,
             short = want and made < want,
+            pricesAt = PricesAt(r.reagents, buyers),
           }
         end
       end
@@ -534,7 +572,7 @@ local COLS = WA.LR {
   { L"Recipe", 222, "LEFT", L"The recipe, the profession and where you learn it." },
   { L"Product", 150, "LEFT", L"What you craft and sell." },
   { L"Vendor / ea", 70, "RIGHT", L"What the merchant pays for one (the game's own data)." },
-  { L"Cost / ea", 74, "RIGHT", L"The materials' price for one, from the cheapest AH listings upward." },
+  { L"Cost / ea", 74, "RIGHT", L"The materials' price for one, from the cheapest AH listings upward, without your own auctions. Orange *: the AH price is over an hour old." },
   { L"Profit / ea", 72, "RIGHT", L"Vendor price minus cost, per item." },
   { L"Qty", 52, "RIGHT", L"How many you sell. Orange: the AH supply covers only this many." },
   { L"Sale", 80, "RIGHT", L"What the merchant pays for all of it." },
@@ -746,7 +784,7 @@ local function Build()
   f.note:SetPoint("BOTTOMLEFT", inset, St.Wow() and 16 or 8)
   f.note:SetPoint("RIGHT", -inset, 0)
   f.note:SetJustifyH("LEFT")
-  f.note:SetText(L"Type how many times you craft, and every row counts with that. Best batch: per recipe, as many as still make a profit from the cheapest listings. Shift + –/+: by tens. Click a row for the shopping list.")
+  f.note:SetText(L"Type how many times you craft, and every row counts with that. Best batch: per recipe, as many as still make a profit from the cheapest listings. Shift + –/+: by tens. Click a row for the shopping list. Orange *: the price is over an hour old. No fees: the AH buyout is all you pay, and the merchant pays the full price.")
   f:Hide()
   return f
 end
@@ -770,8 +808,22 @@ local function Detail(res)
       if B.vUnits > 0 then parts[#parts + 1] = (L"merchant: %d items, %s"):format(B.vUnits, Coins(B.vCost)) end
       if B.held > 0 then parts[#parts + 1] = (L"%d left over"):format(B.held) end
       local live = Market().live[id]
-      lines[#lines + 1] = ("  %s: %s%s"):format(ItemName(id), table.concat(parts, " · "),
-        live and (L" |cff66ccff(live price " .. date("%H:%M", live) .. ")|r") or "")
+      local seen = ""
+      if live then
+        seen = L" |cff66ccff(live price " .. date("%H:%M", live) .. ")|r"
+      elseif B.ahUnits > 0 and Market().at then
+        local age = time() - Market().at
+        seen = (age > STALE and " |cffff9933" or " |cff9e917a") .. (L"(AH data %s, %d min old)"):format(date("%H:%M", Market().at), math.floor(age / 60)) .. "|r"
+      end
+      lines[#lines + 1] = ("  %s: %s%s"):format(ItemName(id), table.concat(parts, " · "), seen)
+    end
+    local money = GetMoney and GetMoney() or 0
+    if res.cost > money then
+      lines[#lines + 1] = (L"|cffff9933You have %s: it pays for %d of the %d crafts.|r"):format(Coins(money),
+        Affordable(r.reagents, res.crafts, money), res.crafts)
+    end
+    if res.pricesAt and time() - res.pricesAt > STALE then
+      lines[#lines + 1] = L"|cffff9933The prices are over an hour old: the cheapest listings may be gone. Refresh prices before buying.|r"
     end
   else
     lines[2] = L"With the cheapest materials listed now it makes no profit, only at the average price."
@@ -825,7 +877,8 @@ function VC.Refresh()
       c[1]:SetText(r.name .. " |cff888888" .. (R.professions[r.prof] or "") .. " " .. r.orange .. " · " .. res.status .. "|r")
       c[2]:SetText(res.product .. (r.min > 1 and (" |cff888888×" .. r.min .. "|r") or ""))
       c[3]:SetText(Short(res.each) .. (res.exact and "" or "|cffff9933?|r"))
-      c[4]:SetText(Short(res.costEach))
+      local stale = res.pricesAt and time() - res.pricesAt > STALE
+      c[4]:SetText(Short(res.costEach) .. (stale and "|cffff9933*|r" or ""))
       c[5]:SetText(Signed(res.gainEach))
       c[6]:SetText((res.short and "|cffff9933" or "") .. res.items .. (res.capped and "+" or "") .. (res.short and "|r" or ""))
       c[7]:SetText(Short(res.income))

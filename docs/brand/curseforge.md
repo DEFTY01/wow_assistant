@@ -66,6 +66,14 @@ Which craft brings the most gold when you sell it to a vendor?
 - Prices come from **live auction house listings**: open the window at the auction house and it checks
   the reagents of the 10 best crafts of **every profession**.
 - Vendor sell prices come straight from the game client, so they are always exact.
+- Your own auctions are left out, and prices older than an hour are marked.
+
+### AH → vendor: auctions below the merchant price
+- One full auction house scan finds every auction that sells for less than a merchant pays for it.
+  Buying on the auction house has no fee, so the profit shown is exact.
+- Click an item: it is searched again, and **Buy** takes only what is still there and still pays,
+  one click per purchase, never more than your gold covers.
+- At a merchant, **Sell AH buys** sells exactly the stacks you bought this way.
 
 ### Professions
 - The cheapest route to the next skill cap, with a shopping list.
@@ -99,6 +107,7 @@ A journal of your character's milestones week by week, with an optional weekly g
 | `/wa plan`, `/wa combat`, `/wa gear`, `/wa prof`, `/wa pet` | Open one page |
 | `/wa talents` | Talent calculator |
 | `/wa vendor` | Vendor crafting |
+| `/wa flip` | AH → vendor: auctions below the merchant price |
 | `/wa ah` | Full auction house scan (at the auction house) |
 | `/wa log` | Combat log on or off |
 | `/wa sbar ...` | Session bar: goal, advice, zones, summary, history, lock, scale, hide, show |

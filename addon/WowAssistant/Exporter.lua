@@ -164,6 +164,9 @@ local function ScanApi()
     loggingCombat = LoggingCombat ~= nil,
     auctionBrowse = C_AuctionHouse ~= nil and C_AuctionHouse.SendBrowseQuery ~= nil,
     auctionReplicate = C_AuctionHouse ~= nil and C_AuctionHouse.ReplicateItems ~= nil,
+    auctionBuy = C_AuctionHouse ~= nil and C_AuctionHouse.PlaceBid ~= nil,
+    commodityBuy = C_AuctionHouse ~= nil and C_AuctionHouse.StartCommoditiesPurchase ~= nil
+      and C_AuctionHouse.ConfirmCommoditiesPurchase ~= nil,
     itemStats = (C_Item ~= nil and C_Item.GetItemStats ~= nil) or GetItemStats ~= nil,
     tooltipInfo = C_TooltipInfo ~= nil and C_TooltipInfo.GetHyperlink ~= nil,
   }
@@ -462,6 +465,7 @@ local function FinishFull()
   for _ in pairs(f.prices) do priced = priced + 1 end
   local note = f.closed and (L"the auction house closed, partial") or nil
   if WowAssistantVC and f.books then WowAssistantVC.SetBooks(f.books, time()) end
+  if WA.Flip then WA.Flip.Finish(time()) end
   char.ah = {
     at = time(), mode = "full", note = note, items = f.items,
     prices = f.prices, qty = f.qty, pricesAt = time(),
@@ -541,8 +545,11 @@ local function ScanStep()
   local stop = full.closed and full.i or math.min(full.n, full.i + SCAN_CHUNK)
   local level = full.level
   for i = full.i, stop - 1 do
-    local _, _, count, _, _, reqLevel, _, _, _, buyout, _, _, _, _, _, _, itemID, hasAll = AH.GetReplicateItemInfo(i)
-    if itemID and buyout and buyout > 0 then
+    local _, _, count, _, _, reqLevel, _, _, _, buyout, _, _, _, owner, _, _, itemID, hasAll = AH.GetReplicateItemInfo(i)
+    -- Your own auctions cannot be bought: they are left out of the prices you could pay.
+    local mine = WA.Flip and WA.Flip.IsMine(owner)
+    if itemID and buyout and buyout > 0 and WA.Flip then WA.Flip.Add(itemID, buyout, count, owner) end
+    if itemID and buyout and buyout > 0 and not mine then
       count = (count and count > 0) and count or 1
       local unit = math.floor(buyout / count)
       local p = full.prices[itemID]
@@ -596,6 +603,7 @@ local function StartFullScan()
   full = { phase = "wait", level = UnitLevel("player"), prices = {}, qty = {}, gear = {}, pending = {}, items = {}, books = {},
     i = 0, n = 0, t0 = Now() }
   WA.db.lastFullScan = time()
+  if WA.Flip then WA.Flip.Begin() end
   C_AuctionHouse.ReplicateItems()
   Announce(L"Full AH scan: downloading every auction... Keep the auction house open.")
   -- The server sends nothing while the 15-minute cooldown runs (also after a scan by another addon).
