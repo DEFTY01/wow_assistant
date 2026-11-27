@@ -2,7 +2,7 @@
 
 | Fázis | Méret | Prioritás | Típus | Állapot |
 |---|---|---|---|---|
-| 5. Referencia, szabályok, webapp | M | közepes | szabály | nyitott |
+| 6. Referencia, szabályok, webapp | M | közepes | szabály | nyitott |
 
 **Előfeltétel:** [WA-005](WA-005-aura-idovonal.md), [WA-006](WA-006-rotacio-keret.md)  
 **Erre épül:** nincs

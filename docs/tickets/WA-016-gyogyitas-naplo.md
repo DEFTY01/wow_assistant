@@ -2,7 +2,7 @@
 
 | Fázis | Méret | Prioritás | Típus | Állapot |
 |---|---|---|---|---|
-| 3. Gyógyítás | M | közepes | adat | nyitott |
+| 4. Gyógyítás | M | közepes | adat | nyitott |
 
 **Előfeltétel:** nincs  
 **Erre épül:** [WA-017](WA-017-gyogyito-keret.md)

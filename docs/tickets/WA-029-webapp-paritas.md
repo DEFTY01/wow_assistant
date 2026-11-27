@@ -2,7 +2,7 @@
 
 | Fázis | Méret | Prioritás | Típus | Állapot |
 |---|---|---|---|---|
-| 5. Referencia, szabályok, webapp | M | alacsony | döntés | nyitott |
+| 6. Referencia, szabályok, webapp | M | alacsony | döntés | nyitott |
 
 **Előfeltétel:** nincs  
 **Erre épül:** nincs

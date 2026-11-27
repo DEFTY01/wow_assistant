@@ -2,9 +2,9 @@
 
 | Fázis | Méret | Prioritás | Típus | Állapot |
 |---|---|---|---|---|
-| 2. Rotációs javaslatok | M | közepes | új funkció | nyitott |
+| 3. Rotációs javaslatok | M | közepes | új funkció | nyitott |
 
-**Előfeltétel:** [WA-006](WA-006-rotacio-keret.md)  
+**Előfeltétel:** [WA-006](WA-006-rotacio-keret.md), [WA-032e](WA-032e-talent-hunter.md)  
 **Erre épül:** nincs
 
 ## Cél

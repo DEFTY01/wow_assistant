@@ -2,9 +2,9 @@
 
 | Fázis | Méret | Prioritás | Típus | Állapot |
 |---|---|---|---|---|
-| 4. Tankolás | L | alacsony | új funkció | nyitott |
+| 5. Tankolás | L | alacsony | új funkció | nyitott |
 
-**Előfeltétel:** [WA-022](WA-022-tank-naplo.md)  
+**Előfeltétel:** [WA-022](WA-022-tank-naplo.md), [WA-032](WA-032-talent-hatas-keret.md)  
 **Erre épül:** [WA-024](WA-024-tank-warrior.md), [WA-025](WA-025-tank-paladin.md), [WA-026](WA-026-tank-druid.md)
 
 ## Cél

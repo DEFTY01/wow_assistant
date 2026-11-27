@@ -2,9 +2,9 @@
 
 | Fázis | Méret | Prioritás | Típus | Állapot |
 |---|---|---|---|---|
-| 1. Alapok (adat, kalibráció, spec) | M | magas | modell | nyitott |
+| 2. Talentek és spec | M | magas | modell | nyitott |
 
-**Előfeltétel:** nincs  
+**Előfeltétel:** [WA-031](WA-031-talent-adatok.md)  
 **Erre épül:** [WA-006](WA-006-rotacio-keret.md)
 
 ## Cél

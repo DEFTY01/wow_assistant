@@ -2,7 +2,7 @@
 
 | Fázis | Méret | Prioritás | Típus | Állapot |
 |---|---|---|---|---|
-| 2. Rotációs javaslatok | L | magas | új funkció | nyitott |
+| 3. Rotációs javaslatok | L | magas | új funkció | nyitott |
 
 **Előfeltétel:** [WA-004](WA-004-szintfuggo-kalibracio.md), [WA-005](WA-005-aura-idovonal.md), [WA-030](WA-030-spec-felismeres.md)  
 **Erre épül:** [WA-007a](WA-007a-rotacio-rogue-assassination.md), [WA-007b](WA-007b-rotacio-rogue-combat.md), [WA-007c](WA-007c-rotacio-rogue-subtlety.md), [WA-008a](WA-008a-rotacio-warrior-arms.md), [WA-008b](WA-008b-rotacio-warrior-fury.md), [WA-009a](WA-009a-rotacio-mage-arcane.md), [WA-009b](WA-009b-rotacio-mage-fire.md), [WA-009c](WA-009c-rotacio-mage-frost.md), [WA-010a](WA-010a-rotacio-warlock-affliction.md), [WA-010b](WA-010b-rotacio-warlock-demonology.md), [WA-010c](WA-010c-rotacio-warlock-destruction.md), [WA-011a](WA-011a-rotacio-hunter-bm.md), [WA-011b](WA-011b-rotacio-hunter-mm.md), [WA-011c](WA-011c-rotacio-hunter-survival.md), [WA-012a](WA-012a-rotacio-shaman-elemental.md), [WA-012b](WA-012b-rotacio-shaman-enhancement.md), [WA-013a](WA-013a-rotacio-druid-balance.md), [WA-013b](WA-013b-rotacio-druid-feral-cat.md), [WA-014a](WA-014a-rotacio-priest-shadow.md), [WA-014b](WA-014b-rotacio-priest-holy-disc-szolo.md), [WA-015a](WA-015a-rotacio-paladin-ret.md), [WA-015b](WA-015b-rotacio-paladin-holy-prot-szolo.md), [WA-028](WA-028-bizonyithato-hibak.md)

@@ -2,9 +2,9 @@
 
 | Fázis | Méret | Prioritás | Típus | Állapot |
 |---|---|---|---|---|
-| 3. Gyógyítás | L | közepes | új funkció | nyitott |
+| 4. Gyógyítás | L | közepes | új funkció | nyitott |
 
-**Előfeltétel:** [WA-016](WA-016-gyogyitas-naplo.md)  
+**Előfeltétel:** [WA-016](WA-016-gyogyitas-naplo.md), [WA-032](WA-032-talent-hatas-keret.md)  
 **Erre épül:** [WA-018](WA-018-gyogyitas-priest.md), [WA-019](WA-019-gyogyitas-paladin.md), [WA-020](WA-020-gyogyitas-druid.md), [WA-021](WA-021-gyogyitas-shaman.md)
 
 ## Cél

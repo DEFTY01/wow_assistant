@@ -2,7 +2,7 @@
 
 | Fázis | Méret | Prioritás | Típus | Állapot |
 |---|---|---|---|---|
-| 1. Alapok (adat, kalibráció, spec) | M | magas | adat | nyitott |
+| 1. Alapok (adat és kalibráció) | M | magas | adat | nyitott |
 
 **Előfeltétel:** nincs  
 **Erre épül:** [WA-006](WA-006-rotacio-keret.md), [WA-028](WA-028-bizonyithato-hibak.md)

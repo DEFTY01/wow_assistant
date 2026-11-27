@@ -2,7 +2,7 @@
 
 | Fázis | Méret | Prioritás | Típus | Állapot |
 |---|---|---|---|---|
-| 4. Tankolás | M | alacsony | adat | nyitott |
+| 5. Tankolás | M | alacsony | adat | nyitott |
 
 **Előfeltétel:** nincs  
 **Erre épül:** [WA-023](WA-023-tank-keret.md)
