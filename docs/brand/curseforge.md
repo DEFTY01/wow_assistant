@@ -28,6 +28,7 @@ Waystone is a companion for the long road to max level. Type `/wa` and one windo
 what you would otherwise piece together from spreadsheets, websites and a handful of other addons.
 Everything is worked out inside the game, from your character's stats, gear, talents and spec, your
 recorded fights, and what the auction house shows right now. Every number says where it comes from.
+It wears its own **Runestone** look: dark slate with a rune-blue edge.
 
 ## Features
 
@@ -94,19 +95,27 @@ your history.
 ### Chronicle
 A journal of your character's milestones week by week, with an optional weekly guild list.
 
+### Options
+Everything a command switches is in the **Options** window too (`/wa options`, the gear on the main
+window, Ctrl-click on the minimap button, or Waystone in the game's AddOns settings): language,
+window style, the minimap button, the combat log, the session bar and its goals, Chronicle sharing,
+and the tools. Each control's tooltip names its command.
+
 ### Also
 - **English or Hungarian**: click the EN/HU button next to the window's close button, or type
   `/wa lang en` or `/wa lang hu`.
-- Minimap button (left click: main window, right click: vendor crafting, Shift-click: session bar).
-  It is listed in the addon compartment too.
+- Minimap button (left click: main window, right click: vendor crafting, Shift-click: session bar,
+  Ctrl-click: options). It is listed in the addon compartment too.
 - Search box on every page.
-- Two window styles: game-style frames or a clean flat look (`/wa style wow | flat`).
+- Three window styles: **Runestone** (the default), the game's gold frames, or a plain flat look
+  (`/wa style rune | wow | flat`).
 
 ## Commands
 
 | Command | What it does |
 |---|---|
 | `/wa` or `/waystone` | Main window |
+| `/wa options` | Options: every setting in one window |
 | `/wa plan`, `/wa combat`, `/wa gear`, `/wa prof`, `/wa pet` | Open one page |
 | `/wa talents` | Talent calculator |
 | `/wa vendor` | Vendor crafting |
@@ -117,7 +126,7 @@ A journal of your character's milestones week by week, with an optional weekly g
 | `/wa azc ...` | Chronicle: share on or off, sync, week |
 | `/wa lang en \| hu` | Interface language |
 | `/wa minimap show \| hide \| icon` | Minimap button |
-| `/wa style wow \| flat` | Window style |
+| `/wa style rune \| wow \| flat` | Window style |
 | `/wa help` | Every command |
 
 ## Good to know

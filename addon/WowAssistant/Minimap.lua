@@ -2,7 +2,8 @@
 --
 -- The icon: the Waystone logo (Media/Waystone.tga). /wa minimap icon switches between a few
 -- others. Left click: main window; right click: vendor crafting; shift +
--- left click: session bar on/off; drag: move it around the minimap. /wa minimap hides or shows it.
+-- left click: session bar on/off; ctrl + left click: options; drag: move it around the minimap.
+-- /wa minimap hides or shows it.
 -- Also listed in the addon compartment (the addon list button by the minimap) where the client has one.
 
 local _, WA = ...
@@ -87,6 +88,7 @@ local function ShowTooltip(self)
   GameTooltip:AddDoubleLine(WA.Fix(L"Left-click"), WA.Fix(L"main window"), 0.6, 0.8, 1, 1, 1, 1)
   GameTooltip:AddDoubleLine(WA.Fix(L"Right-click"), WA.Fix(L"what to craft for vendors"), 0.6, 0.8, 1, 1, 1, 1)
   GameTooltip:AddDoubleLine(WA.Fix(L"Shift + left-click"), WA.Fix(L"session bar on/off"), 0.6, 0.8, 1, 1, 1, 1)
+  GameTooltip:AddDoubleLine(WA.Fix(L"Ctrl + left-click"), WA.Fix(L"options"), 0.6, 0.8, 1, 1, 1, 1)
   GameTooltip:AddDoubleLine(WA.Fix(L"Drag"), WA.Fix(L"move"), 0.6, 0.8, 1, 1, 1, 1)
   GameTooltip:Show()
 end
@@ -104,6 +106,8 @@ function MB.Click(btn)
     if WA.VC then WA.VC.Toggle() end
   elseif IsShiftKeyDown and IsShiftKeyDown() then
     ToggleSessionBar()
+  elseif IsControlKeyDown and IsControlKeyDown() and WA.Options then
+    WA.Options.Toggle()
   elseif WA.ToggleMain then
     WA.ToggleMain()
   end
@@ -174,6 +178,19 @@ function MB.Update()
 end
 
 table.insert(WA.onLogin, MB.Update)
+
+-- For the Options window: { { index, name }, ... }, the current one, and choosing one.
+function MB.Icons()
+  local t = {}
+  for i, it in ipairs(ICONS) do t[i] = { i, it[3] } end
+  return t
+end
+function MB.Icon() return DB().icon or 1 end
+function MB.SetIcon(i)
+  if not ICONS[i] then return end
+  DB().icon = i
+  MB.Update()
+end
 
 WA.Command("minimap", function(rest)
   local d = DB()

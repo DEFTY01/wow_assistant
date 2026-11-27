@@ -689,18 +689,18 @@ local function SummaryLines(s, title)
   local a = ActiveOf(s)
   local dur = s.duration or ((s.last or time()) - s.start)
   local net = Net(s)
-  local L = { "|cffffd100" .. title .. "|r" }
-  L[#L + 1] = (L"Time: %s (active %s)"):format(FmtTime(dur), FmtTime(a))
+  local out = { "|cffffd100" .. title .. "|r" }
+  out[#out + 1] = (L"Time: %s (active %s)"):format(FmtTime(dur), FmtTime(a))
   if (s.xp or 0) > 0 then
     local kill, quest, other = Sources(s)
-    L[#L + 1] = (L"XP: +%s (%s/hour) – mobs %s, quests %s, discovery/other %s%s"):format(
+    out[#out + 1] = (L"XP: +%s (%s/hour) – mobs %s, quests %s, discovery/other %s%s"):format(
       Abbrev(s.xp), Abbrev(Rate(s.xp, a, 60) or 0), Abbrev(kill), Abbrev(quest), Abbrev(other),
       (s.levels or 0) > 0 and (L", +%d levels"):format(s.levels) or "")
   end
-  L[#L + 1] = (L"Gold: %s (%s/hour) · farm value %s/hour"):format(Money(net, true), Money(Rate(net, a, 60) or 0, true),
+  out[#out + 1] = (L"Gold: %s (%s/hour) · farm value %s/hour"):format(Money(net, true), Money(Rate(net, a, 60) or 0, true),
     Money(Rate(Farm(s), a, 60) or 0))
   if (s.lootLuckN or 0) > 0 then
-    L[#L + 1] = (L"Rare drops (luck, not in the farm value): %d, %s at vendor price"):format(s.lootLuckN, Money(s.lootLuck))
+    out[#out + 1] = (L"Rare drops (luck, not in the farm value): %d, %s at vendor price"):format(s.lootLuckN, Money(s.lootLuck))
   end
   local bestName, bestRate
   for name, z in pairs(s.zones or {}) do
@@ -709,15 +709,15 @@ local function SummaryLines(s, title)
       if not bestRate or r > bestRate then bestName, bestRate = name, r end
     end
   end
-  if bestName then L[#L + 1] = (L"Best zone: %s (%s/hour)"):format(bestName, Money(bestRate, true)) end
+  if bestName then out[#out + 1] = (L"Best zone: %s (%s/hour)"):format(bestName, Money(bestRate, true)) end
   if hist.n > 0 and a >= MIN_RATE_ACTIVE then
     local cmp = {}
     local xph, gph = Rate(s.xp, a, 60), Rate(net, a, 60)
     if xph and hist.avgXph and (s.xp or 0) > 0 then cmp[#cmp + 1] = (L"XP/hour %d%%"):format(Pct(xph, hist.avgXph)) end
     if gph and hist.avgGph and hist.avgGph > 0 then cmp[#cmp + 1] = (L"gold/hour %d%%"):format(Pct(gph, hist.avgGph)) end
-    if #cmp > 0 then L[#L + 1] = L"Against your average: " .. table.concat(cmp, ", ") end
+    if #cmp > 0 then out[#out + 1] = L"Against your average: " .. table.concat(cmp, ", ") end
   end
-  return L
+  return out
 end
 
 local function PrintSummary(s, title)
@@ -1315,6 +1315,10 @@ WA.onLoad[#WA.onLoad + 1] = function()
   db, charDB = WA.db.session, WA.charDB.session
   charDB.history = charDB.history or {}
   charDB.goals = charDB.goals or {}
+  -- the chosen window style (Style.lua): slate with the rune line in the Runestone style
+  WA.Style.Skin(bar, 0.85)
+  WA.Style.Skin(panel, 0.92)
+  WA.Style.Skin(tipSpark, 0.92)
   if db.scale then bar:SetScale(db.scale) end
   bar:ClearAllPoints()
   if db.pos then

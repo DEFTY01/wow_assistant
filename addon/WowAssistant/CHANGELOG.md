@@ -1,7 +1,11 @@
 ## 2.37.0
 
-AH → vendor: auctions that sell for less than a merchant pays for them.
+A new look, an Options window, and AH → vendor: auctions that sell for less than a merchant pays for them.
 
+- **New look, Runestone**: dark slate windows with a rune-blue edge, diamond studs in the corners and the Waystone emblem by the title. Selections in the side menu and the lists are rune blue, and the session bar wears the same colours. It is the new default. The earlier looks stay: pick "Game frame" or "Flat" in Options, or type `/wa style wow` or `/wa style flat` (`/wa style rune` goes back). A new style shows after a reload.
+- **Options window**: `/wa options`, the gear next to the EN/HU button, "Options" in the main window's side menu, Ctrl + click on the minimap button, or Waystone in the game's AddOns settings. Everything a command switches is here too: language, window style, the minimap button and its icon, the combat log, the session bar (show, lock, scale, summary at login, gold and level goals, starting a new session), Chronicle sharing, and buttons for the windows and tools (status, auction house scans, talent data, save). Each control runs the same `/wa` command, and its tooltip names it.
+- The main window's side menu lists AH → vendor too.
+- Fix: the session summary stopped with a Lua error in 2.36.0, so `/wa sbar summary`, the summary at login and starting a new session (`/wa sbar reset`) did not work. They work again.
 - **New window, AH → vendor** (`/wa flip`, or the button at the auction house). The full auction house scan (`/wa ah`) now compares every auction with the merchant price the game client reports, and lists the ones you can buy and sell to any merchant at a profit. Buying on the auction house has no fee, so the profit is exact.
 - Gear is priced by its own item link, so a random-suffix variant that a merchant pays more for is counted at its own price. Items the client had not loaded during the scan are loaded afterwards, for as long as they keep arriving. Items no merchant buys and your own auctions are left out.
 - **Buying with one click each**: click an item and it is searched again on the auction house. Buy takes only the auctions that are still there and still pay, and only as many as your gold covers. Gear: one auction per click, at its buyout. Stackable items: the game quotes its final price first, and you confirm it with a second click. Waystone confirms only the total the button showed, only while it still pays and only before the quote runs out; otherwise it cancels.

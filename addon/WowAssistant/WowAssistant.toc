@@ -47,3 +47,4 @@ Session.lua
 Chronicle.lua
 UI.lua
 Minimap.lua
+Options.lua

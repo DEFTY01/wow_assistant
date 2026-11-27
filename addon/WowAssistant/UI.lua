@@ -90,7 +90,9 @@ local WINDOWS = WA.LR {
     local hidden = WA.db.session and WA.db.session.hidden
     if WA.Session then WA.Session.Command(hidden and "show" or "hide") end
   end },
+  { L"AH → vendor", "Interface\\Icons\\INV_Misc_Coin_04", function() if WA.Flip then WA.Flip.Toggle() end end },
   { "Chronicle", "Interface\\Icons\\INV_Misc_Book_09", function() if WA.Chronicle then WA.Chronicle.Command("") end end },
+  { L"Options", "Interface\\Icons\\INV_Misc_Gear_01", function() if WA.Options then WA.Options.Toggle() end end },
 }
 
 ---------------------------------------------------------------------------
@@ -128,6 +130,7 @@ local function Height(fs, fallback)
 end
 
 local function Fill(tex, r, g, b, a) tex:SetColorTexture(r, g, b, a) return tex end
+local function Tint(tex, kind, a) return WA.Style.Tint(tex, kind, a) end
 
 ---------------------------------------------------------------------------
 -- the window
@@ -135,13 +138,13 @@ local function Fill(tex, r, g, b, a) tex:SetColorTexture(r, g, b, a) return tex 
 local function NavButton(parent, label, icon, onClick)
   local b = CreateFrame("Button", nil, parent)
   b:SetSize(NAV_W - 16, 34)
-  b.sel = Fill(b:CreateTexture(nil, "BACKGROUND"), 1, 0.82, 0, 0.13)
+  b.sel = Tint(b:CreateTexture(nil, "BACKGROUND"), "accent", 0.13)
   b.sel:SetAllPoints()
-  b.bar = Fill(b:CreateTexture(nil, "ARTWORK"), 1, 0.82, 0, 0.9)
+  b.bar = Tint(b:CreateTexture(nil, "ARTWORK"), "accent", 0.9)
   b.bar:SetPoint("TOPLEFT")
   b.bar:SetPoint("BOTTOMLEFT")
   b.bar:SetWidth(3)
-  local hl = Fill(b:CreateTexture(nil, "HIGHLIGHT"), 1, 0.9, 0.7, 0.07)
+  local hl = Tint(b:CreateTexture(nil, "HIGHLIGHT"), "hover", 0.07)
   hl:SetAllPoints()
   b.icon = b:CreateTexture(nil, "ARTWORK")
   b.icon:SetSize(24, 24)
@@ -180,6 +183,22 @@ local function Build()
   lang:SetScript("OnLeave", function() GameTooltip:Hide() end)
   f.lang = lang
 
+  -- the Options window (every setting the /wa commands switch)
+  local opt = St.Button(f, "", 24, function() if WA.Options then WA.Options.Toggle() end end)
+  opt:SetPoint("RIGHT", lang, "LEFT", -2, 0)
+  local gear = opt:CreateTexture(nil, "ARTWORK")
+  gear:SetSize(16, 16)
+  gear:SetPoint("CENTER")
+  gear:SetTexture("Interface\\Icons\\INV_Misc_Gear_01")
+  gear:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+  opt:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+    GameTooltip:AddLine(WA.Fix(L"Options"), 1, 1, 1)
+    GameTooltip:Show()
+  end)
+  opt:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  f.options = opt
+
   -- side menu: who, the pages, the other windows
   local nav = CreateFrame("Frame", nil, f, "BackdropTemplate")
   nav:SetPoint("TOPLEFT", inset, -top)
@@ -193,6 +212,11 @@ local function Build()
   ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
   ring:SetSize(80, 80)
   ring:SetPoint("TOPLEFT", f.portrait, "TOPLEFT", -6, 5)
+  if St.Rune() then
+    -- the rune style's ring glows blue
+    if ring.SetDesaturated then ring:SetDesaturated(true) end
+    ring:SetVertexColor(St.T.accent[1], St.T.accent[2], St.T.accent[3])
+  end
   f.name = nav:CreateFontString(nil, "OVERLAY", "WowAssistantFontHeader")
   f.name:SetPoint("TOPLEFT", f.portrait, "TOPRIGHT", 10, -2)
   f.name:SetPoint("RIGHT", -8, 0)
@@ -204,7 +228,7 @@ local function Build()
   f.money:SetPoint("TOPLEFT", f.level, "BOTTOMLEFT", 0, -3)
 
   local y = -76
-  local rule = Fill(nav:CreateTexture(nil, "ARTWORK"), 1, 0.82, 0, 0.25)
+  local rule = Tint(nav:CreateTexture(nil, "ARTWORK"), "rule", 0.25)
   rule:SetHeight(1)
   rule:SetPoint("TOPLEFT", 8, y)
   rule:SetPoint("TOPRIGHT", -8, y)
@@ -251,7 +275,7 @@ local function Build()
   local search = St.Search(f, L"Search", 170, function(text) UI.filter = text UI.Draw() end)
   search:SetPoint("TOPRIGHT", -(inset + 6), -(top + 8))
   f.search = search
-  local headRule = Fill(f:CreateTexture(nil, "ARTWORK"), 1, 0.82, 0, 0.3)
+  local headRule = Tint(f:CreateTexture(nil, "ARTWORK"), "rule", 0.3)
   headRule:SetHeight(1)
   headRule:SetPoint("TOPLEFT", left, -(top + 52))
   headRule:SetPoint("TOPRIGHT", -(inset + 4), -(top + 52))
@@ -336,7 +360,7 @@ local function MoreButton(child)
     b:SetHeight(20)
     b.text = b:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormalSmall")
     b.text:SetPoint("LEFT", 4, 0)
-    local hl = Fill(b:CreateTexture(nil, "HIGHLIGHT"), 1, 0.9, 0.7, 0.06)
+    local hl = Tint(b:CreateTexture(nil, "HIGHLIGHT"), "hover", 0.06)
     hl:SetAllPoints()
     return b
   end)
@@ -384,7 +408,7 @@ local function DrawTable(child, b, x, y, w, detail)
     cx = cx + v.w + GAP
   end
   y = y + 18
-  local line = Acquire("line", function() return Fill(child:CreateTexture(nil, "ARTWORK"), 1, 0.82, 0, 0.18) end)
+  local line = Acquire("line", function() return Tint(child:CreateTexture(nil, "ARTWORK"), "rule", 0.18) end)
   line:SetHeight(1)
   line:SetPoint("TOPLEFT", child, "TOPLEFT", x, -y)
   line:SetWidth(w)
@@ -398,7 +422,7 @@ local function DrawTable(child, b, x, y, w, detail)
       btn:SetHeight(ROW_H)
       btn.bg = btn:CreateTexture(nil, "BACKGROUND")
       btn.bg:SetAllPoints()
-      local hl = Fill(btn:CreateTexture(nil, "HIGHLIGHT"), 1, 0.9, 0.7, 0.08)
+      local hl = Tint(btn:CreateTexture(nil, "HIGHLIGHT"), "hover", 0.08)
       hl:SetAllPoints()
       btn.cells = {}
       btn:SetScript("OnEnter", function(self)
@@ -413,8 +437,8 @@ local function DrawTable(child, b, x, y, w, detail)
     end)
     row:SetWidth(w)
     row:SetPoint("TOPLEFT", child, "TOPLEFT", x, -y)
-    if r.selected then Fill(row.bg, 1, 0.82, 0, 0.16) row.bg:Show()
-    else Fill(row.bg, 1, 0.9, 0.7, 0.035) row.bg:SetShown(n % 2 == 0) end
+    if r.selected then Tint(row.bg, "accent", 0.16) row.bg:Show()
+    else Tint(row.bg, "hover", 0.035) row.bg:SetShown(n % 2 == 0) end
     row.itemId, row.tip = r.itemId, r.tip
     row:SetScript("OnClick", r.onClick)
     local cells = r.cells or r
@@ -747,11 +771,11 @@ local function DrawSection(child, s, x, y, w)
   local h = Acquire("section", function()
     local btn = CreateFrame("Button", nil, child)
     btn:SetHeight(28)
-    btn.bg = Fill(btn:CreateTexture(nil, "BACKGROUND"), 0.14, 0.115, 0.08, 0.9)
+    btn.bg = Tint(btn:CreateTexture(nil, "BACKGROUND"), "cardbg", 0.9)
     btn.bg:SetAllPoints()
-    local hl = Fill(btn:CreateTexture(nil, "HIGHLIGHT"), 1, 0.9, 0.7, 0.06)
+    local hl = Tint(btn:CreateTexture(nil, "HIGHLIGHT"), "hover", 0.06)
     hl:SetAllPoints()
-    btn.edge = Fill(btn:CreateTexture(nil, "ARTWORK"), 1, 0.82, 0, 0.35)
+    btn.edge = Tint(btn:CreateTexture(nil, "ARTWORK"), "accent", 0.35)
     btn.edge:SetPoint("BOTTOMLEFT")
     btn.edge:SetPoint("BOTTOMRIGHT")
     btn.edge:SetHeight(1)
@@ -769,7 +793,7 @@ local function DrawSection(child, s, x, y, w)
     btn.detail:SetPoint("RIGHT", -6, 0)
     btn.detail.text = btn.detail:CreateFontString(nil, "OVERLAY", "WowAssistantFontNormalSmall")
     btn.detail.text:SetPoint("RIGHT", -2, 0)
-    local dhl = Fill(btn.detail:CreateTexture(nil, "HIGHLIGHT"), 1, 0.9, 0.7, 0.08)
+    local dhl = Tint(btn.detail:CreateTexture(nil, "HIGHLIGHT"), "hover", 0.08)
     dhl:SetAllPoints()
     return btn
   end)

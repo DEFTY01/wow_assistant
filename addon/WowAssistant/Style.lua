@@ -4,9 +4,10 @@
 -- Fira Sans for text and Cinzel for titles (Fonts/, SIL Open Font License). Chat and tooltips keep
 -- the game's font, so text sent there gets ő -> ö and ű -> ü.
 --
--- Styles (/wa style wow | flat, after /reload):
---   wow   the default: dialog border and dark stone background, tabs under the window, dropdowns
---         and buttons from the game's own templates, so it looks like a game window;
+-- Styles (Options, or /wa style rune | wow | flat; shown after /reload):
+--   rune  the default: dark slate with a thin glowing blue rune line, diamond studs in the corners,
+--         soft gold titles, flat buttons;
+--   wow   the game's dialog border and dark stone background, the game's own buttons and tabs;
 --   flat  the plain dark panel with a thin gold edge (close to Daylight UI).
 
 local _, WA = ...
@@ -79,9 +80,132 @@ end
 ---------------------------------------------------------------------------
 function S.Name()
   local st = WA.db and WA.db.style
-  return st == "flat" and "flat" or "wow"
+  if st == "wow" or st == "flat" then return st end
+  return "rune"
 end
 function S.Wow() return S.Name() == "wow" end
+function S.Rune() return S.Name() == "rune" end
+S.NAMES = WA.LR { { "rune", L"Runestone" }, { "wow", L"Game frame" }, { "flat", L"Flat" } }
+
+-- Tints for highlights, selections and rules: kind -> colour; the caller gives the alpha.
+-- wow and flat keep the warm gold of 2.36; rune is cool slate with the rune blue.
+S.T = { accent = { 1, 0.82, 0 }, hover = { 1, 0.9, 0.7 }, rule = { 1, 0.82, 0 }, cardbg = { 0.14, 0.115, 0.08 } }
+local RUNE = {
+  C = { gold = { 0.91, 0.76, 0.42 }, text = { 0.89, 0.9, 0.92 }, muted = { 0.6, 0.64, 0.68 },
+    bg = { 0.082, 0.094, 0.11 }, panel = { 0.094, 0.11, 0.13 }, card = { 0.106, 0.125, 0.15 },
+    edge = { 0.42, 0.5, 0.58 } },
+  T = { accent = { 0.37, 0.83, 1 }, hover = { 0.55, 0.8, 1 }, rule = { 0.45, 0.55, 0.65 }, cardbg = { 0.106, 0.125, 0.15 } },
+  HEX = { text = "e3e6ea", muted = "9aa3ad" },
+}
+local FONT_ROLE = {
+  WowAssistantFontTitle = "gold", WowAssistantFontPage = "gold", WowAssistantFontHeader = "gold",
+  WowAssistantFontNav = "text", WowAssistantFontNormal = "gold", WowAssistantFontNormalSmall = "gold",
+  WowAssistantFontHighlight = "text", WowAssistantFontHighlightSmall = "text",
+  WowAssistantFontMuted = "muted", WowAssistantFontDisableSmall = "muted",
+}
+
+-- The chosen style's colours, once the saved setting is known. The tables are changed in place,
+-- so code holding S.C, S.T or S.HEX sees the new values.
+function S.Apply()
+  if not S.Rune() then return end
+  for k, v in pairs(RUNE.C) do S.C[k] = v end
+  for k, v in pairs(RUNE.T) do S.T[k] = v end
+  for k, v in pairs(RUNE.HEX) do S.HEX[k] = v end
+  for name, role in pairs(FONT_ROLE) do
+    local f, c = _G[name], S.C[role]
+    if f and f.SetTextColor then f:SetTextColor(c[1], c[2], c[3]) end
+  end
+end
+table.insert(WA.onLoad, 1, S.Apply)
+
+function S.Tint(tex, kind, alpha)
+  local c = S.T[kind] or S.T.accent
+  tex:SetColorTexture(c[1], c[2], c[3], alpha or 1)
+  return tex
+end
+
+-- A frame of the addon's own (the session bar, its panel) in the chosen style.
+function S.Skin(f, alpha)
+  if not (S.Rune() and f.SetBackdropColor) then return end
+  local bg, ac = S.C.bg, S.T.accent
+  f:SetBackdropColor(bg[1], bg[2], bg[3], alpha or 0.9)
+  f:SetBackdropBorderColor(ac[1], ac[2], ac[3], 0.45)
+end
+
+local function Rotate(tex, rad)
+  return tex.SetRotation ~= nil and pcall(tex.SetRotation, tex, rad)
+end
+
+-- rune: a flat square close button with an X.
+function S.CloseButton(f)
+  local b = CreateFrame("Button", nil, f, "BackdropTemplate")
+  b:SetSize(24, 24)
+  if b.SetBackdrop then
+    b:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+    b:SetBackdropColor(S.C.card[1], S.C.card[2], S.C.card[3], 1)
+    b:SetBackdropBorderColor(S.C.edge[1], S.C.edge[2], S.C.edge[3], 0.8)
+  end
+  local drawn = true
+  for _, r in ipairs({ math.pi / 4, -math.pi / 4 }) do
+    local t = b:CreateTexture(nil, "ARTWORK")
+    t:SetSize(12, 2)
+    t:SetPoint("CENTER")
+    t:SetColorTexture(0.79, 0.81, 0.83, 1)
+    if not Rotate(t, r) then t:Hide() drawn = false end
+  end
+  if not drawn then
+    local x = b:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlight")
+    x:SetPoint("CENTER", 0, 1)
+    x:SetText("x")
+  end
+  local hl = b:CreateTexture(nil, "HIGHLIGHT")
+  hl:SetPoint("TOPLEFT", 1, -1)
+  hl:SetPoint("BOTTOMRIGHT", -1, 1)
+  S.Tint(hl, "hover", 0.15)
+  b:SetScript("OnClick", function() f:Hide() end)
+  return b
+end
+
+-- rune: the window's edge, its two lines and the four diamond studs.
+local function RuneFrame(f)
+  local bg, ac = S.C.bg, S.T.accent
+  f:SetBackdrop(S.FLAT)
+  f:SetBackdropColor(bg[1], bg[2], bg[3], 0.97)
+  f:SetBackdropBorderColor(0.03, 0.035, 0.045, 1)
+  -- the stone is lighter towards the top
+  local shade = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+  shade:SetPoint("TOPLEFT", 1, -1)
+  shade:SetPoint("TOPRIGHT", -1, -1)
+  shade:SetHeight(160)
+  shade:SetColorTexture(1, 1, 1, 1)
+  local ok = shade.SetGradient and CreateColor
+    and pcall(shade.SetGradient, shade, "VERTICAL", CreateColor(0.2, 0.23, 0.27, 0), CreateColor(0.2, 0.23, 0.27, 0.35))
+  if not ok then shade:SetColorTexture(0.2, 0.23, 0.27, 0.12) end
+  local function Line(inset, r, g, b, a)
+    local l = CreateFrame("Frame", nil, f, "BackdropTemplate")
+    l:SetPoint("TOPLEFT", inset, -inset)
+    l:SetPoint("BOTTOMRIGHT", -inset, inset)
+    if l.SetBackdrop then
+      l:SetBackdrop({ edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+      l:SetBackdropBorderColor(r, g, b, a)
+    end
+    return l
+  end
+  Line(2, 0.23, 0.27, 0.31, 1)
+  f.glow = Line(4, ac[1], ac[2], ac[3], 0.45)
+  local studs = CreateFrame("Frame", nil, f)
+  studs:SetAllPoints()
+  studs:SetFrameLevel(f.glow:GetFrameLevel() + 1)
+  for _, p in ipairs({ { "TOPLEFT", 9, -9 }, { "TOPRIGHT", -9, -9 }, { "BOTTOMLEFT", 9, 9 }, { "BOTTOMRIGHT", -9, 9 } }) do
+    for i, d in ipairs({ { 18, ac[1], ac[2], ac[3], 0.18 }, { 11, ac[1], ac[2], ac[3], 1 }, { 6, 0.055, 0.165, 0.21, 1 } }) do
+      local t = studs:CreateTexture(nil, "OVERLAY", nil, i)
+      t:SetSize(d[1], d[1])
+      t:SetPoint("CENTER", f, p[1], p[2], p[3])
+      t:SetColorTexture(d[2], d[3], d[4], d[5])
+      if not Rotate(t, math.pi / 4) and i == 1 then t:Hide() end
+    end
+  end
+end
 
 local function Try(kind, name, parent, template)
   local ok, f = pcall(CreateFrame, kind, name, parent, template)
@@ -126,8 +250,25 @@ function S.Window(name, w, h, title)
   f:SetClampedToScreen(true)
   tinsert(UISpecialFrames, name)
   f.title = f:CreateFontString(nil, "OVERLAY", "WowAssistantFontTitle")
-  local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-  if S.Wow() then
+  local close
+  if S.Rune() then
+    RuneFrame(f)
+    f.emblem = f:CreateTexture(nil, "ARTWORK")
+    f.emblem:SetTexture("Interface\\AddOns\\WowAssistant\\Media\\Waystone")
+    f.emblem:SetSize(24, 24)
+    f.emblem:SetPoint("TOPLEFT", 16, -11)
+    f.title:SetPoint("LEFT", f.emblem, "RIGHT", 8, 0)
+    local rule = f:CreateTexture(nil, "ARTWORK")
+    S.Tint(rule, "rule", 0.45)
+    rule:SetHeight(1)
+    rule:SetPoint("TOPLEFT", 12, -42)
+    rule:SetPoint("TOPRIGHT", -12, -42)
+    close = S.CloseButton(f)
+    close:SetPoint("TOPRIGHT", -18, -10)
+    f.inset = 16
+    f.top = 52
+  elseif S.Wow() then
+    close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     f:SetBackdrop(DIALOG)
     f:SetBackdropColor(S.C.bg[1], S.C.bg[2], S.C.bg[3], 0.97)
     -- a warm glow from the top, so the stone is not flat black
@@ -146,6 +287,7 @@ function S.Window(name, w, h, title)
     close:SetPoint("TOPRIGHT", -4, -4)
     f.top = 34
   else
+    close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
     f:SetBackdrop(FLAT)
     f:SetBackdropColor(0.05, 0.04, 0.03, 0.96)
     f:SetBackdropBorderColor(0.45, 0.35, 0.15, 1)
@@ -175,9 +317,34 @@ local function FontButton(b)
 end
 
 function S.Button(parent, text, w, onClick)
-  local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-  b:SetSize(w, 22)
-  FontButton(b)
+  local b
+  if S.Rune() then
+    -- flat: slate with a thin edge, the rune blue under the mouse
+    b = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    b:SetSize(w, 22)
+    if b.SetBackdrop then
+      b:SetBackdrop(FLAT)
+      b:SetBackdropColor(S.C.card[1], S.C.card[2], S.C.card[3], 1)
+      b:SetBackdropBorderColor(S.C.edge[1], S.C.edge[2], S.C.edge[3], 0.7)
+    end
+    local fs = b:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlight")
+    fs:SetPoint("LEFT", 6, 0)
+    fs:SetPoint("RIGHT", -6, 0)
+    fs:SetWordWrap(false)
+    b:SetFontString(fs)
+    b:SetNormalFontObject("WowAssistantFontHighlight")
+    b:SetHighlightFontObject("WowAssistantFontHighlight")
+    b:SetDisabledFontObject("WowAssistantFontDisableSmall")
+    local hl = b:CreateTexture(nil, "HIGHLIGHT")
+    hl:SetPoint("TOPLEFT", 1, -1)
+    hl:SetPoint("BOTTOMRIGHT", -1, 1)
+    S.Tint(hl, "hover", 0.14)
+    if b.SetPushedTextOffset then b:SetPushedTextOffset(1, -1) end
+  else
+    b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
+    b:SetSize(w, 22)
+    FontButton(b)
+  end
   b:SetText(text)
   if onClick then b:SetScript("OnClick", onClick) end
   return b
@@ -189,6 +356,12 @@ function S.Check(parent, label, onClick)
   c.label = c:CreateFontString(nil, "OVERLAY", "WowAssistantFontHighlightSmall")
   c.label:SetPoint("LEFT", c, "RIGHT", 1, 0)
   c.label:SetText(label)
+  local tick = S.Rune() and c.GetCheckedTexture and c:GetCheckedTexture()
+  if tick then
+    -- the rune style's tick is the rune blue
+    if tick.SetDesaturated then tick:SetDesaturated(true) end
+    tick:SetVertexColor(S.T.accent[1], S.T.accent[2], S.T.accent[3])
+  end
   if onClick then c:SetScript("OnClick", function(self) onClick(self:GetChecked() and true or false) end) end
   return c
 end
@@ -315,12 +488,18 @@ function S.Scroll(f, left, top, right, bottom, width)
   return scroll, child
 end
 
+-- The setting; the windows change at the next /reload.
+function S.Set(name)
+  if name ~= "wow" and name ~= "flat" then name = "rune" end
+  WA.db.style = name ~= "rune" and name or nil
+  WA.Print(L"window style: " .. name .. L" (shown after /reload)")
+end
+
 WA.Command("style", function(rest)
   rest = (rest or ""):lower()
-  if rest ~= "wow" and rest ~= "flat" then
-    WA.Print(L"/wa style wow | flat – now: " .. S.Name())
+  if rest ~= "rune" and rest ~= "wow" and rest ~= "flat" then
+    WA.Print(L"/wa style rune | wow | flat – now: " .. S.Name())
     return
   end
-  WA.db.style = rest
-  WA.Print(L"window style: " .. rest .. L" (shown after /reload)")
-end, L"/wa style wow | flat – window style (game-like or clean)")
+  S.Set(rest)
+end, L"/wa style rune | wow | flat – window style (Runestone, game frame or flat)")

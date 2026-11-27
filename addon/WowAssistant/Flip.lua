@@ -734,13 +734,13 @@ local function Build()
     row:SetPoint("TOPLEFT", inset, headY - 22 - (i - 1) * ROW_H)
     local zebra = row:CreateTexture(nil, "BACKGROUND", nil, -1)
     zebra:SetAllPoints()
-    zebra:SetColorTexture(1, 0.9, 0.7, i % 2 == 0 and 0.035 or 0)
+    WA.Style.Tint(zebra, "hover", i % 2 == 0 and 0.035 or 0)
     local hl = row:CreateTexture(nil, "HIGHLIGHT")
     hl:SetAllPoints()
-    hl:SetColorTexture(1, 0.9, 0.7, 0.08)
+    WA.Style.Tint(hl, "hover", 0.08)
     row.sel = row:CreateTexture(nil, "BACKGROUND")
     row.sel:SetAllPoints()
-    row.sel:SetColorTexture(1, 0.82, 0, 0.16)
+    WA.Style.Tint(row.sel, "accent", 0.16)
     row.cells = {}
     local cx = 0
     for k, c in ipairs(COLS) do
