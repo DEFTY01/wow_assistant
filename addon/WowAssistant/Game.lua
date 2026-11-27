@@ -339,6 +339,8 @@ function G.ModelInput()
     -- shadow (school 6): Shadow Bolt, Corruption, Bane of Agony
     input.sp = GetSpellBonusDamage and (GetSpellBonusDamage(6) or 0) or 0
     input.spellCrit = GetSpellCritChance and (GetSpellCritChance(6) or 0) or 0
+    -- fire (school 3) beside it: Malevolence is shadow crit, so the gap tells whether the sheet has it
+    input.spellCritFire = GetSpellCritChance and (GetSpellCritChance(3) or 0) or nil
     input.spellHit = GetSpellHitModifier and (GetSpellHitModifier() or 0) or 0
   elseif input.class == "MAGE" then
     local _, int = UnitStat("player", 4)

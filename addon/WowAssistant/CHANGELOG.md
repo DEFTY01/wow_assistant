@@ -1,3 +1,16 @@
+## 2.23.0
+
+Warlock: mindhárom talentfa a modellben.
+
+- A warlock mind az 52 talentje besorolva. Amelyik a varázslataid, a DoT-jaid vagy a démonod sebzését változtatja, azzal a modell most számol, a rangod Wowhead Forever számaival:
+  - Shadow Mastery, Agonizing Flames, Aftermath, Improved Corruption, Improved Bane of Agony, Improved Drains. Ezek a harcaidban mért arányon hatnak: a modell a harcnaplóból látja, mennyi a sebzésedből árnyék, Destruction, Corruption vagy drain;
+  - Ruin: a Destruction varázslatok critje többet sebez (5/5-nél kétszeres);
+  - Malevolence: árnyék crit. Az addon a játék árnyék és tűz critjének különbségéből látja, hogy a karakterlapodon már benne van-e;
+  - Unholy Power: a démonod sebzése;
+  - a Suppression és a Demonic Knowledge a karakterlapodon már benne van.
+- Amelyikkel nem számol, annál a /wa talent megmondja, miért: mana, túlélés, a démon fajtájától függő hatás, olyan hatás, amihez az aura-idővonal kell (pl. Improved Shadow Bolt, Demonic Sacrifice), vagy olyan varázslat, ami még nincs külön a modellben (Shadowburn, Conflagrate, Incinerate, Wrack…; ezek a rotációs javaslatokkal jönnek).
+- Talentek nélkül a számok nem változtak.
+
 ## 2.22.0
 
 Mage: mindhárom talentfa a modellben.

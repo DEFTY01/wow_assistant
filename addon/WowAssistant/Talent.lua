@@ -136,6 +136,7 @@ local THREAT = "fenyegetés (threat): a tankmodellbe kerül (WA-024)"
 local RAGE = "rage: a modell nem szimulálja a rage-et; a Heroic Strike és a specialok gyakoriságát a harcaidból méri (a rage a rotációs ticketben jön: WA-008a, WA-008b)"
 local MANA = "mana: a modell nem számolja a manát (a mana és a pihenő a rotációs ticketben jön)"
 local RESIST = "a célpont ellenállását (resistance) a modell nem számolja"
+local DEMON = "a démon fajtájától függ; a démon sebzését a modell a harcaidból méri"
 local function ROTATION(what, ticket)
   return ("a(z) %s még nincs külön a modellben; a rotációs ticketben jön (%s)"):format(what, ticket)
 end
@@ -263,6 +264,66 @@ T.EFFECTS = {
     ["Arcane Instability"] = { { key = "instability", val = 1, what = "spell sebzés %" },
       partial = "a crit része a karakterlapon (GetSpellCritChance) már benne van" },
     ["Arcane Power"] = { reason = COOLDOWN("WA-009a") },
+  },
+  -- Warlock (WA-032d): direct spells, DoTs and drains, the demon and the wand (Warlock.lua); the
+  -- school talents work on the share of each school in your own fights.
+  WARLOCK = {
+    -- Destruction
+    ["Destructive Reach"] = { reason = UTILITY },
+    ["Improved Shadow Bolt"] = { reason = "a Shadow Bolt critjeitől és a 12 mp-es időtartamtól függ; hogy mennyi ideig van fent, az aura-idővonalból jön (WA-005)" },
+    Bane = { reason = "a direkt varázslatok gyakoriságát a modell a harcaidból méri; a cast idő a rotációs ticketben jön (WA-010c)" },
+    ["Molten Skin"] = { reason = SURVIVAL },
+    Cataclysm = { reason = MANA },
+    Aftermath = { { key = "aftermath", val = 1, what = "Immolate kezdő sebzés %" }, partial = "a Conflagrate lassítása (irányítás)" },
+    Ruin = { { key = "ruin", val = 1, what = "Destruction varázslatok crit-bónusz %" } },
+    Shadowburn = { reason = ROTATION("Shadowburn", "WA-010c") },
+    Intensity = { reason = UTILITY },
+    ["Agonizing Flames"] = { { key = "agonizing", val = 2, what = "Destruction varázslatok sebzés %" }, partial = "a Searing Pain crit része" },
+    Conflagrate = { reason = ROTATION("Conflagrate", "WA-010c") },
+    Pyroclasm = { reason = UTILITY },
+    ["Bane of Havoc"] = { reason = MULTI },
+    ["Fire and Brimstone"] = { reason = ROTATION("Conflagrate", "WA-010c") },
+    ["Shadow and Flame"] = { reason = ROTATION("Conflagrate és Shadowburn", "WA-010c") },
+    Incinerate = { reason = ROTATION("Incinerate", "WA-010c") },
+    -- Affliction
+    ["Improved Life Tap"] = { reason = MANA },
+    Suppression = { { key = "suppression", val = 1, what = "hit %" }, sheet = "a játék karakterlapja (GetSpellHitModifier) adja; harcnapló mellett a mért miss számít" },
+    ["Improved Corruption"] = { { key = "impCorruption", val = 2, what = "Corruption sebzés %" }, partial = "a cast idő része (a DoT-okat a modell a harcaidból méri)" },
+    ["Grim Reach"] = { reason = UTILITY },
+    ["Soul Harvest"] = { reason = MANA },
+    ["Improved Drains"] = { { key = "impDrains", val = 1, what = "drain sebzés %" } },
+    ["Improved Bane of Agony"] = { { key = "impAgony", val = 1, what = "Bane of Agony sebzés %" } },
+    ["Fel Concentration"] = { reason = UTILITY },
+    ["Amplify Curse"] = { reason = COOLDOWN("WA-010a") },
+    Pandemic = { reason = "a DoT-ok critjét a modell külön nem számolja (a mért DoT-sebzésben benne van); a rotációs ticketben jön (WA-010a)" },
+    Malevolence = { { key = "malevolence", val = 1, what = "árnyék crit %" } },
+    Nightfall = { reason = ROTATION("Shadow Trance (Nightfall)", "WA-010a") },
+    ["Curse of Exhaustion"] = { reason = UTILITY },
+    ["Siphon Life"] = { reason = "a DoT-ok között a harcaidból méri; külön a rotációs ticketben jön (WA-010a)" },
+    ["Soul Siphon"] = { reason = "a célponton lévő DoT-ok számától függ: ezt az aura-idővonal adja majd (WA-005)" },
+    ["Shadow Mastery"] = { { key = "shadowMastery", val = 1, what = "árnyék varázslatok sebzés %" } },
+    Wrack = { reason = ROTATION("Wrack", "WA-010a") },
+    -- Demonology
+    ["Improved Health Funnel"] = { reason = SURVIVAL },
+    ["Improved Imp"] = { reason = DEMON },
+    ["Demonic Embrace"] = { reason = SURVIVAL },
+    ["Unholy Power"] = { { key = "unholyPower", val = 1, what = "démon sebzés %" } },
+    ["Demonic Aegis"] = { reason = SURVIVAL },
+    ["Improved Voidwalker"] = { reason = DEMON },
+    ["Fel Vitality"] = { reason = MANA },
+    ["Demonic Energies"] = { reason = MANA },
+    ["Improved Sayaad"] = { reason = DEMON },
+    ["Demonic Sacrifice"] = { reason = "attól függ, melyik démont áldozod fel; hogy fent van-e, az aura-idővonalból jön (WA-005)" },
+    ["Master Summoner"] = { reason = UTILITY },
+    Decimation = { reason = ROTATION("Soul Fire és a 35% alatti szakasz", "WA-010b") },
+    ["Fel Domination"] = { reason = UTILITY },
+    ["Demonic Brand"] = { reason = DEMON },
+    ["Improved Felhunter"] = { reason = DEMON },
+    ["Soul Link"] = { reason = "aktiválni kell; hogy fent van-e, az aura-idővonalból jön (WA-005)" },
+    ["Demonic Knowledge"] = { { key = "demonicKnowledge", val = 1, what = "a szinted %-a spell powerként" },
+      sheet = "a játék spell powere (GetSpellBonusDamage) már tartalmazza, amíg a démon kint van" },
+    ["Master Demonologist"] = { reason = DEMON },
+    ["Demonic Pact"] = { reason = "a Demonic Sacrifice-tól függ (aura-idővonal, WA-005)" },
   },
   -- Rogue (WA-032a): the model is Sinister Strike + Eviscerate with white swings (Model.lua); every
   -- talent of the three trees is either counted in it or has its reason.

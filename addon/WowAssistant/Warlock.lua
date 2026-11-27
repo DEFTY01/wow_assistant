@@ -17,7 +17,15 @@
 --     fire) (sim/warlock/pets.go; Combat.lua C.REF.WarlockDemon)
 --   * a wand's damage does not grow with spell power
 --
--- Extra input besides Model.lua's: int, sp (shadow spell power), spellCrit, spellHit.
+-- Extra input besides Model.lua's: int, sp (shadow spell power), spellCrit (shadow), spellCritFire,
+-- spellHit, talents = Talent.lua's T.Effects (the numbers of the rank's Wowhead Forever text):
+-- shadowMastery, agonizing (school damage %), ruin (Destruction crit bonus %), malevolence (shadow
+-- crit %), aftermath (Immolate's direct hit %), impCorruption, impAgony, impDrains (their damage %),
+-- unholyPower (demon %), suppression and demonicKnowledge (already on the sheet).
+--
+-- The school talents work on shares: how much of your direct spells and of your DoTs and drains is
+-- shadow, Destruction, Immolate, Corruption, Bane of Agony or a drain, from your fights (before
+-- any fight: Shadow Bolt and a Corruption-like DoT, the model's own priors).
 
 local _, WA = ...
 WA = WA or {}
@@ -34,6 +42,11 @@ W.NUKES = { ["Shadow Bolt"] = true, ["Searing Pain"] = true, Shadowburn = true, 
 W.DRAIN = { ["Drain Life"] = true, ["Drain Soul"] = true, ["Drain Mana"] = true, Wrack = true }
 -- DoT tick interval in seconds (Wowhead Forever spell=172, 348, 980, 18265)
 W.DOT_TICK = { Corruption = 3, Immolate = 3, ["Bane of Agony"] = 2, ["Siphon Life"] = 3 }
+-- schools and trees of the spells, for the talents that work on one of them (Wowhead Forever)
+W.SHADOW = { ["Shadow Bolt"] = true, Shadowburn = true, ["Death Coil"] = true, Corruption = true, ["Bane of Agony"] = true,
+  ["Bane of Doom"] = true, ["Siphon Life"] = true, ["Drain Life"] = true, ["Drain Soul"] = true, ["Drain Mana"] = true, Wrack = true }
+W.DESTRUCTION = { ["Shadow Bolt"] = true, Shadowburn = true, Immolate = true, ["Searing Pain"] = true, ["Soul Fire"] = true,
+  Incinerate = true, Conflagrate = true, Hellfire = true, ["Hellfire Effect"] = true, ["Rain of Fire"] = true }
 W.SB_CAST = 1.7
 W.SB_COEF = 0.486
 W.DOT_SP_PER_SEC = 0.2 / 3
@@ -62,13 +75,13 @@ W.WandDps = WandDps
 -- the model
 ---------------------------------------------------------------------------
 function W.Dps(sh, p)
-  local scrit = math.max(0, math.min(sh.spellCrit, 100)) / 100
+  local scrit = math.max(0, math.min(sh.spellCrit + (p.critAdd or 0), 100)) / 100
   local miss = math.max(1, p.spellMiss - (sh.spellHit or 0)) / 100
-  local sf = (1 - miss) * (1 + scrit * 0.5)
+  local sf = (1 - miss) * (1 + scrit * ((p.critMult or 1.5) - 1))
   local total = p.otherDps + p.petDps
-  total = total + p.nukePerSec * (p.nukeDamage + W.SB_COEF * sh.sp) * sf
+  total = total + p.nukePerSec * (p.nukeDamage + W.SB_COEF * sh.sp) * sf * (p.nukeMult or 1)
   -- one DoT's worth of spell power a second: Corruption gives 0.2 of it a tick, every 3 s
-  total = total + (p.dotDps + W.DOT_SP_PER_SEC * sh.sp) * (1 - miss)
+  total = total + (p.dotDps + W.DOT_SP_PER_SEC * sh.sp) * (1 - miss) * (p.dotMult or 1)
   total = total + p.wandUptime * WandDps(sh.wand) * (1 - miss)
   return total
 end
@@ -91,6 +104,7 @@ function W.Context(input)
   local notes = {}
   local function eq(slot) return equipped[slot] and equipped[slot].stats or M.ZERO end
   local intPerCrit = 6 + (54 * (level - 1)) / 59
+  local tal = input.talents or {}
 
   local wand = eq("RANGED").weapon
   local sheet = { sp = input.sp or 0, spellCrit = input.spellCrit or 0, spellHit = input.spellHit or 0, wand = wand,
@@ -109,6 +123,22 @@ function W.Context(input)
     otherDps = 0, notes = notes,
   }
   params.dotDps = 0.25 * params.nukePerSec * params.nukeDamage
+  params.petDps = params.petDps * (1 + (tal.unholyPower or 0) / 100)
+
+  -- the school shares (priors: Shadow Bolt, a Corruption-like DoT), measured below
+  local share = { nShadow = 1, nDestr = 1, nImmolate = 0, dShadow = 1, dDestr = 0, dCorruption = 1, dAgony = 0, dDrain = 0 }
+  local function Mults()
+    params.nukeMult = 1 + (share.nShadow * (tal.shadowMastery or 0) + share.nDestr * (tal.agonizing or 0) + share.nImmolate * (tal.aftermath or 0)) / 100
+    params.dotMult = 1 + (share.dShadow * (tal.shadowMastery or 0) + share.dDestr * (tal.agonizing or 0) + share.dCorruption * (tal.impCorruption or 0)
+      + share.dAgony * (tal.impAgony or 0) + share.dDrain * (tal.impDrains or 0)) / 100
+    params.critMult = 1.5 + 0.5 * share.nDestr * (tal.ruin or 0) / 100
+    -- Malevolence is shadow crit: when the client's shadow crit is not above its fire crit by that
+    -- much, the sheet does not have it
+    local gap = (input.spellCrit or 0) - (input.spellCritFire or 0)
+    local onSheet = input.spellCritFire ~= nil and gap >= (tal.malevolence or 0) - 0.05
+    params.critAdd = (not onSheet) and share.nShadow * (tal.malevolence or 0) or 0
+  end
+  Mults()
 
   local combat = input.combat
   local function mix(prior, measured, n, half)
@@ -119,23 +149,40 @@ function W.Context(input)
   if combat and combat.seconds > 0 then
     local secs = combat.seconds
     local nukes, nukeDmg, nukeLanded, nukeCrit, nukeMiss, dot, pet, wandN, other = 0, 0, 0, 0, 0, 0, 0, 0, 0
+    local by = { nShadow = 0, nDestr = 0, nImmolate = 0, dShadow = 0, dDestr = 0, dCorruption = 0, dAgony = 0, dDrain = 0 }
     for _, a in ipairs(combat.abilities) do
       local k = Kind(a.name)
+      local b = Base(a.name)
       if k == "nuke" then
         nukes, nukeDmg, nukeLanded, nukeCrit = nukes + a.n, nukeDmg + a.dmg, nukeLanded + landed(a), nukeCrit + (a.crit or 0)
         nukeMiss = nukeMiss + (a.miss or 0) + (a.other or 0)
-      elseif k == "dot" or k == "drain" then dot = dot + a.dmg
+        if W.SHADOW[b] then by.nShadow = by.nShadow + a.dmg end
+        if W.DESTRUCTION[b] then by.nDestr = by.nDestr + a.dmg end
+        if b == "Immolate" then by.nImmolate = by.nImmolate + a.dmg end
+      elseif k == "dot" or k == "drain" then
+        dot = dot + a.dmg
+        if W.SHADOW[b] then by.dShadow = by.dShadow + a.dmg end
+        if W.DESTRUCTION[b] then by.dDestr = by.dDestr + a.dmg end
+        if b == "Corruption" then by.dCorruption = by.dCorruption + a.dmg end
+        if b == "Bane of Agony" then by.dAgony = by.dAgony + a.dmg end
+        if b == "Drain Life" or b == "Drain Soul" or b == "Drain Mana" then by.dDrain = by.dDrain + a.dmg end
       elseif k == "pet" then pet = pet + a.dmg
       elseif k == "wand" then wandN = wandN + a.n
       else other = other + a.dmg end
     end
+    for key, v in pairs(by) do
+      local total = key:sub(1, 1) == "n" and nukeDmg or dot
+      if total > 0 then share[key] = mix(share[key], v / total, secs, 120) end
+    end
+    Mults()
     params.nukePerSec = mix(params.nukePerSec, nukes / secs, secs, 120)
     if nukeLanded > 0 then
-      local per = nukeDmg / (nukeLanded + 0.5 * nukeCrit)
+      -- the logged damage has the school talents and Ruin's crit bonus in it
+      local per = nukeDmg / (nukeLanded + (params.critMult - 1) * nukeCrit) / params.nukeMult
       params.nukeDamage = mix(params.nukeDamage, math.max(0, per - W.SB_COEF * sheet.sp), nukeLanded, 10)
     end
     if nukes > 0 then params.spellMiss = mix(params.spellMiss, nukeMiss / nukes * 100, nukes, 30) end
-    params.dotDps = mix(params.dotDps, math.max(0, dot / secs - W.DOT_SP_PER_SEC * sheet.sp), secs, 120)
+    params.dotDps = mix(params.dotDps, math.max(0, dot / secs / params.dotMult - W.DOT_SP_PER_SEC * sheet.sp), secs, 120)
     params.petDps = mix(params.petDps, pet / secs, secs, 120)
     if wand then params.wandUptime = mix(params.wandUptime, math.min(1, wandN / secs * wand.speed), secs, 120) end
     params.otherDps = mix(0, other / secs, secs, 120)
