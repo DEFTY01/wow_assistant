@@ -17,7 +17,7 @@ A Wowhead Forever értékei eltérhetnek a Classicétól, ezért minden rangot �
 
 ## Teendők
 
-- [ ] Rangok, értékek, együtthatók, cast-idő, mana: Healing Touch, Rejuvenation, Regrowth, Swiftmend.
+- [ ] Rangok, értékek, együtthatók, cast-idő, mana: Healing Touch, Rejuvenation, Regrowth, Swiftmend; Restoration spec.
 - [ ] Javasolt gyógyítás-választás (melyik rang mikor manánként a legjobb).
 - [ ] Teszt szintetikus és, ha van, valódi naplóval.
 

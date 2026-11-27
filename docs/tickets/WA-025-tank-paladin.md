@@ -17,7 +17,7 @@ A képességek és a fenyegetés-szorzók forrása a Wowhead Forever és a WoWSi
 
 ## Teendők
 
-- [ ] Képességek: Seal of Fury (Forever), Consecration, Judgement, Holy Shield (ha Foreveren van).
+- [ ] Képességek: Seal of Fury (Forever), Consecration, Judgement, Holy Shield (ha Foreveren van); a szólózás a WA-015b-ben.
 - [ ] Tank-rotáció javaslat (fenyegetés rage-enként / manánként).
 - [ ] Teszt.
 

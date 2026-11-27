@@ -4,12 +4,12 @@
 |---|---|---|---|---|
 | 2. Rotációs javaslatok | L | magas | új funkció | nyitott |
 
-**Előfeltétel:** [WA-004](WA-004-szintfuggo-kalibracio.md), [WA-005](WA-005-aura-idovonal.md)  
-**Erre épül:** [WA-007](WA-007-rotacio-rogue.md), [WA-008](WA-008-rotacio-warrior.md), [WA-009](WA-009-rotacio-mage.md), [WA-010](WA-010-rotacio-warlock.md), [WA-011](WA-011-rotacio-hunter.md), [WA-012](WA-012-rotacio-shaman.md), [WA-013](WA-013-rotacio-druid.md), [WA-014](WA-014-rotacio-priest.md), [WA-015](WA-015-rotacio-paladin.md), [WA-028](WA-028-bizonyithato-hibak.md)
+**Előfeltétel:** [WA-004](WA-004-szintfuggo-kalibracio.md), [WA-005](WA-005-aura-idovonal.md), [WA-030](WA-030-spec-felismeres.md)  
+**Erre épül:** [WA-007a](WA-007a-rotacio-rogue-assassination.md), [WA-007b](WA-007b-rotacio-rogue-combat.md), [WA-007c](WA-007c-rotacio-rogue-subtlety.md), [WA-008a](WA-008a-rotacio-warrior-arms.md), [WA-008b](WA-008b-rotacio-warrior-fury.md), [WA-009a](WA-009a-rotacio-mage-arcane.md), [WA-009b](WA-009b-rotacio-mage-fire.md), [WA-009c](WA-009c-rotacio-mage-frost.md), [WA-010a](WA-010a-rotacio-warlock-affliction.md), [WA-010b](WA-010b-rotacio-warlock-demonology.md), [WA-010c](WA-010c-rotacio-warlock-destruction.md), [WA-011a](WA-011a-rotacio-hunter-bm.md), [WA-011b](WA-011b-rotacio-hunter-mm.md), [WA-011c](WA-011c-rotacio-hunter-survival.md), [WA-012a](WA-012a-rotacio-shaman-elemental.md), [WA-012b](WA-012b-rotacio-shaman-enhancement.md), [WA-013a](WA-013a-rotacio-druid-balance.md), [WA-013b](WA-013b-rotacio-druid-feral-cat.md), [WA-014a](WA-014a-rotacio-priest-shadow.md), [WA-014b](WA-014b-rotacio-priest-holy-disc-szolo.md), [WA-015a](WA-015a-rotacio-paladin-ret.md), [WA-015b](WA-015b-rotacio-paladin-holy-prot-szolo.md), [WA-028](WA-028-bizonyithato-hibak.md)
 
 ## Cél
 
-Közös keret, amely minden kasztnak számításokkal alátámasztott rotációt javasol, és összeveti a harcaiddal.
+Közös keret, amely minden spec számára számításokkal alátámasztott rotációt javasol, és összeveti a harcaiddal.
 
 ## Miért
 
@@ -22,14 +22,15 @@ Ezt a felhasználó kérte: "Rotációt is javasoljunk minden kasztnak kalkulác
 - [ ] Kimenet: prioritási lista és a várt DPS; a harcaidban mért arányok mellette; a különbség képességenként ("Mind Blast: 3,0/perc, a cooldown 7,5-öt enged: +4,1 DPS").
 - [ ] Felület: új "Javasolt rotáció" rész a Harc oldalon, a Haditervben pedig egy rövid összefoglaló. Minden sor mellett a "Honnan a számok" (Wowhead-rang, együttható, mért gyakoriság).
 - [ ] Besorolás: a javaslat számítás, nem hiba. Hiba csak a WA-028 szerinti, bizonyított szabállyal.
-- [ ] Tesztelhető interfész: a kaszt-ticketek (WA-007 – WA-015) csak a képességlistát és a különleges szabályokat adják hozzá.
+- [ ] A rotáció specenként külön definíció: a spec (WA-030) dönti el, melyik fut; a szint dönti el, mely képességek és rangok érhetők el.
+- [ ] Tesztelhető interfész: a spec-ticketek (WA-007a – WA-015b) csak a spec képességlistáját és különleges szabályait adják hozzá.
 
 ## Elfogadás
 
-- Egy példakaszttal (a rogue-gal, WA-007) végig működik: számítás, felület, teszt.
+- Egy példa-speccel (Combat rogue, WA-007b) végig működik: számítás, felület, teszt.
 - Minden megjelenített szám visszakövethető forrásra.
 - Új teszt: `t_rotation.lua`.
 
 ## Megjegyzés
 
-A kaszt-ticketek erre épülnek.
+A spec-ticketek erre épülnek.

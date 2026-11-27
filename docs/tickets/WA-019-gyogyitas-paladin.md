@@ -17,7 +17,7 @@ A Wowhead Forever értékei eltérhetnek a Classicétól, ezért minden rangot �
 
 ## Teendők
 
-- [ ] Rangok, értékek, együtthatók, cast-idő, mana: Holy Light, Flash of Light, Holy Shock (ha Foreveren van), Lay on Hands.
+- [ ] Rangok, értékek, együtthatók, cast-idő, mana: Holy Light, Flash of Light, Holy Shock (ha Foreveren van), Lay on Hands; Holy spec (a szólózás a WA-015b-ben).
 - [ ] Javasolt gyógyítás-választás (melyik rang mikor manánként a legjobb).
 - [ ] Teszt szintetikus és, ha van, valódi naplóval.
 

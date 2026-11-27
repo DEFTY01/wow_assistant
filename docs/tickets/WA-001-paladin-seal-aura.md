@@ -5,7 +5,7 @@
 | 0. Stabilizálás | S | magas | hibajavítás | kész (2.17.1) |
 
 **Előfeltétel:** nincs  
-**Erre épül:** [WA-015](WA-015-rotacio-paladin.md)
+**Erre épül:** nincs (a WA-015b használja az eredményét)
 
 ## Cél
 
