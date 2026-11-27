@@ -1,3 +1,14 @@
+## 2.17.1
+
+Paladin: a seal a harcnaplóból, és a Seal of Fury is sebző seal.
+
+- Javítva: a paladin tanácsa azt írta, hogy az addon nem rögzíti a harcnapló aura-eseményeit, ezért nem tudni, melyik seal volt fent. Ez nem volt igaz: a feltöltő minden saját buff idejét harconként menti, és a seal is buffként szerepel a naplóban.
+- Új a harcoldalon, "Seal a harcaidban" (mért adat): melyik seal a naplózott harcidő hány százalékában volt rajtad, és ebből mennyi volt sebző seal. A "Paladin összesítő" Seal kártyája a leggyakoribb sealt is mutatja.
+- A "Nem sebez seal" megfigyelés most megnevezi, melyik seal volt fent (pl. Seal of the Crusader 95%). Hiba nem lesz belőle: a Crusader attack powert, a Wisdom manát, a Light gyógyulást ad, és hogy ez megérte-e, az a harcadatból nem mérhető. Az élő mérő harcainál megírja, hogy a seal csak a harcnaplóból látszik.
+- Javítva: a Seal of Fury (34-es szinttől) Foreveren minden ütésre holy sebzést ad (Wowhead Forever spell=20419: 19 holy a legfelső rangon, pajzzsal elnyelő pajzs is). Eddig a modell az "egyéb" sebzéshez sorolta, így a Seal of Fury-t használó paladinnál a "Nem sebez seal" tévesen jelezhetett. Most sebző sealként számít; a Haditervben is megjelenik.
+- A sealDamage szabály szövege a Forever tooltipjei szerint: a Righteousness és a Fury minden ütésre, a Command esélyre ad holy sebzést; a Crusader, Wisdom, Light és Justice ütésenként nem.
+- Valódi naplóval ellenőrizve: egy Seal of Command-os paladin (86% Command), és egy Seal of Fury-s (66% Fury, a seal a sebzése 29%-a).
+
 ## 2.17.0
 
 Paladin: saját modell, harcoldal és Haditerv. Ezzel mind a kilenc kasztnak van sebzésmodellje.

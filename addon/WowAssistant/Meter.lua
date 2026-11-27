@@ -71,7 +71,7 @@ local NO_HIT = { ["Slice and Dice"] = true, Stealth = true, Vanish = true, Sprin
   -- paladin: seals (their damage comes as its own event), Judgement (its damage is "Judgement of ..."),
   -- blessings, auras, heals, Hammer of Justice
   ["Seal of Righteousness"] = true, ["Seal of Command"] = true, ["Seal of the Crusader"] = true, ["Seal of Wisdom"] = true,
-  ["Seal of Light"] = true, ["Seal of Justice"] = true, Judgement = true, ["Blessing of Might"] = true, ["Blessing of Wisdom"] = true,
+  ["Seal of Light"] = true, ["Seal of Justice"] = true, ["Seal of Fury"] = true, Judgement = true, ["Blessing of Might"] = true, ["Blessing of Wisdom"] = true,
   ["Blessing of Kings"] = true, ["Blessing of Salvation"] = true, ["Blessing of Protection"] = true, ["Blessing of Freedom"] = true,
   ["Blessing of Light"] = true, ["Blessing of Sanctuary"] = true, ["Devotion Aura"] = true, ["Retribution Aura"] = true,
   ["Concentration Aura"] = true, ["Sanctity Aura"] = true, ["Holy Light"] = true, ["Flash of Light"] = true, ["Lay on Hands"] = true,

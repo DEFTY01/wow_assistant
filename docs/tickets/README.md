@@ -18,7 +18,7 @@ Méret: **S** néhány óra, **M** egy-két munkamenet, **L** több munkamenet.
 
 | Ticket | Cím | Méret | Prioritás | Előfeltétel |
 |---|---|---|---|---|
-| [WA-001](WA-001-paladin-seal-aura.md) | Paladin: a seal ideje a harcnapló aura-adataiból | S | magas | – |
+| [WA-001](WA-001-paladin-seal-aura.md) | Paladin: a seal ideje a harcnapló aura-adataiból (kész, 2.17.1) | S | magas | – |
 | [WA-002](WA-002-jatekon-beluli-ellenorzes.md) | Játékon belüli ellenőrzés: mage, warrior, priest, paladin | S | magas | – |
 | [WA-003](WA-003-regi-mappak.md) | Döntés: a régi SessionBar és AzerothChronicle mappák | S | közepes | – |
 

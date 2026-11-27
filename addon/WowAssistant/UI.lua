@@ -1142,7 +1142,9 @@ local function PaladinSummary(r, ctx, fights)
       { label = "Átlag DPS", value = F1(s.dps), sub = ("%d harc, %d perc"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
       { label = "Fehér ütés", value = m and Pct(s.shares.melee) or "–",
         sub = m and ("miss %s, dodge %s, crit %s"):format(Pct(m.miss), Pct(m.dodge), Pct(m.crit)) or "nincs adat" },
-      { label = "Seal", value = Pct(s.shares.seal), sub = ("Judgement %d%%"):format(math.floor(s.shares.judgement + 0.5)) },
+      { label = "Seal", value = Pct(s.shares.seal), sub = (s.seals.seconds >= 60 and #s.seals.list > 0)
+        and ("%s fent, Judgement %d%%"):format(WA.Paladin.SealList({ list = { s.seals.list[1] } }), math.floor(s.shares.judgement + 0.5))
+        or ("Judgement %d%%"):format(math.floor(s.shares.judgement + 0.5)) },
       { label = "Holy Strike", value = F1(s.hsCpm) .. "/perc", sub = "legfeljebb 6/perc (10 mp cooldown)" },
     } },
   }

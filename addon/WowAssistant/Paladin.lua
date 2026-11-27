@@ -15,6 +15,12 @@
 --   * Seal of Righteousness: holy damage on every white hit, by rank from R/87 to R/25 with 0.0765
 --     to 0.12 of spell power (R = 216 ... 2068, spell=20154 ... 20293; slower weapons more); the
 --     model starts from the middle and uses your hits
+--   * Seal of Fury (level 34, spell=20419): a flat holy amount on every melee attack (19 at the
+--     top rank), with a shield also an absorb; measured from your fights like Judgement
+--   * Seal of the Crusader (AP and faster, weaker swings), Wisdom (mana), Light (healing) and
+--     Justice (stun) add no holy damage to a hit (spell=20162, 20166, 20165, 20164)
+--   * which seal was on you: the combat log's aura events (the uploader keeps each buff's time
+--     per fight); the live meter's fights have none
 --   * attack power = 2 x strength; agility gives crit
 --
 -- Extra input besides Model.lua's: str, agi, ap, crit, hit, spHoly, int, skills, tab.
@@ -35,7 +41,8 @@ PA.HS_COEF, PA.HS_CD = 0.429, 10
 -- { level, R } per Seal of Righteousness rank: R/87 to R/25 a hit
 PA.SOR = { { 1, 216 }, { 10, 318 }, { 18, 490 }, { 26, 727 }, { 34, 1007 }, { 42, 1328 }, { 50, 1689 }, { 58, 2068 } }
 PA.SOC_SHARE = 0.7
-PA.SEALS = { ["Seal of Command"] = true, ["Seal of Righteousness"] = true }
+-- the seals that add holy damage to a hit (their damage shows in the log under the seal's name)
+PA.SEALS = { ["Seal of Command"] = true, ["Seal of Righteousness"] = true, ["Seal of Fury"] = true }
 
 local function Rank(list, level)
   local best
@@ -172,7 +179,7 @@ function PA.Context(input)
       end
     end
     params.otherDps = mix(0, other / secs, secs, 120)
-    notes[#notes + 1] = ("Kalibrálva %d rögzített harcból (%d mp): ütés az idő %d%%-ában, Holy Strike %s percenként, Seal of Command a fegyverütés %d%%-a ütésenként, Seal of Righteousness az ütések %d%%-án (%d), minden más (Judgement, Consecration...) %s DPS.")
+    notes[#notes + 1] = ("Kalibrálva %d rögzített harcból (%d mp): ütés az idő %d%%-ában, Holy Strike %s percenként, Seal of Command a fegyverütés %d%%-a ütésenként, Seal of Righteousness az ütések %d%%-án (%d), minden más (Judgement, Consecration, Seal of Fury...) %s DPS.")
       :format(combat.fights, Round(secs), Round(params.meleeUptime * 100), F1(params.hsPerSec * 60), Round(params.socK * 100), Round(params.sorRate * 100),
         Round(params.sorPerHit), F1(params.otherDps))
   else
@@ -294,6 +301,41 @@ end
 
 PA.ManaItems = function(fights) return WA.Mage.ManaItems(fights) end
 
+-- How long each seal was on you, from the combat log's aura events. Only log fights count: the
+-- live meter's fights carry no auras. A seal put on before the log began is not in it.
+function PA.SealUptime(fights)
+  local secs, by, order = 0, {}, {}
+  for _, f in ipairs(fights or {}) do
+    local dur = tonumber(f.dur) or 0
+    if dur > 0 and f.source ~= "live" and f.source ~= "meter" then
+      secs = secs + dur
+      for _, a in ipairs(f.auras or {}) do
+        local name, t = a[1], tonumber(a[2]) or 0
+        if type(name) == "string" and name:find("^Seal of ") and t > 0 then
+          if not by[name] then by[name] = 0 order[#order + 1] = name end
+          by[name] = by[name] + math.min(t, dur)
+        end
+      end
+    end
+  end
+  local list, dmgSecs = {}, 0
+  for _, name in ipairs(order) do
+    list[#list + 1] = { name = name, secs = by[name], pct = secs > 0 and math.min(100, by[name] / secs * 100) or 0, damaging = PA.SEALS[name] == true }
+    if PA.SEALS[name] then dmgSecs = dmgSecs + by[name] end
+  end
+  M.Stable(list, function(a, b) return a.secs > b.secs end)
+  return { seconds = secs, list = list, damagingPct = secs > 0 and math.min(100, dmgSecs / secs * 100) or 0 }
+end
+
+local function SealList(su, minPct)
+  local bits = {}
+  for _, x in ipairs(su.list) do
+    if x.pct >= (minPct or 0) then bits[#bits + 1] = ("%s %d%%"):format(x.name, Round(x.pct)) end
+  end
+  return table.concat(bits, ", ")
+end
+PA.SealList = SealList
+
 local GRADES = { { 90, "S" }, { 80, "A" }, { 65, "B" }, { 50, "C" }, { 0, "D" } }
 function PA.Score(f, ctx)
   local parts = {}
@@ -351,6 +393,7 @@ function PA.Summary(r, ctx, fights)
   end
   local hs = Find(r.abilities, "Holy Strike")
   s.hsCpm = hs and hs.n / secs * 60 or 0
+  s.seals = PA.SealUptime(fights)
   for _, a in ipairs(r.abilities) do
     local landed = (a.hit or 0) + (a.crit or 0) + (a.glance or 0)
     s.rows[#s.rows + 1] = { name = a.name, dmg = a.dmg, share = a.share, n = a.n, cpm = a.n / secs * 60,
@@ -387,11 +430,29 @@ function PA.Advise(r, fights)
       advice = "Manaitalt akkor igyál, amikor legalább annyi mana hiányzik, amennyit ad." })
   end
   local melee = Find(r.abilities, "Melee")
+  local su = PA.SealUptime(fights)
   if r.seconds >= 300 and melee and melee.n >= 100 and share.seal < 1 then
-    Push({ title = "Nem sebez seal", rule = "sealDamage",
-      fact = ("A harcaidban %d fehér ütés van, de a Seal of Command és a Seal of Righteousness sebzése a teljes sebzésed %s%%-a."):format(melee.n, F1(share.seal)),
-      advice = "Sebzéshez Seal of Righteousness vagy (Retribution talenttel) Seal of Command kell. A Seal of Wisdom, Light vagy Justice nem sebez.",
-      missing = "melyik seal volt rajtad (a harcnapló aura-eseményeit az addon nem rögzíti)" })
+    local fact = ("A harcaidban %d fehér ütés van, de a sebző sealek (Righteousness, Command, Fury) sebzése a teljes sebzésed %s%%-a.")
+      :format(melee.n, F1(share.seal))
+    local advice = "Ütésenként holy sebzést a Seal of Righteousness, a Seal of Fury és (Retribution talenttel) a Seal of Command ad."
+    if su.seconds >= 60 then
+      local seen = SealList(su, 1)
+      if seen ~= "" then
+        fact = fact .. (" A harcnapló aura-eseményei szerint (%d mp naplózott harc) ennyi ideig volt rajtad seal: %s; sebző seal az idő %d%%-ában.")
+          :format(Round(su.seconds), seen, Round(su.damagingPct))
+        advice = advice .. " A Seal of the Crusader attack powert és gyorsabb ütést ad, a Wisdom manát, a Light gyógyulást, a Justice kábítást: ütésenként holy sebzést nem. Hogy a hatásuk megérte-e, az a harcadatból nem mérhető."
+      else
+        fact = fact .. (" A naplózott harcaidban (%d mp) nem volt rajtad seal-aura (amit a naplózás kezdete előtt tettél fel, az nem látszik)."):format(Round(su.seconds))
+      end
+    else
+      fact = fact .. " Hogy melyik seal volt rajtad, az csak a harcnaplóból látszik (/wa log); ezekben a harcokban nincs naplóadat."
+    end
+    Push({ title = "Nem sebez seal", rule = "sealDamage", fact = fact, advice = advice })
+  end
+  if r.seconds >= 120 and su.seconds >= 60 and #su.list > 0 then
+    Push({ info = true, title = "Seal a harcaidban", rule = "sealDamage",
+      fact = ("A harcnapló aura-eseményei szerint (%d mp naplózott harc): %s. Sebző seal (Righteousness, Command, Fury) az idő %d%%-ában.")
+        :format(Round(su.seconds), SealList(su, 0), Round(su.damagingPct)) })
   end
   local hs = Find(r.abilities, "Holy Strike")
   if r.seconds >= 300 then

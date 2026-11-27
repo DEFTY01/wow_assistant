@@ -452,6 +452,7 @@ P.CLASS = {
       ["Seal of Wisdom"] = "mana az ütésekből",
       ["Seal of Light"] = "gyógyulás az ütésekből",
       ["Seal of Justice"] = "kábítás esélyre, menekülés ellen",
+      ["Seal of Fury"] = "holy sebzés minden ütésre; pajzzsal elnyelő pajzsot is ad (Forever, tankolásra)",
       ["Blessing of Wisdom"] = "mana-visszatöltés (gyógyítónak, castereknek)",
       ["Blessing of Kings"] = "minden stat (talent)",
       ["Blessing of Salvation"] = "kevesebb threat (a nem tankoknak)",
