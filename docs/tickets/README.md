@@ -53,9 +53,9 @@ Méret: **S** néhány óra, **M** egy-két munkamenet, **L** több munkamenet.
 
 | Ticket | Cím | Méret | Prioritás | Előfeltétel |
 |---|---|---|---|---|
-| [WA-006](WA-006-rotacio-keret.md) | Rotációs javaslat: közös keret és felület | L | magas | WA-004, WA-005, WA-030 |
+| [WA-006](WA-006-rotacio-keret.md) | Rotációs javaslat: közös keret és felület (kész, 2.34.0) | L | magas | WA-004, WA-005, WA-030 |
 | [WA-007a](WA-007a-rotacio-rogue-assassination.md) | Rotációs javaslat: Rogue – Assassination | M | közepes | WA-006, WA-032a |
-| [WA-007b](WA-007b-rotacio-rogue-combat.md) | Rotációs javaslat: Rogue – Combat | M | közepes | WA-006, WA-032a |
+| [WA-007b](WA-007b-rotacio-rogue-combat.md) | Rotációs javaslat: Rogue – Combat (kész, 2.34.0) | M | közepes | WA-006, WA-032a |
 | [WA-007c](WA-007c-rotacio-rogue-subtlety.md) | Rotációs javaslat: Rogue – Subtlety | M | közepes | WA-006, WA-032a |
 | [WA-008a](WA-008a-rotacio-warrior-arms.md) | Rotációs javaslat: Warrior – Arms | M | közepes | WA-006, WA-032b |
 | [WA-008b](WA-008b-rotacio-warrior-fury.md) | Rotációs javaslat: Warrior – Fury | M | közepes | WA-006, WA-032b |

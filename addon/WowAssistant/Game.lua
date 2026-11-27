@@ -440,6 +440,8 @@ function G.Context()
   local input = G.ModelInput()
   local ctx = M.Context(input)
   ctx.ammoId = input.ammoId
+  -- the rotation (WA-006) reads the talents and the spec from the input
+  ctx.input = input
   local note = TalentNote(input, ctx)
   if note and ctx.params and ctx.params.notes then ctx.params.notes[#ctx.params.notes + 1] = note end
   -- WA-004: where the calibration comes from (which levels, how much of it counts)

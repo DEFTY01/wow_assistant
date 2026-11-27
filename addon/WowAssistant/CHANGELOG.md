@@ -1,3 +1,13 @@
+## 2.34.0
+
+Javasolt rotáció, elsőként a Combat rogue-nak.
+
+- A Harc oldalon új rész: "Javasolt rotáció". Megmondja, milyen sorrendben érdemes használni a képességeidet, és mennyi DPS-t vár tőle a modell. Mellette a harcaid: képességenként hányszor használtad percenként, és ez mennyi DPS-be került vagy hozott.
+- Combat rogue: Slice and Dice (hány ponttal éri meg a te harcaid hosszánál), Eviscerate 5 ponttal, Shank cooldownon 80 energia alatt, Blade Flurry és Adrenaline Rush (egy használat értéke). Minden szám mellett ott a forrás (Wowhead Forever, WoWSims Forever).
+- A Haditervben egy sor összefoglalja.
+- Ez számítás, nem hibalista: a harcaid átlagában benne van a futás, a célpontváltás és a rövid harc is.
+- A többi spec rotációja a saját ticketjében jön; addig a rész megmondja, melyik.
+
 ## 2.33.0
 
 Aura-idővonal: a harcnapló most azt is megjegyzi, mikor került fel és le egy buff vagy egy debuffod.

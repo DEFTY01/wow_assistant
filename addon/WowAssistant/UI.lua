@@ -949,6 +949,12 @@ function UI.pages.plan()
     { label = "Marad", value = Money(p.left), sub = "az aranyadból: " .. Money(p.gold) },
   } }
   Add(out, Warnings(p.warnings))
+  -- WA-006: the suggested rotation in one line; the numbers are on the Harc page
+  local rot = WA.Rotation and WA.Rotation.Build(ctx)
+  if rot then
+    out[#out + 1] = Section("plan.rot", "Javasolt rotáció · " .. rot.spec, { { p = rot.summary },
+      { p = "Sorrend, képességenkénti számok és a forrásuk: Harc oldal → Javasolt rotáció.", muted = true } }, true)
+  end
   out[#out + 1] = Section("plan.buy", "Vedd meg most", { { table = { id = "plan.buy", cols = OptionCols(true), rows = OptionRows(p.buy, true),
     empty = "Ebből az aranyból most nincs érdemi fejlesztés." } } }, true, #p.buy)
   if #p.free > 0 then
@@ -1385,6 +1391,48 @@ local function WarriorSummary(r, ctx, fights)
   return Section("combat.warrior", "Warrior összesítő (minden harc)", blocks, true, r.fights)
 end
 
+-- The suggested rotation (WA-006): the order, per ability suggested vs measured with the DPS
+-- between them and where every number comes from, the cooldowns, the notes.
+local function RotDiff(d)
+  if not d then return Cell(Muted("–"), -math.huge) end
+  if d >= 0.05 then return Cell(Color(HEX.good, ("+%.1f"):format(d)), d) end
+  if d <= -0.05 then return Cell(Muted(("−%.1f"):format(-d)), d) end
+  return Cell("0.0", 0)
+end
+local function RotationSection(rot, report)
+  local blocks = {}
+  local head = ("Várt %s DPS ezzel a sorrenddel"):format(Color(HEX.gold, F1(rot.dps)))
+  if rot.now then
+    head = head .. ("; a modell a te mért gyakoriságaiddal %s DPS-t ad (%s), a harcaid mért DPS-e %s. A DPS oszlop képességenként mutatja a különbséget, összesen ennyi."):format(
+      F1(rot.now), (rot.dps - rot.now >= 0 and "+" or "−") .. F1(math.abs(rot.dps - rot.now)), F1(report and report.dps))
+  else
+    head = head .. ". Még nincs rögzített harcod, ezért a mért oszlop üres."
+  end
+  blocks[#blocks + 1] = { p = head }
+  local prio = {}
+  for i, x in ipairs(rot.priority) do prio[#prio + 1] = { Cell(i .. ".", i), x.name, x.when } end
+  blocks[#blocks + 1] = { h = "Sorrend (az első, amelyik épp használható)" }
+  blocks[#blocks + 1] = { table = { id = "combat.rot.prio", cols = { { "#", 30, "RIGHT" }, { "Képesség", 130 }, { "Mikor", 0, flex = true } }, rows = prio } }
+  local rows = {}
+  for _, x in ipairs(rot.rows) do
+    rows[#rows + 1] = { cells = { x.name, x.plan, x.measured or Muted("–"), RotDiff(x.diff), x.from }, tip = x.name .. "\n" .. x.from }
+  end
+  blocks[#blocks + 1] = { h = "Képességenként: javasolt és mért" }
+  blocks[#blocks + 1] = { table = { id = "combat.rot", cols = { { "Képesség", 110 }, { "Javasolt", 200 }, { "Mért", 150 },
+    { "DPS", 56, "RIGHT" }, { "Honnan", 0, flex = true } }, rows = rows } }
+  if #rot.cooldowns > 0 then
+    local cds = {}
+    for _, x in ipairs(rot.cooldowns) do
+      cds[#cds + 1] = { cells = { x.name, x.plan, x.measured or Muted("–"), x.from }, tip = x.name .. "\n" .. x.from }
+    end
+    blocks[#blocks + 1] = { h = "Cooldownok (egy használat értéke; a fenti DPS-ben nincsenek benne)" }
+    blocks[#blocks + 1] = { table = { id = "combat.rot.cd", cols = { { "Képesség", 110 }, { "Javasolt", 200 }, { "Mért", 110 },
+      { "Honnan", 0, flex = true } }, rows = cds } }
+  end
+  for _, n in ipairs(rot.notes) do blocks[#blocks + 1] = { p = n, muted = true } end
+  return Section("combat.rot", "Javasolt rotáció · " .. rot.spec, blocks, true, #rot.rows)
+end
+
 function UI.pages.combat()
   local all = G.Fights()
   table.sort(all, function(a, b) return a.start > b.start end)
@@ -1626,6 +1674,15 @@ function UI.pages.combat()
         blocks5[#blocks5 + 1] = { table = { id = "combat.refs", cols = { { "Mi", 190 }, { "Érték", 90, "RIGHT" }, { "Miből", 0, flex = true } }, rows = refs } }
       end
       out[#out + 1] = Section("combat.models", "Modell a kasztodhoz" .. (spec.name and (" · " .. spec.name) or ""), blocks5, false, #rows5)
+    end
+  end
+  -- WA-006: the suggested rotation for your spec, beside your fights (a calculation, not a verdict)
+  if ctx then
+    local rot, why = WA.Rotation.Build(ctx)
+    if rot then
+      out[#out + 1] = RotationSection(rot, r)
+    elseif why then
+      out[#out + 1] = Section("combat.rot", "Javasolt rotáció", { { p = "Ehhez nincs még javasolt rotáció: " .. why .. ".", muted = true } }, false)
     end
   end
   if r.cooldowns and #r.cooldowns > 0 then

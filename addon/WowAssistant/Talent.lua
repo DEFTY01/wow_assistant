@@ -145,6 +145,10 @@ local TANK = "blokk, vagy a téged érő ütések és critek után hat: a modell
 local function ROTATION(what, ticket)
   return ("a(z) %s még nincs külön a modellben; a rotációs ticketben jön (%s)"):format(what, ticket)
 end
+-- counted by the suggested rotation (Rotation.lua, the Harc page), not by the gear model's DPS
+local function IN_ROTATION(what, ticket)
+  return ("a Harc oldal Javasolt rotáció része számol vele (%s; %s); a felszerelés-modell DPS-ében nincs benne"):format(what, ticket)
+end
 local function COOLDOWN(ticket)
   return ("aktív képesség cooldownnal: a cooldown ideje nincs a talentadatban, a rotációs ticketben jön (%s)"):format(ticket)
 end
@@ -349,18 +353,18 @@ T.EFFECTS = {
     ["Weapon Expertise"] = { { key = "expertise", val = 1, what = "dodge és parry esély −%" } },
     Aggression = { { key = "aggression", val = 1, what = "Sinister Strike és Eviscerate sebzés %" } },
     ["Dual Wield Specialization"] = { { key = "dualWield", val = 1, what = "off-hand sebzés %" } },
-    ["Blade Flurry"] = { reason = COOLDOWN("WA-007b") },
+    ["Blade Flurry"] = { reason = IN_ROTATION("egy használat értéke", "WA-007b") },
     ["Hack and Slash"] = { { key = "hackSlash", val = 1, what = "extra támadás esély % (fejsze, kard)" },
       partial = "a dagger/ököl crit része és a buzogány páncéltörése nincs a modellben" },
-    ["Flash of Steel"] = { reason = ROTATION("Shank", "WA-007b") },
-    ["Adrenaline Rush"] = { reason = COOLDOWN("WA-007b") },
+    ["Flash of Steel"] = { reason = IN_ROTATION("a Shank energiája és cooldownja", "WA-007b") },
+    ["Adrenaline Rush"] = { reason = IN_ROTATION("egy használat értéke", "WA-007b") },
     -- Assassination
     ["Improved Gouge"] = { reason = UTILITY },
     ["Remorseless Attacks"] = { reason = "ölés utáni hatás: hogy hány ellenfelet öltél, az a harcadatból még nem jön" },
     Malice = { { key = "malice", val = 1, what = "crit %", stat = { "crit" } }, sheet = "a játék karakterlapja (GetCritChance) már tartalmazza" },
     Ruthlessness = { { key = "ruthlessness", val = 1, what = "finisher utáni combo pont esély %" } },
     ["Improved Expose Armor"] = { reason = ROTATION("Expose Armor", "WA-007a") },
-    ["Improved Slice and Dice"] = { reason = ROTATION("Slice and Dice", "WA-007a, WA-007b") },
+    ["Improved Slice and Dice"] = { reason = IN_ROTATION("a Slice and Dice ideje", "WA-007b; Assassination: WA-007a") },
     Vigor = { reason = "csak a maximális energiát emeli; a tartós sebzést ebben a modellben nem változtatja" },
     ["Blood Splatter"] = { reason = ROTATION("Rupture és a Garrote", "WA-007a") },
     Lethality = { { key = "lethality", val = 1, what = "Sinister Strike crit-sebzés bónusz %" } },

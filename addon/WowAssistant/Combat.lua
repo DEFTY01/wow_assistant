@@ -50,6 +50,8 @@ function C.Report(fights, limit, advise)
   local cp, cpOrder, auraSecs, auraOrder, byLevel, lvOrder = {}, {}, {}, {}, {}, {}
   local seconds, damage, capped, samples, offhandMiss = 0, 0, 0, 0, 0
   local ev = {}
+  -- every cast by name (WA-006: how often a cooldown or Shank was used), weighted like the rest
+  local castCount = {}
   for name in pairs(PROVABLE) do ev[name] = { seen = 0, proven = {}, justified = 0, unchecked = 0 } end
   for _, f in ipairs(list) do
     -- fight.weight (WA-004): a fight far from your level counts less in the model's calibration
@@ -73,6 +75,7 @@ function C.Report(fights, limit, advise)
     end
     for _, c in ipairs(f.casts or {}) do
       local name = c[2]
+      if name then castCount[name] = (castCount[name] or 0) + w end
       if FINISHERS[name] then
         local e = cp[name]
         if not e then e = { casts = 0, cp = 0 } cp[name] = e cpOrder[#cpOrder + 1] = name end
@@ -133,7 +136,7 @@ function C.Report(fights, limit, advise)
       parry = Pct(yellow.parry, yellow.n), crit = Pct(yellow.crit, Landed(yellow)) },
     energyCappedPct = samples > 0 and Pct(capped, samples) or nil,
     offhandMissSharePct = (white.n - Landed(white)) > 0 and Pct(offhandMiss, white.n - Landed(white)) or nil,
-    finishers = {}, auras = {}, byLevel = {}, recent = {},
+    finishers = {}, auras = {}, byLevel = {}, recent = {}, casts = castCount,
     evis = ev.Eviscerate, finisherEvidence = ev,
     cooldowns = C.CooldownUsage(list),
   }
