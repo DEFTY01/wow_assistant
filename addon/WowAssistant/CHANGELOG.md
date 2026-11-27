@@ -1,3 +1,16 @@
+## 2.27.0
+
+Priest: mindhárom talentfa a modellben.
+
+- A priest mind az 52 talentje besorolva. Amelyik a varázslataid vagy a pálcád sebzését változtatja, azzal a modell most számol, a rangod Wowhead Forever számaival:
+  - Searing Light (holy), Darkness és Shadowform (shadow; Shadowformban a shadow crit dupla bónuszt ad), Twin Disciplines (Shadow Word: Pain), Improved Mind Flay;
+  - Holy Precision, Shadow Focus (hit) és Holy Specialization (holy crit; az addon a játék holy és shadow critjéből látja, hogy a karakterlapodon már benne van-e);
+  - Mind Flay: ha megvan a talent, a modell Mind Flay-jel számol a Smite helyett;
+  - Divine Fury és Improved Mind Blast: rövidebb Smite és Mind Blast cooldown (amíg nincs harcnapló);
+  - Mental Strength (intellect) és Wand Specialization (pálca).
+- Amelyikkel nem számol, annál a /wa talent megmondja, miért: gyógyítás, mana, túlélés, cooldown, olyan hatás, amihez az aura-idővonal kell (Power in Light, Shadow Weaving), vagy a Penance, ami még nincs külön a modellben.
+- Talentek nélkül a számok nem változtak.
+
 ## 2.26.0
 
 Druid: mindhárom talentfa a modellben.

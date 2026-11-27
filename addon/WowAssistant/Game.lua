@@ -365,6 +365,9 @@ function G.ModelInput()
     input.spHoly = GetSpellBonusDamage and (GetSpellBonusDamage(2) or 0) or 0
     input.spShadow = GetSpellBonusDamage and (GetSpellBonusDamage(6) or 0) or 0
     input.spellCrit = GetSpellCritChance and math.max(GetSpellCritChance(2) or 0, GetSpellCritChance(6) or 0) or 0
+    -- by school too: Holy Specialization is holy crit, so the gap tells whether the sheet has it
+    input.spellCritHoly = GetSpellCritChance and (GetSpellCritChance(2) or 0) or nil
+    input.spellCritShadow = GetSpellCritChance and (GetSpellCritChance(6) or 0) or nil
     input.spellHit = GetSpellHitModifier and (GetSpellHitModifier() or 0) or 0
     input.tab = (G.MainTalentTab())
   elseif input.class == "PALADIN" then

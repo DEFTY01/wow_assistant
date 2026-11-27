@@ -18,8 +18,16 @@
 --   * a mana potion or a mana gem: mana over the maximum is lost (the same rule as the mage's)
 --   * a wand's damage does not grow with spell power
 --
+-- Talents (WA-032h, the numbers of the rank's Wowhead Forever text), on the parts they touch:
+-- Searing Light (holy), Darkness and Shadowform (shadow; Shadowform also doubles the shadow crit
+-- bonus), Twin Disciplines (Shadow Word: Pain), Improved Mind Flay (each tick more than the one
+-- before), Holy Precision / Shadow Focus (hit by school), Holy Specialization (holy crit, when the
+-- sheet does not have it), Divine Fury and Improved Mind Blast (the prior's cast time and
+-- cooldown), Mind Flay (the filler), Mental Strength (intellect), Wand Specialization.
+--
 -- Extra input besides Model.lua's: int, spHoly, spShadow (spell power by school), spellCrit,
--- spellHit, tab (the talent tab with the most points).
+-- spellCritHoly, spellCritShadow (crit by school), spellHit, tab (the talent tab with the most
+-- points), talents = Talent.lua's T.Effects.
 
 local _, WA = ...
 WA = WA or {}
@@ -82,7 +90,8 @@ PR.Rank = Rank
 
 -- The parts the model counts, by the name a fight's ability list uses: per hit (or tick) base
 -- damage, spell power coefficient, school, whether it crits, the prior rate a second.
-function PR.Parts(level, tab)
+function PR.Parts(level, tab, tal)
+  tal = tal or {}
   local parts = {}
   local smite = Rank(PR.SMITE, level)
   local mb = Rank(PR.MIND_BLAST, level)
@@ -92,23 +101,44 @@ function PR.Parts(level, tab)
   -- time budget of a typical fight: the filler gets what Mind Blast leaves of 55%
   local filler = 0.55
   if mb then
-    parts["Mind Blast"] = { base = (mb[2] + mb[3]) / 2, coef = 0.429, school = "shadow", crits = true, rate = 0.6 / PR.MB_CD, rank = mb, cast = 1.5 }
-    filler = filler - 0.6 / PR.MB_CD * 1.5
+    -- Improved Mind Blast: a shorter cooldown (the prior; the fights' rate replaces it)
+    local cd = PR.MB_CD - (tal.impMindBlast or 0)
+    parts["Mind Blast"] = { base = (mb[2] + mb[3]) / 2, coef = 0.429, school = "shadow", crits = true, rate = 0.6 / cd, rank = mb, cast = 1.5 }
+    filler = filler - 0.6 / cd * 1.5
   end
   if swp then
     parts["Shadow Word: Pain (dot)"] = { base = swp[2] / 6, coef = 0.2, school = "shadow", crits = true, rate = 0.6 / 3, rank = swp, tick = true }
   end
-  local useFlay = flay and tab == 3
+  -- Mind Flay is a talent on Forever: the filler when the talent scan has it, else (no scan) by
+  -- the Shadow tab
+  local useFlay
+  if tal.read then useFlay = flay and (tal.mindFlay or 0) > 0 else useFlay = flay and tab == 3 end
+  -- Divine Fury: shorter Smite and Holy Fire casts (not below the 1.5 s global cooldown); the
+  -- spell power share stays the base cast time's
+  local fury = tal.divineFury or 0
   if smite then
-    parts.Smite = { base = (smite[2] + smite[3]) / 2, coef = smite[4] / 3.5, school = "holy", crits = true, rate = useFlay and 0 or filler / smite[4],
-      rank = smite, cast = smite[4] }
+    local cast = math.max(1.5, smite[4] - fury)
+    parts.Smite = { base = (smite[2] + smite[3]) / 2, coef = smite[4] / 3.5, school = "holy", crits = true, rate = useFlay and 0 or filler / cast,
+      rank = smite, cast = cast }
   end
   if flay then
     parts["Mind Flay (dot)"] = { base = flay[2] / 3, coef = 0.167, school = "shadow", crits = true, rate = useFlay and filler or 0, rank = flay, tick = true }
   end
   if hf then
-    parts["Holy Fire"] = { base = (hf[2] + hf[3]) / 2, coef = 0.75, school = "holy", crits = true, rate = 0, rank = hf, cast = 3.5 }
+    parts["Holy Fire"] = { base = (hf[2] + hf[3]) / 2, coef = 0.75, school = "holy", crits = true, rate = 0, rank = hf, cast = math.max(1.5, 3.5 - fury) }
     parts["Holy Fire (dot)"] = { base = hf[5] / 5, coef = 0.05, school = "holy", crits = true, rate = 0, rank = hf, tick = true }
+  end
+  -- the talents' multipliers on each part
+  local holyMult = 1 + (tal.searing or 0) / 100
+  local shadowMult = (1 + (tal.darkness or 0) / 100) * (1 + (tal.shadowformDmg or 0) / 100)
+  local shadowCrit = 1.5 + 0.5 * (tal.shadowformCrit or 0) / 100
+  -- Improved Mind Flay: the ticks of a full channel are 1, 1 + r, (1 + r)^2 times the first
+  local r = (tal.impMindFlay or 0) / 100
+  local flayMult = (1 + (1 + r) + (1 + r) ^ 2) / 3
+  for name, x in pairs(parts) do
+    if x.school == "shadow" then x.mult, x.critMult = shadowMult, shadowCrit else x.mult, x.critMult = holyMult, 1.5 end
+    if name == "Shadow Word: Pain (dot)" then x.mult = x.mult * (1 + (tal.twin or 0) / 100) end
+    if name == "Mind Flay (dot)" then x.mult = x.mult * flayMult end
   end
   return parts
 end
@@ -117,26 +147,31 @@ end
 -- the model
 ---------------------------------------------------------------------------
 function PR.Dps(sh, p)
-  local scrit = math.max(0, math.min(sh.spellCrit, 100)) / 100
   local miss = math.max(1, p.spellMiss - (sh.spellHit or 0)) / 100
   local total = p.otherDps
   for _, x in pairs(p.parts) do
     if x.rate > 0 then
-      local sp = x.school == "shadow" and sh.spShadow or sh.spHoly
-      local f = (1 - miss) * (x.crits and (1 + scrit * 0.5) or 1)
-      total = total + x.rate * (x.base + x.coef * sp) * f
+      local shadow = x.school == "shadow"
+      local sp = shadow and sh.spShadow or sh.spHoly
+      -- crit and hit by school (Holy Specialization, Holy Precision, Shadow Focus)
+      local crit = shadow and (sh.critShadow or sh.spellCrit) or (sh.critHoly or sh.spellCrit)
+      local scrit = math.max(0, math.min(crit, 100)) / 100
+      local xmiss = math.max(1, p.spellMiss - (sh.spellHit or 0) - (shadow and p.shadowHit or p.holyHit)) / 100
+      local f = (1 - xmiss) * (x.crits and (1 + scrit * ((x.critMult or 1.5) - 1)) or 1)
+      total = total + x.rate * (x.base + x.coef * sp) * f * (x.mult or 1)
     end
   end
-  total = total + p.wandUptime * WandDps(sh.wand) * (1 - miss)
+  total = total + p.wandUptime * WandDps(sh.wand) * (1 - miss) * p.wandMult
   return total
 end
 
 local function Apply(sh, remove, add, p)
-  local dInt = ((add.int or 0) - (remove.int or 0)) * p.statMult
+  local dInt = ((add.int or 0) - (remove.int or 0)) * p.statMult * p.intMult
   local dSp = (add.sp or 0) - (remove.sp or 0)
   return {
     spHoly = sh.spHoly + dSp, spShadow = sh.spShadow + dSp, sp = sh.sp + dSp,
     spellCrit = sh.spellCrit + dInt / p.intPerCrit,
+    critHoly = sh.critHoly + dInt / p.intPerCrit, critShadow = sh.critShadow + dInt / p.intPerCrit,
     spellHit = sh.spellHit, wand = sh.wand, ap = sh.ap, crit = sh.crit, hit = sh.hit, mh = sh.mh,
   }
 end
@@ -151,15 +186,25 @@ function PR.Context(input)
   local function eq(slot) return equipped[slot] and equipped[slot].stats or M.ZERO end
   local intPerCrit = 6 + (54 * (level - 1)) / 59
   local combat = input.combat
-  local parts = PR.Parts(level, input.tab)
+  local tal = input.talents or {}
+  local parts = PR.Parts(level, input.tab, tal)
 
   local wand = eq("RANGED").weapon
   local spHoly, spShadow = input.spHoly or input.sp or 0, input.spShadow or input.sp or 0
   local sheet = { spHoly = spHoly, spShadow = spShadow, sp = math.max(spHoly, spShadow), spellCrit = input.spellCrit or 0, spellHit = input.spellHit or 0,
     wand = wand, ap = input.ap or 0, crit = input.crit or 0, hit = input.hit or 0, mh = eq("MAIN_HAND").weapon }
+  -- crit by school; Holy Specialization is added when the holy crit is not that much above the
+  -- shadow crit (the sheet does not have it), the way the mage's Critical Mass is
+  sheet.critHoly = input.spellCritHoly or sheet.spellCrit
+  sheet.critShadow = input.spellCritShadow or sheet.spellCrit
+  local holySpec = tal.holySpec or 0
+  local holySpecAdded = holySpec > 0 and (sheet.critHoly - sheet.critShadow) < holySpec - 0.05
+  if holySpecAdded then sheet.critHoly = sheet.critHoly + holySpec end
 
   local params = { level = level, intPerCrit = intPerCrit, statMult = 1, spellMiss = 4, parts = parts, tab = input.tab,
-    wandUptime = wand and 0.15 or 0, otherDps = 0, notes = notes }
+    wandUptime = wand and 0.15 or 0, otherDps = 0, notes = notes,
+    holyHit = tal.holyHit or 0, shadowHit = tal.shadowHit or 0, holySpecAdded = holySpecAdded,
+    wandMult = 1 + (tal.wandSpec or 0) / 100, intMult = 1 + (tal.mentalStrength or 0) / 100 }
 
   local function PartsNote()
     local bits = {}
@@ -182,7 +227,7 @@ function PR.Context(input)
   if combat and combat.seconds > 0 then
     local secs = combat.seconds
     local seen, wandN, other = {}, 0, 0
-    local missN, castN = 0, 0
+    local missN, castN, hitBack = 0, 0, 0
     for _, a in ipairs(combat.abilities) do
       local x = parts[a.name]
       if x then
@@ -190,16 +235,22 @@ function PR.Context(input)
         x.rate = mix(x.rate, a.n / secs, secs, 120)
         local l = landed(a)
         if l > 0 then
-          local per = a.dmg / (l + (x.crits and 0.5 * (a.crit or 0) or 0))
+          -- one hit without the talents (the crit bonus and the multiplier of its part)
+          local per = a.dmg / (l + (x.crits and ((x.critMult or 1.5) - 1) * (a.crit or 0) or 0)) / (x.mult or 1)
           local sp = x.school == "shadow" and sheet.spShadow or sheet.spHoly
           x.base = mix(x.base, math.max(0, per - x.coef * sp), l, 10)
         end
-        if not x.tick then missN, castN = missN + (a.miss or 0) + (a.other or 0), castN + a.n end
+        if not x.tick then
+          missN, castN = missN + (a.miss or 0) + (a.other or 0), castN + a.n
+          hitBack = hitBack + a.n * (x.school == "shadow" and params.shadowHit or params.holyHit)
+        end
       elseif Kind(a.name) == "wand" then wandN = wandN + a.n
       elseif Base(a.name) ~= "Mind Flay" and Base(a.name) ~= "Shadow Word: Pain" then other = other + a.dmg end
     end
     for k, x in pairs(parts) do if not seen[k] then x.rate = mix(x.rate, 0, secs, 120) end end
-    if castN > 0 then params.spellMiss = mix(params.spellMiss, missN / castN * 100, castN, 30) end
+    -- the measured miss is after the sheet's spell hit and the school's talent hit; the model
+    -- subtracts those itself
+    if castN > 0 then params.spellMiss = mix(params.spellMiss, missN / castN * 100 + sheet.spellHit + hitBack / castN, castN, 30) end
     if wand then params.wandUptime = mix(params.wandUptime, math.min(1, wandN / secs * wand.speed), secs, 120) end
     params.otherDps = mix(0, other / secs, secs, 120)
     local rates = {}
@@ -233,6 +284,7 @@ function PR.Context(input)
   end
   sheet.spHoly, sheet.spShadow, sheet.sp = sheet.spHoly + bSp, sheet.spShadow + bSp, sheet.sp + bSp
   sheet.spellCrit = sheet.spellCrit + bInt / intPerCrit
+  sheet.critHoly, sheet.critShadow = sheet.critHoly + bInt / intPerCrit, sheet.critShadow + bInt / intPerCrit
   local baseline = PR.Dps(sheet, params)
   local equippedIds = {}
   for _, it in pairs(equipped) do if it.id then equippedIds[it.id] = true end end
