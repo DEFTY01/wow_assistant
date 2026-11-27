@@ -15,8 +15,11 @@
 --     AddMana: new mana = min(old + gained, maximum); the energize event states the lost part)
 --   * a wand's damage does not grow with spell power
 --
--- Extra input besides Model.lua's: int, spFire, spFrost (spell power by school), spellCrit,
--- spellHit, tab (the talent tab with the most points).
+-- Extra input besides Model.lua's: int, spFire, spFrost (spell power by school), spellCrit (and
+-- spellCritFire, spellCritFrost by school), spellHit, tab (the talent tab with the most points),
+-- talents = Talent.lua's T.Effects (the numbers of the rank's Wowhead Forever text): accelerant,
+-- impFrostbolt (cast time − s), ignite (% of a fire crit), iceShards (frost crit bonus %), critMass
+-- (fire crit %), wandSpec (wand %), arcaneMind (intellect %), instability (spell damage %), precision.
 
 local _, WA = ...
 WA = WA or {}
@@ -80,18 +83,21 @@ end
 ---------------------------------------------------------------------------
 -- the model
 ---------------------------------------------------------------------------
+-- A crit does 1.5× (Ice Shards raises a frost crit's 50% bonus by its %); Ignite burns a fire crit's
+-- damage by its % more; Arcane Instability adds to all spell damage; Wand Specialization to the wand.
 function MG.Dps(sh, p)
-  local scrit = math.max(0, math.min(sh.spellCrit, 100)) / 100
+  local scrit = math.max(0, math.min(sh.spellCrit + (p.critAdd or 0), 100)) / 100
   local miss = math.max(1, p.spellMiss - (sh.spellHit or 0)) / 100
-  local sf = (1 - miss) * (1 + scrit * 0.5)
+  local critMult = p.critMult or 1.5
+  local sf = (1 - miss) * (1 + scrit * (critMult - 1) + scrit * critMult * (p.ignite or 0) / 100)
   local total = p.otherDps
-  total = total + p.nukePerSec * (p.nukeDamage + p.coef * sh.sp) * sf
-  total = total + p.wandUptime * WandDps(sh.wand) * (1 - miss)
+  total = total + p.nukePerSec * (p.nukeDamage + p.coef * sh.sp) * sf * (p.dmgMult or 1)
+  total = total + p.wandUptime * WandDps(sh.wand) * (1 - miss) * (1 + (p.wandSpec or 0) / 100)
   return total
 end
 
 local function Apply(sh, remove, add, p)
-  local dInt = ((add.int or 0) - (remove.int or 0)) * p.statMult
+  local dInt = ((add.int or 0) - (remove.int or 0)) * p.statMult * (p.intMult or 1)
   return {
     sp = sh.sp + (add.sp or 0) - (remove.sp or 0),
     spellCrit = sh.spellCrit + dInt / p.intPerCrit,
@@ -109,6 +115,7 @@ function MG.Context(input)
   local function eq(slot) return equipped[slot] and equipped[slot].stats or M.ZERO end
   local intPerCrit = 6 + (54 * (level - 1)) / 59
   local combat = input.combat
+  local tal = input.talents or {}
 
   -- the main nuke: the one you cast more in your fights, else Fireball for a Fire mage, else
   -- Frostbolt (Fireball before level 4, when Frostbolt is not trained yet)
@@ -126,18 +133,35 @@ function MG.Context(input)
   local sp = school == "fire" and (input.spFire or input.sp or 0) or (input.spFrost or input.sp or 0)
 
   local wand = eq("RANGED").weapon
-  local sheet = { sp = sp, spellCrit = input.spellCrit or 0, spellHit = input.spellHit or 0, wand = wand,
+  -- the main nuke's own school's crit where the client gives it by school
+  local schoolCrit = school == "fire" and input.spellCritFire or input.spellCritFrost
+  local sheet = { sp = sp, spellCrit = schoolCrit or input.spellCrit or 0, spellHit = input.spellHit or 0, wand = wand,
     ap = input.ap or 0, crit = input.crit or 0, hit = input.hit or 0, mh = eq("MAIN_HAND").weapon }
   notes[#notes + 1] = ("Fő varázslat: %s (%d. szintű rang, %s mp, %d–%d sebzés; Wowhead Forever), a spell power %d%%-ával%s. 1%% spell crit ≈ %s intellect. A pálca %s DPS, ez nem nő a spell powerrel.")
     :format(nuke, rank[1], F1(rank[4]), Round(rank[2]), Round(rank[3]), Round(coef * 100),
       nuke == "Fireball" and " (a Wowhead a Fireballnál nem mutat együtthatót: a Frostbolt mintája szerint cast idő / 3,5)" or "",
       F1(intPerCrit), F1(WandDps(wand)))
 
+  -- talents: Accelerant / Improved Frostbolt shorten the nuke's cast (the coefficient stays the
+  -- rank's); Critical Mass is fire crit: when the client's fire crit is not above its frost crit by
+  -- that much, the sheet does not have it, so the model adds it
+  local cast = math.max(1, rank[4] - (nuke == "Fireball" and (tal.accelerant or 0) or (tal.impFrostbolt or 0)))
+  local critAdd = 0
+  if school == "fire" and (tal.critMass or 0) > 0 then
+    local gap = (input.spellCritFire or 0) - (input.spellCritFrost or 0)
+    if not (input.spellCritFire and input.spellCritFrost and gap >= tal.critMass - 0.05) then critAdd = tal.critMass end
+    notes[#notes + 1] = critAdd > 0 and ("Critical Mass: +%s%% tűz crit hozzáadva (a játék tűz critje nem nagyobb ennyivel a fagy critnél, tehát a karakterlapon nincs benne)."):format(F1(critAdd))
+      or "Critical Mass: a játék tűz critje ennyivel nagyobb a fagy critnél, tehát a karakterlapon már benne van."
+  end
+
   -- priors: the main nuke 60% of the time (mana, moving, pulling), the wand a tenth of it
   local params = {
     level = level, intPerCrit = intPerCrit, statMult = 1, spellMiss = 4, nuke = nuke, rank = rank, coef = coef, school = school,
-    nukePerSec = 0.6 / rank[4], nukeDamage = (rank[2] + rank[3]) / 2,
+    nukePerSec = 0.6 / cast, nukeDamage = (rank[2] + rank[3]) / 2,
     wandUptime = wand and 0.1 or 0,
+    critAdd = critAdd, critMult = 1.5 + (school == "frost" and 0.5 * (tal.iceShards or 0) / 100 or 0),
+    ignite = school == "fire" and (tal.ignite or 0) or 0, dmgMult = 1 + (tal.instability or 0) / 100,
+    wandSpec = tal.wandSpec or 0, intMult = 1 + (tal.arcaneMind or 0) / 100,
     otherDps = 0, notes = notes,
   }
 
@@ -152,13 +176,16 @@ function MG.Context(input)
     for _, a in ipairs(combat.abilities) do
       if a.name == nuke then main = a
       elseif Kind(a.name) == "wand" then wandN = wandN + a.n
+      -- Ignite's burn is the model's (from the nuke's crits) once the talent is counted
+      elseif params.ignite > 0 and Base(a.name) == "Ignite" then
       else other = other + a.dmg end
     end
     if main then
       params.nukePerSec = mix(params.nukePerSec, main.n / secs, secs, 120)
       local l = landed(main)
       if l > 0 then
-        local per = main.dmg / (l + 0.5 * (main.crit or 0))
+        -- the logged damage has Ice Shards' crit bonus and Arcane Instability in it
+        local per = main.dmg / (l + (params.critMult - 1) * (main.crit or 0)) / params.dmgMult
         params.nukeDamage = mix(params.nukeDamage, math.max(0, per - coef * sheet.sp), l, 10)
       end
       if main.n > 0 then params.spellMiss = mix(params.spellMiss, ((main.miss or 0) + (main.other or 0)) / main.n * 100, main.n, 30) end

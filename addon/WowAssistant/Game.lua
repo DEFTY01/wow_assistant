@@ -347,6 +347,8 @@ function G.ModelInput()
     input.spFire = GetSpellBonusDamage and (GetSpellBonusDamage(3) or 0) or 0
     input.spFrost = GetSpellBonusDamage and (GetSpellBonusDamage(5) or 0) or 0
     input.spellCrit = GetSpellCritChance and math.max(GetSpellCritChance(3) or 0, GetSpellCritChance(5) or 0) or 0
+    input.spellCritFire = GetSpellCritChance and (GetSpellCritChance(3) or 0) or nil
+    input.spellCritFrost = GetSpellCritChance and (GetSpellCritChance(5) or 0) or nil
     input.spellHit = GetSpellHitModifier and (GetSpellHitModifier() or 0) or 0
     input.tab = (G.MainTalentTab())
   elseif input.class == "WARRIOR" then

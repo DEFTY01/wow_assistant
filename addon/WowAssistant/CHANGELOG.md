@@ -1,3 +1,17 @@
+## 2.22.0
+
+Mage: mindhárom talentfa a modellben.
+
+- A mage mind az 53 talentje besorolva. Amelyik a fő varázslatod (Frostbolt vagy Fireball) vagy a pálcád sebzését változtatja, azzal a modell most számol, a rangod Wowhead Forever számaival:
+  - Accelerant és Improved Frostbolt: rövidebb cast idő;
+  - Ignite: a tűz critek égése. Ezzel a crit (és az intellect) többet ér;
+  - Ice Shards: a fagy crit többet sebez (5/5-nél kétszeres);
+  - Critical Mass: tűz crit. Az addon a játék tűz és fagy critjének különbségéből látja, hogy a karakterlapodon már benne van-e, így nem számolja kétszer;
+  - Arcane Instability, Arcane Mind, Wand Specialization: több spell sebzés, több intellect, erősebb pálca.
+- Javítva: a modell eddig a tűz és a fagy crit közül a nagyobbikkal számolt; most a fő varázslatod iskolájáéval.
+- Amelyikkel nem számol, annál a /wa talent megmondja, miért: a manát a modell nem számolja, túlélés, több célpont, vagy olyan varázslat, ami még nincs külön a modellben (Fire Blast, Scorch, Pyroblast, Ice Lance, Arcane Missiles…; ezek a rotációs javaslatokkal jönnek).
+- Talentek nélkül a számok nem változtak.
+
 ## 2.21.0
 
 Warrior: mindhárom talentfa a modellben.

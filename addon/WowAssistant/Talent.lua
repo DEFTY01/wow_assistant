@@ -134,6 +134,8 @@ local POISON = "a mérgek sebzését a modell a harcaidból méri (egyéb forrá
 local MULTI = "több célpont: a modell egy célpontra számol"
 local THREAT = "fenyegetés (threat): a tankmodellbe kerül (WA-024)"
 local RAGE = "rage: a modell nem szimulálja a rage-et; a Heroic Strike és a specialok gyakoriságát a harcaidból méri (a rage a rotációs ticketben jön: WA-008a, WA-008b)"
+local MANA = "mana: a modell nem számolja a manát (a mana és a pihenő a rotációs ticketben jön)"
+local RESIST = "a célpont ellenállását (resistance) a modell nem számolja"
 local function ROTATION(what, ticket)
   return ("a(z) %s még nincs külön a modellben; a rotációs ticketben jön (%s)"):format(what, ticket)
 end
@@ -201,6 +203,66 @@ T.EFFECTS = {
     ["Improved Whirlwind"] = { reason = ROTATION("Whirlwind (a fegyveres specialok között, együtt mérve)", "WA-008b") },
     Flurry = { { key = "flurry", val = 1, what = "támadási sebesség % a crit utáni 3 ütésre" } },
     Bloodthirst = { reason = "a harcaidból méri (egyéb források); külön a rotációs ticketben jön (WA-008b)" },
+  },
+  -- Mage (WA-032c): the main nuke (Frostbolt or Fireball) and the wand, the rest measured (Mage.lua).
+  MAGE = {
+    -- Fire
+    Incineration = { reason = ROTATION("Fire Blast, Scorch, Ice Lance és Arcane Blast", "WA-009b") },
+    Accelerant = { { key = "accelerant", val = 1, what = "Fireball cast idő − mp" } },
+    Ignite = { { key = "ignite", val = 1, what = "tűz crit sebzésének %-a égésként" } },
+    ["Flame Throwing"] = { reason = UTILITY },
+    Impact = { reason = UTILITY },
+    ["Burning Soul"] = { reason = UTILITY },
+    ["Improved Flamestrike"] = { reason = MULTI },
+    Pyroblast = { reason = ROTATION("Pyroblast", "WA-009b") },
+    ["Improved Fire Blast"] = { reason = ROTATION("Fire Blast", "WA-009b") },
+    ["Improved Scorch"] = { reason = ROTATION("Scorch (a sebezhetőség a Scorch használatától függ)", "WA-009b") },
+    ["Improved Fire Ward"] = { reason = SURVIVAL },
+    ["Heating Up"] = { reason = ROTATION("Pyroblast", "WA-009b") },
+    ["Master of Elements"] = { reason = MANA },
+    ["Critical Mass"] = { { key = "critMass", val = 1, what = "tűz spell crit %" } },
+    ["Blast Wave"] = { reason = MULTI },
+    ["Fire Power"] = { reason = "a célponton lévő tűzhatások számától függ: ezt a harcadat még nem adja" },
+    Combustion = { reason = COOLDOWN("WA-009b") },
+    -- Frost
+    ["Frost Warding"] = { reason = SURVIVAL },
+    ["Improved Frostbolt"] = { { key = "impFrostbolt", val = 1, what = "Frostbolt cast idő − mp" } },
+    Precision = { { key = "precision", val = 1, what = "spell hit %" }, sheet = "a játék karakterlapja (GetSpellHitModifier) adja; harcnapló mellett a mért miss számít" },
+    ["Ice Shards"] = { { key = "iceShards", val = 1, what = "fagy crit-sebzés bónusz %" } },
+    Frostbite = { reason = UTILITY },
+    ["Improved Frost Nova"] = { reason = UTILITY },
+    Permafrost = { reason = UTILITY },
+    ["Frost Channeling"] = { reason = MANA },
+    ["Improved Blizzard"] = { reason = MULTI },
+    ["Ice Lance"] = { reason = ROTATION("Ice Lance", "WA-009c") },
+    ["Arctic Reach"] = { reason = UTILITY },
+    ["Ice Block"] = { reason = SURVIVAL },
+    Shatter = { reason = ROTATION("fagyott célpont (Frost Nova, Frostbite)", "WA-009c") },
+    ["Improved Cone of Cold"] = { reason = MULTI },
+    ["Cold Snap"] = { reason = COOLDOWN("WA-009c") },
+    ["Fingers of Frost"] = { reason = ROTATION("fagyott célpont (Fingers of Frost)", "WA-009c") },
+    ["Winter's Chill"] = { reason = ROTATION("Cone of Cold", "WA-009c") },
+    ["Ice Barrier"] = { reason = COOLDOWN("WA-009c") },
+    -- Arcane
+    ["Wand Specialization"] = { { key = "wandSpec", val = 1, what = "pálca sebzés %" } },
+    ["Improved Channeling"] = { reason = UTILITY },
+    ["Arcane Resilience"] = { reason = SURVIVAL },
+    ["Arcane Subtlety"] = { reason = RESIST },
+    ["Magic Absorption"] = { reason = SURVIVAL },
+    ["Arcane Concentration"] = { reason = MANA },
+    ["Missile Barrage"] = { reason = ROTATION("Arcane Missiles", "WA-009a") },
+    ["Arcane Geometry"] = { reason = UTILITY },
+    ["Arcane Impact"] = { reason = ROTATION("arcane varázslatok (Arcane Missiles, Arcane Blast)", "WA-009a") },
+    ["Arcane Blast"] = { reason = ROTATION("Arcane Blast", "WA-009a") },
+    ["Arcane Shielding"] = { reason = SURVIVAL },
+    ["Improved Counterspell"] = { reason = UTILITY },
+    ["Arcane Meditation"] = { reason = MANA },
+    ["Arcane Wrath"] = { reason = ROTATION("Arcane Wrath", "WA-009a") },
+    ["Presence of Mind"] = { reason = COOLDOWN("WA-009a") },
+    ["Arcane Mind"] = { { key = "arcaneMind", val = 1, what = "intellect %" }, partial = "az arcane crit-bónusz része (az arcane varázslatok még nincsenek külön a modellben)" },
+    ["Arcane Instability"] = { { key = "instability", val = 1, what = "spell sebzés %" },
+      partial = "a crit része a karakterlapon (GetSpellCritChance) már benne van" },
+    ["Arcane Power"] = { reason = COOLDOWN("WA-009a") },
   },
   -- Rogue (WA-032a): the model is Sinister Strike + Eviscerate with white swings (Model.lua); every
   -- talent of the three trees is either counted in it or has its reason.
