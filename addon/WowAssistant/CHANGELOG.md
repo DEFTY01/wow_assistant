@@ -1,3 +1,11 @@
+## 2.33.0
+
+Aura-idővonal: a harcnapló most azt is megjegyzi, mikor került fel és le egy buff vagy egy debuffod.
+
+- Eddig csak az összidő volt meg (pl. a Slice and Dice a harc 70%-ában volt fent). Most az is, mikor: ebből lehet majd megmondani, fent volt-e a Slice and Dice, amikor lejárt, vagy fent volt-e a Shadow Word: Pain a Mind Flay alatt. Ez a rotációs javaslatok alapja.
+- A saját buffjaid és a célponton lévő saját debuffjaid (DoT-ok, Sunder Armor, Faerie Fire) kerülnek bele.
+- Az uploader frissítése után az új harcoknál jelenik meg; a régi harcok ugyanúgy működnek, mint eddig.
+
 ## 2.32.0
 
 Szintfüggő kalibráció: a harcaid annyira számítanak, amennyire közel vannak a mostani szintedhez.

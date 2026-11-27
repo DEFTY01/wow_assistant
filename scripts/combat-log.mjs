@@ -28,6 +28,12 @@
 // with health and lost. Mana potions and mana gems ("Restore Mana", "Replenish Mana") are kept the
 // same way (fight.gems): the part over the maximum is lost. Rage events of ours (fight.rage: Bloodrage,
 // Charge, Shield Specialization, Unbridled Wrath...) too, a tick marked: rage over 100 is lost.
+//
+// The aura timeline (fight.auraLog, WA-005): when each of our buffs and each of our debuffs on the
+// enemies went on and off, on the casts' clock (tenths of a second from the pull):
+// [t, name, 1 on / 0 off, "b" buff on us / "d" our debuff on an enemy]. A buff running at the pull
+// is on at 0. A debuff is on while it sits on at least one enemy; an enemy's death takes ours off it.
+// At most MAX_AURA_EVENTS a fight; past that fight.auraLogCut says from when the timeline is missing.
 
 // Everything lives inside the function on purpose: the web app serves this function's own
 // source to the browser (Function.prototype.toString), so it must not lean on module scope.
@@ -39,6 +45,7 @@
 export function parseCombatLog(text, character, opts = {}) {
   const FIGHT_GAP = 8; // seconds without any action of ours ends a fight
   const MAX_CASTS = 150;
+  const MAX_AURA_EVENTS = 200;
   const FINISHERS = new Set(["Eviscerate", "Slice and Dice", "Rupture", "Kidney Shot", "Expose Armor", "Rip", "Ferocious Bite"]);
   // direct-damage finishers whose decision is kept in fight.evis
   const PROVABLE = new Set(["Eviscerate", "Ferocious Bite"]);
@@ -131,6 +138,8 @@ export function parseCombatLog(text, character, opts = {}) {
       taps: f.taps.length ? f.taps : undefined,
       gems: f.gems.length ? f.gems : undefined,
       rage: f.rage.length ? f.rage : undefined,
+      auraLog: f.auraLog.length ? f.auraLog : undefined,
+      auraLogCut: f.auraLogCut ?? undefined,
       basis: { dmg: "effective", dur: "own-events", pet: "owner-flags" },
     });
   };
@@ -139,14 +148,34 @@ export function parseCombatLog(text, character, opts = {}) {
     if (fight && t - fight.last > FIGHT_GAP) close();
     if (!fight) {
       fight = { t0: t, last: t, ab: {}, casts: [], targets: {}, levels: {}, auras: {}, auraOn: {}, capped: 0, samples: 0, energyAt: null, overkill: 0,
-        evis: [], evisPending: null, taps: [], gems: [], rage: [] };
+        evis: [], evisPending: null, taps: [], gems: [], rage: [], auraLog: [], auraLogCut: null, debuffOn: {} };
       // Buffs that were already running when the fight began.
-      for (const name of activeAuras) fight.auraOn[name] = t;
+      for (const name of activeAuras) {
+        fight.auraOn[name] = t;
+        auraEvent(t, name, 1, "b");
+      }
       cp = 0; // combo points sit on the target, so a new fight starts from zero
     }
     fight.last = t;
   };
   const ability = (name) => (fight.ab[name] ??= newAbility());
+  // one change on the aura timeline (the fight must be open)
+  function auraEvent(t, name, on, kind) {
+    if (fight.auraLogCut != null) return;
+    const at = Math.max(0, Math.round((t - fight.t0) * 10));
+    if (fight.auraLog.length >= MAX_AURA_EVENTS) {
+      fight.auraLogCut = at;
+      return;
+    }
+    fight.auraLog.push([at, name, on, kind]);
+  }
+  // our debuff off an enemy (removed, or the enemy died): off the timeline when no enemy has it
+  const debuffOff = (t, name, guid) => {
+    const on = fight?.debuffOn[name];
+    if (!on || !on.has(guid)) return;
+    on.delete(guid);
+    if (on.size === 0) auraEvent(t, name, 0, "d");
+  };
 
   // Time at the energy cap, estimated from the energy value attached to our own events.
   const sampleEnergy = (t, power, max) => {
@@ -185,18 +214,36 @@ export function parseCombatLog(text, character, opts = {}) {
       const name = f[10];
       if (ev === "SPELL_AURA_APPLIED") {
         activeAuras.add(name);
-        if (fight && t - fight.last <= FIGHT_GAP) fight.auraOn[name] ??= t;
+        if (fight && t - fight.last <= FIGHT_GAP && fight.auraOn[name] == null) {
+          fight.auraOn[name] = t;
+          auraEvent(t, name, 1, "b");
+        }
       } else {
         activeAuras.delete(name);
         if (fight && fight.auraOn[name] != null) {
           fight.auras[name] = (fight.auras[name] ?? 0) + Math.max(0, Math.min(t, fight.last) - fight.auraOn[name]);
           delete fight.auraOn[name];
+          auraEvent(Math.min(t, fight.last), name, 0, "b");
         }
       }
       continue;
     }
+    // our debuff on an enemy (DoTs, Sunder Armor, Faerie Fire...): on the timeline (WA-005)
+    if ((ev === "SPELL_AURA_APPLIED" || ev === "SPELL_AURA_REMOVED") && mine && !toMe && f[12] === "DEBUFF") {
+      const name = f[10];
+      const guid = f[5];
+      if (ev === "SPELL_AURA_APPLIED") {
+        if (fight && t - fight.last <= FIGHT_GAP) {
+          const on = (fight.debuffOn[name] ??= new Set());
+          if (on.size === 0) auraEvent(t, name, 1, "d");
+          on.add(guid);
+        }
+      } else if (fight) debuffOff(Math.min(t, fight.last + FIGHT_GAP), name, guid);
+      continue;
+    }
     if (ev === "UNIT_DIED") {
       deaths[f[5]] = t;
+      if (fight) for (const name of Object.keys(fight.debuffOn)) debuffOff(t, name, f[5]);
       continue;
     }
     // Our pet (a hunter's beast): source flags say "mine" (0x1) and pet or guardian (0x3000).

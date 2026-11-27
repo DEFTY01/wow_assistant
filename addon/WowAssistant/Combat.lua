@@ -162,6 +162,70 @@ function C.Report(fights, limit, advise)
   return r
 end
 
+---------------------------------------------------------------------------
+-- WA-005: the aura timeline. fight.auraLog (the uploader, from 2.33.0): { { t, name, on, kind } },
+-- t in tenths of a second from the pull (the casts' clock), on 1 / 0, kind "b" a buff on you, "d"
+-- your debuff on an enemy (on while at least one enemy has it). fight.auraLogCut: from when the
+-- timeline is missing (it keeps at most 200 changes a fight). An older fight has no timeline: every
+-- helper says nil (unknown), never "not up".
+---------------------------------------------------------------------------
+-- The intervals an aura was up, in seconds, clipped to the fight: { { from, to } }; nil without a timeline.
+function C.AuraIntervals(f, name)
+  if type(f.auraLog) ~= "table" then return nil end
+  local dur = tonumber(f.dur) or 0
+  local stop = f.auraLogCut and math.min(dur, f.auraLogCut / 10) or dur
+  local out, since = {}, nil
+  for _, e in ipairs(f.auraLog) do
+    if e[2] == name then
+      local t = math.min(stop, (tonumber(e[1]) or 0) / 10)
+      if e[3] == 1 and not since then since = t
+      elseif e[3] ~= 1 and since then
+        if t > since then out[#out + 1] = { since, t } end
+        since = nil
+      end
+    end
+  end
+  if since and stop > since then out[#out + 1] = { since, stop } end
+  return out
+end
+
+-- Seconds an aura was up in a fight (nil without a timeline).
+function C.AuraUptime(f, name)
+  local iv = C.AuraIntervals(f, name)
+  if not iv then return nil end
+  local n = 0
+  for _, x in ipairs(iv) do n = n + x[2] - x[1] end
+  return n
+end
+
+-- Was the aura up at second t of the fight? true / false; nil without a timeline or past its cut.
+function C.AuraAt(f, name, t)
+  local iv = C.AuraIntervals(f, name)
+  if not iv then return nil end
+  if f.auraLogCut and t >= f.auraLogCut / 10 then return nil end
+  for _, x in ipairs(iv) do if t >= x[1] and t <= x[2] then return true end end
+  return false
+end
+
+-- From each time the aura fell off to when it was put up again (inside the fight):
+-- { { off, on, gap } } in seconds; an aura not put up again before the end has on = nil and the
+-- gap to the end. nil without a timeline.
+function C.AuraGaps(f, name)
+  local iv = C.AuraIntervals(f, name)
+  if not iv then return nil end
+  -- past the cut nothing is known: an interval ending there did not fall off
+  local dur = tonumber(f.dur) or 0
+  local stop = f.auraLogCut and math.min(dur, f.auraLogCut / 10) or dur
+  local out = {}
+  for i, x in ipairs(iv) do
+    if x[2] < stop then
+      local nxt = iv[i + 1]
+      out[#out + 1] = { off = x[2], on = nxt and nxt[1] or nil, gap = (nxt and nxt[1] or stop) - x[2] }
+    end
+  end
+  return out
+end
+
 -- Cooldown usage: how much of the fight time an ability with a real cooldown spent recharging,
 -- by the WoWAnalyzer method (CastEfficiency, the normal one-charge branch):
 --   usage = (finished recharges + the recharge still running at the fight's end + countable cast
