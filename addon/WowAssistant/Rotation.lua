@@ -92,8 +92,8 @@ R.ENERGY, R.ENERGY_MAX = 10, 100
 local function CombatRogue(ctx)
   local M = WA.Model
   local p, sh, level = ctx.params, ctx.sheet, ctx.level or 0
-  if not (p and sh and p.cycle) then return nil, "a modell nem adott számokat" end
-  if not sh.mh then return nil, "nincs fegyver a fő kezedben" end
+  if not (p and sh and p.cycle) then return nil, "the model gave no numbers" end
+  if not sh.mh then return nil, "no weapon in your main hand" end
   local tal = ctx.input and ctx.input.talents or {}
   local c = p.cycle
   local combat = ctx.combat
@@ -130,10 +130,10 @@ local function CombatRogue(ctx)
   local evis5, evisFrom
   if evisFin and evisFin.avgCp > 0 and p.evisDamage > 0 then
     evis5 = p.evisDamage * EvisFormula(5) / EvisFormula(evisFin.avgCp)
-    evisFrom = ("a mért %d ütésenként (átlag %s ponttal) átszámolva 5 pontra a rang képletével"):format(Round(p.evisDamage), F1(evisFin.avgCp))
+    evisFrom = ("the measured %d per hit (average %s points) converted to 5 points with the rank's formula"):format(Round(p.evisDamage), F1(evisFin.avgCp))
   else
     evis5 = EvisFormula(5)
-    evisFrom = "a rang képletéből"
+    evisFrom = "from the rank's formula"
   end
   local evisCast5 = EvisCast(evis5)
   local ssRank = Rank(R.SINISTER, level)
@@ -149,8 +149,8 @@ local function CombatRogue(ctx)
     local avg = (w.min + w.max) / 2 + (sh.ap / 14) * w.speed
     local hit = avg * 0.5 * (1 + (tal.dualWield or 0) / 100) * 0.5
     shank = { id = sr[2], gain = gain, cd = cd, rate = 1 / cd, net = (gain - R.SHANK_COST) / cd, cast = hit * (1 + crit),
-      fos = fos, from = ("%s%d: %d energiáért %d energiát ad, %s mp cooldown%s; az off-hand fegyver sebzésének 50%%-a (off-hand: × 0,5%s), nem lehet kivédeni, csak crit"):format(
-        WH, sr[2], R.SHANK_COST, gain, F1(cd), fos and (" (Flash of Steel " .. fos.rank .. ". rang)") or "",
+      fos = fos, from = ("%s%d: costs %d energy, gives %d energy, %s s cooldown%s; 50%% of the off-hand weapon's damage (off hand: × 0.5%s), cannot be avoided, crit only"):format(
+        WH, sr[2], R.SHANK_COST, gain, F1(cd), fos and (" (Flash of Steel rank " .. fos.rank .. ")") or "",
         (tal.dualWield or 0) > 0 and (", Dual Wield Specialization +" .. tal.dualWield .. "%") or "") }
   end
 
@@ -226,38 +226,38 @@ local function CombatRogue(ctx)
 
   -- per ability: suggested, measured, the DPS between them (the parts add up to the whole gap)
   local rows = {}
-  local function PerMin(x) return F1(x * 60) .. "/perc" end
+  local function PerMin(x) return F1(x * 60) .. "/min" end
   local whiteGap = measured and (White(best.swing) - White(nowR.swing)) or nil
   if sl then
     rows[#rows + 1] = { name = "Slice and Dice",
-      plan = best.k > 0 and ("%d ponttal, amint lejár: %s mp, fent %d%%"):format(best.k, F1(best.dur), Round(best.u * 100)) or "nem éri meg",
-      measured = measured and ("fent %d%%%s"):format(Round(uNow * 100), sndFin and (", átlag " .. F1(sndFin.avgCp) .. " ponttal") or "") or nil,
+      plan = best.k > 0 and ("at %d points, as soon as it runs out: %s s, up %d%%"):format(best.k, F1(best.dur), Round(best.u * 100)) or "not worth it",
+      measured = measured and ("up %d%%%s"):format(Round(uNow * 100), sndFin and (", average " .. F1(sndFin.avgCp) .. " points") or "") or nil,
       diff = whiteGap,
-      from = ("%s%d: +%d%% közelharci támadási sebesség, %d energia, %d + %d mp pontonként%s. A fehér ütéseid a javaslattal %s DPS-t adnak, Slice and Dice nélkül %s"):format(
+      from = ("%s%d: +%d%% melee attack speed, %d energy, %d + %d s per point%s. With the suggestion your white hits give %s DPS, without Slice and Dice %s"):format(
         WH, sl[2], sl[3], R.SND_COST, R.SND_BASE, R.SND_POINT,
-        imp and (", × " .. F1(1 + impPct / 100) .. " (Improved Slice and Dice " .. imp.rank .. ". rang)") or "",
-        F1(White(best.swing)), F1(White(baseSwing))) .. (best.tOpen and ("; az átlagos harcod " .. Round(T or 0) .. " mp, a nyitás (" .. best.k .. " pont) kb. " .. F1(best.tOpen) .. " mp") or "") }
+        imp and (", × " .. F1(1 + impPct / 100) .. " (Improved Slice and Dice rank " .. imp.rank .. ")") or "",
+        F1(White(best.swing)), F1(White(baseSwing))) .. (best.tOpen and ("; your average fight is " .. Round(T or 0) .. " s, the opening (" .. best.k .. " points) about " .. F1(best.tOpen) .. " s") or "") }
   end
   rows[#rows + 1] = { name = "Eviscerate",
-    plan = ("%s, 5 ponttal (%d ütésenként)"):format(PerMin(best.evisRate), Round(evis5)),
-    measured = measured and (PerMin(nowR.evis) .. (evisFin and (", átlag " .. F1(evisFin.avgCp) .. " ponttal") or "")) or nil,
+    plan = ("%s, at 5 points (%d per hit)"):format(PerMin(best.evisRate), Round(evis5)),
+    measured = measured and (PerMin(nowR.evis) .. (evisFin and (", average " .. F1(evisFin.avgCp) .. " points") or "")) or nil,
     diff = measured and (best.evisRate * evisCast5 - nowR.evis * EvisCast(p.evisDamage)) or nil,
-    from = ("%s%d (%d. szinttől): %d–%d + %d pontonként + 4%% AP pontonként; %s; × %s (Coup de Grace, Aggression). Energia: %d − %s visszakapott (Relentless Strikes)"):format(
+    from = ("%s%d (from level %d): %d–%d + %d per point + 4%% AP per point; %s; × %s (Coup de Grace, Aggression). Energy: %d − %s refunded (Relentless Strikes)"):format(
       WH, er[2], er[1], er[3], er[4], er[5], evisFrom, F1(evisBonus), c.evisCost, F1(5 * perPoint)) }
   rows[#rows + 1] = { name = "Sinister Strike",
-    plan = ("%s, combo pontért"):format(PerMin(best.ssRate)),
+    plan = ("%s, for combo points"):format(PerMin(best.ssRate)),
     measured = measured and PerMin(nowR.ss) or nil,
     diff = measured and ((best.ssRate - nowR.ss) * ssCast) or nil,
-    from = ("%s%d (%d. szinttől, +%d); a modellben +%d (%s). %d energia; egy ütés %s combo pontot ad (%d%% talál%s). Castonként %s sebzés"):format(
-      WH, ssRank[2], ssRank[1], ssRank[3], Round(p.ssBonus), measured and "a harcaidból kalibrálva" or "alapérték",
-      c.ssCost, F1(cpPerSS), Round(landed * 100), c.sealFate > 0 and (", Seal Fate " .. Round(c.sealFate * 100) .. "% crit után") or "",
+    from = ("%s%d (from level %d, +%d); in the model +%d (%s). %d energy; one strike gives %s combo points (%d%% land%s). %s damage per cast"):format(
+      WH, ssRank[2], ssRank[1], ssRank[3], Round(p.ssBonus), measured and "calibrated from your fights" or "default value",
+      c.ssCost, F1(cpPerSS), Round(landed * 100), c.sealFate > 0 and (", Seal Fate " .. Round(c.sealFate * 100) .. "% after a crit") or "",
       F1(ssCast)) }
   if shank then
     rows[#rows + 1] = { name = "Shank",
-      plan = ("%s, cooldownon, 80 energia alatt"):format(PerMin(shank.rate)),
+      plan = ("%s, on cooldown, under 80 energy"):format(PerMin(shank.rate)),
       measured = measured and PerMin(nowR.shank) or nil,
       diff = measured and ((shank.rate - nowR.shank) * shank.cast) or nil,
-      from = shank.from .. (". Castonként %s sebzés, és %s energia másodpercenként a többire"):format(F1(shank.cast), F1(shank.net)) }
+      from = shank.from .. (". %s damage per cast, and %s energy a second for the rest"):format(F1(shank.cast), F1(shank.net)) }
   end
 
   -- cooldowns: what one use is worth (not in the DPS above: they depend on how often you get to use them)
@@ -268,49 +268,49 @@ local function CombatRogue(ctx)
   if Talent(ctx, "Blade Flurry") then
     local gain = 15 * 0.20 * White(best.swing) - R.FLURRY.cost * perEnergy
     cooldowns[#cooldowns + 1] = { name = "Blade Flurry", value = gain,
-      plan = ("harc elején, ha kész: +%d sebzés egy célponton"):format(Round(gain)),
-      measured = fights and (F1((casts["Blade Flurry"] or 0) / fights) .. " harconként") or nil,
-      from = ("%s%d: 15 mp alatt +20%% támadási sebesség a fehér ütéseidre (%s DPS), mínusz %d energia (%s sebzés energiánként); 2 perc cooldown. Több célponton a második is kap: az több"):format(
+      plan = ("at the start of the fight, if ready: +%d damage on one target"):format(Round(gain)),
+      measured = fights and (F1((casts["Blade Flurry"] or 0) / fights) .. " per fight") or nil,
+      from = ("%s%d: +20%% attack speed for your white hits for 15 s (%s DPS), minus %d energy (%s damage per energy); 2 min cooldown. On several targets the second one is hit too: worth more then"):format(
         WH, R.FLURRY.id, F1(White(best.swing)), R.FLURRY.cost, F1(perEnergy)) }
   end
   if Talent(ctx, "Adrenaline Rush") then
     local gain = 15 * R.ENERGY * perEnergy
     cooldowns[#cooldowns + 1] = { name = "Adrenaline Rush", value = gain,
-      plan = ("ha kész és 50 energia alatt vagy: +%d sebzés"):format(Round(gain)),
-      measured = fights and (F1((casts["Adrenaline Rush"] or 0) / fights) .. " harconként") or nil,
-      from = ("%s%d: 15 mp alatt +%d energia, %s sebzés energiánként (Sinister Strike és 5 pontos Eviscerate); 5 perc cooldown"):format(
+      plan = ("if ready and you are under 50 energy: +%d damage"):format(Round(gain)),
+      measured = fights and (F1((casts["Adrenaline Rush"] or 0) / fights) .. " per fight") or nil,
+      from = ("%s%d: +%d energy over 15 s, %s damage per energy (Sinister Strike and 5-point Eviscerate); 5 min cooldown"):format(
         WH, R.RUSH.id, 15 * R.ENERGY, F1(perEnergy)) }
   end
 
   -- the order to press things in (the WoWSims Forever default list for this build)
   local priority = {}
   local function P(name, when) priority[#priority + 1] = { name = name, when = when } end
-  if Talent(ctx, "Blade Flurry") then P("Blade Flurry", "a harc elején, ha kész") end
-  if Talent(ctx, "Adrenaline Rush") then P("Adrenaline Rush", "ha kész, Slice and Dice fent van, és 50 energia alatt vagy") end
-  if shank then P("Shank", ("ha kész és 80 energia alatt vagy (a +%d energia ne vesszen el a 100-as plafonon)"):format(shank.gain)) end
-  if sl and best.k > 0 then P("Slice and Dice", ("amint lejár, %d ponttal"):format(best.k)) end
-  P("Eviscerate", "5 combo ponttal")
-  P("Sinister Strike", "egyébként: combo pontot gyűjt")
+  if Talent(ctx, "Blade Flurry") then P("Blade Flurry", "at the start of the fight, if ready") end
+  if Talent(ctx, "Adrenaline Rush") then P("Adrenaline Rush", "if ready, Slice and Dice is up, and you are under 50 energy") end
+  if shank then P("Shank", ("if ready and you are under 80 energy (so the +%d energy is not lost at the 100 cap)"):format(shank.gain)) end
+  if sl and best.k > 0 then P("Slice and Dice", ("as soon as it runs out, at %d points"):format(best.k)) end
+  P("Eviscerate", "at 5 combo points")
+  P("Sinister Strike", "otherwise: builds combo points")
 
-  notes[#notes + 1] = "Számítás, nem hiba: a mért oszlop a harcaid átlaga (célpontváltás, futás, rövid harcok is benne vannak), a javasolt a modell szerinti legjobb sorrend egy célponton, hátulról."
-  notes[#notes + 1] = ("Energia: %d másodpercenként%s; a kihagyott vagy kivédett Sinister Strike energiáját a számítás elveszettnek veszi. A cooldownok nincsenek a fenti DPS-ben."):format(
-    R.ENERGY, shank and (", a Shankkel " .. F1(R.ENERGY + shank.net)) or "")
+  notes[#notes + 1] = "A calculation, not a mistake: the measured column is the average of your fights (target switching, running and short fights are in it), the suggested one is the model's best order on one target, from behind."
+  notes[#notes + 1] = ("Energy: %d a second%s; the calculation counts the energy of a missed or avoided Sinister Strike as lost. The cooldowns are not in the DPS above."):format(
+    R.ENERGY, shank and (", with Shank " .. F1(R.ENERGY + shank.net)) or "")
   if sl then
     local list = {}
-    for k = 1, 5 do list[#list + 1] = ("%d ponttal %s"):format(k, F1(options[k])) end
-    notes[#notes + 1] = ("Slice and Dice: nélküle %s DPS, %s. %s"):format(F1(noSnd.dps), table.concat(list, ", "),
-      best.k > 0 and ("A legjobb a %d pontos."):format(best.k)
-      or ("Most nem éri meg: a +%d%% támadási sebesség kevesebb sebzést ad, mint amennyit az energiája a Sinister Strike-kal és az Eviscerate-tel érne%s."):format(
-        sl[3], T and (" (átlagos harcod: " .. Round(T) .. " mp)") or ""))
+    for k = 1, 5 do list[#list + 1] = ("at %d points %s"):format(k, F1(options[k])) end
+    notes[#notes + 1] = ("Slice and Dice: without it %s DPS, %s. %s"):format(F1(noSnd.dps), table.concat(list, ", "),
+      best.k > 0 and ("The best is %d points."):format(best.k)
+      or ("Not worth it now: the +%d%% attack speed gives less damage than its energy would with Sinister Strike and Eviscerate%s."):format(
+        sl[3], T and (" (your average fight: " .. Round(T) .. " s)") or ""))
   end
-  if not sh.oh and level >= 24 then notes[#notes + 1] = "A Shankhez fegyver kell az off-handben." end
-  notes[#notes + 1] = "Sorrend: a WoWSims Forever alapértelmezett rogue-listája (" .. R.SIM_APL .. ")."
+  if not sh.oh and level >= 24 then notes[#notes + 1] = "Shank needs a weapon in the off hand." end
+  notes[#notes + 1] = "Order: the WoWSims Forever default rogue list (" .. R.SIM_APL .. ")."
 
   local parts = {}
-  if sl and best.k > 0 then parts[#parts + 1] = ("Slice and Dice %d ponttal"):format(best.k) end
-  parts[#parts + 1] = "Eviscerate 5 ponttal"
-  if shank then parts[#parts + 1] = "Shank cooldownon" end
-  local summary = ("%s; várt %s DPS%s."):format(table.concat(parts, ", "), F1(best.dps), now and (" (a modell a mért gyakoriságaiddal: " .. F1(now) .. ")") or "")
+  if sl and best.k > 0 then parts[#parts + 1] = ("Slice and Dice at %d points"):format(best.k) end
+  parts[#parts + 1] = "Eviscerate at 5 points"
+  if shank then parts[#parts + 1] = "Shank on cooldown" end
+  local summary = ("%s; expected %s DPS%s."):format(table.concat(parts, ", "), F1(best.dps), now and (" (the model at your measured rates: " .. F1(now) .. ")") or "")
 
   return { spec = "Combat", dps = best.dps, now = now, fightSecs = T, priority = priority, rows = rows,
     cooldowns = cooldowns, notes = notes, summary = summary, plan = best, options = options, white = White(baseSwing), ssCast = ssCast, evisCast = evisCast5, cpPerSS = cpPerSS, energy5 = en5, other = other, perEnergy = perEnergy, evis5 = evis5,
@@ -321,16 +321,16 @@ R.SPECS = { ROGUE = { [2] = CombatRogue } }
 
 -- The rotation for the context's class and spec; nil and why when there is none (yet).
 function R.Build(ctx)
-  if not ctx then return nil, "nincs modell" end
+  if not ctx then return nil, "no model" end
   local spec = ctx.spec or (ctx.input and ctx.input.spec) or {}
   local tab = spec.tab
-  if not tab then return nil, "még nincs talentpontod: a spec dönti el, melyik rotáció fut" end
+  if not tab then return nil, "you have no talent points yet: the spec decides which rotation runs" end
   local fn = R.SPECS[ctx.class or ""] and R.SPECS[ctx.class][tab]
   local ticket = R.TICKETS[ctx.class or ""] and R.TICKETS[ctx.class][tab]
   if not fn then
-    return nil, ("a(z) %s rotációja még nem készült el (%s)"):format(spec.name or "?", ticket or "?")
+    return nil, ("the %s rotation is not done yet (%s)"):format(spec.name or "?", ticket or "?")
   end
   local ok, out, why = pcall(fn, ctx)
-  if not ok then return nil, "számítási hiba: " .. tostring(out) end
+  if not ok then return nil, "calculation error: " .. tostring(out) end
   return out, why
 end

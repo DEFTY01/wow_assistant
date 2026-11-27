@@ -1,3 +1,12 @@
+## 2.35.0
+
+English interface: every window, tooltip, advice and chat message of the addon is now in English.
+
+- All pages (Plan, Combat, Gear, Professions, Pet, Talents), the session bar, the chronicle, the minimap button and the chat commands speak English. Numbers use a decimal point, dates are month/day.
+- New command name: `/wa talents` opens the talent calculator. The old Hungarian names still work: `/wa talentek`, `/wa harc`, `/wa ah lassu`, and the session bar's `cel`, `tanacs`, `zonak`, `osszegzes`.
+- Nothing changed in the calculations: the same numbers, sources and rules, only the words.
+- Fix: the Chronicle's weekly guild list showed your own character twice ("Defty" and "Defty Graveshade"). The game sends the sender's name as "Name Realm", which the addon did not recognise as you. It now does, and the duplicates already saved are merged on login.
+
 ## 2.34.0
 
 Javasolt rotáció, elsőként a Combat rogue-nak.

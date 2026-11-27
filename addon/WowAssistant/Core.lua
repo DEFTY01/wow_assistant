@@ -146,7 +146,7 @@ ev:SetScript("OnEvent", function(_, event, name)
     WA.db, WA.charDB = db, c
     for _, fn in ipairs(WA.onLoad) do
       local ok, err = pcall(fn)
-      if not ok then WA.Print("hiba betöltéskor: " .. tostring(err)) end
+      if not ok then WA.Print("error while loading: " .. tostring(err)) end
     end
   elseif event == "PLAYER_LOGIN" then
     local db = WA.db
@@ -156,7 +156,7 @@ ev:SetScript("OnEvent", function(_, event, name)
     db.last = WA.key
     for _, fn in ipairs(WA.onLogin) do
       local ok, err = pcall(fn)
-      if not ok then WA.Print("hiba belépéskor: " .. tostring(err)) end
+      if not ok then WA.Print("error at login: " .. tostring(err)) end
     end
   end
 end)

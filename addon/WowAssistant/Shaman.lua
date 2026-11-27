@@ -141,7 +141,7 @@ function S.Context(input)
   local agiPerCrit = agi / math.max(0.1, crit - (tal.thundering or 0) - 1.7)
   if not (agiPerCrit > 0.8 and agiPerCrit < 40) then agiPerCrit = 1 + (19 * (level - 1)) / 59 end
   local intPerCrit = 6 + (53.5 * (level - 1)) / 59
-  notes[#notes + 1] = ("1%% közelharci crit ≈ %s agility, 1%% spell crit ≈ %s intellect; 1 strength = 2 AP."):format(F1(agiPerCrit), F1(intPerCrit))
+  notes[#notes + 1] = ("1%% melee crit ≈ %s agility, 1%% spell crit ≈ %s intellect; 1 strength = 2 AP."):format(F1(agiPerCrit), F1(intPerCrit))
 
   local mh = eq("MAIN_HAND").weapon
   local sheet = {
@@ -248,17 +248,17 @@ function S.Context(input)
       params.imbueMult = mix(params.imbueMult, 1 + imbue / melee.dmg, secs, 120)
     end
     params.otherDps = mix(0, other / secs, secs, 120)
-    notes[#notes + 1] = ("Kalibrálva %d rögzített harcból (%d mp). Közelharc az idő %d%%-ában, %s%% dodge; az imbue %d%%-ot ad a fehér sebzéshez.")
+    notes[#notes + 1] = ("Calibrated from %d recorded fights (%d s). Melee %d%% of the time, %s%% dodge; the imbue adds %d%% to white damage.")
       :format(combat.fights, Round(secs), Round(params.meleeUptime * 100), F1(params.dodge), Round((params.imbueMult - 1) * 100))
-    notes[#notes + 1] = ("Percenként: shock %s (%d sebzés), Lightning Bolt %s (%d), Stormstrike %s. Totem %s DPS, egyéb (DoT, Lightning Shield) %s DPS.")
+    notes[#notes + 1] = ("Per minute: shocks %s (%d damage), Lightning Bolt %s (%d), Stormstrike %s. Totem %s DPS, other (DoT, Lightning Shield) %s DPS.")
       :format(F1(params.shockPerSec * 60), Round(params.shockDamage), F1(params.boltPerSec * 60), Round(params.boltDamage),
         F1(params.stormPerSec * 60), F1(params.totemDps), F1(params.otherDps))
   else
-    notes[#notes + 1] = ("Nincs rögzített harc, ezért tankönyvi értékekkel számol: az idő %d%%-ában közelharc, %s shock és %s Lightning Bolt percenként, imbue +%d%%. Kapcsold be a harcnaplót (/wa log) a kalibráláshoz.")
+    notes[#notes + 1] = ("No recorded fights, so it uses textbook values: melee %d%% of the time, %s shocks and %s Lightning Bolts a minute, imbue +%d%%. Turn on the combat log (/wa log) to calibrate.")
       :format(Round(params.meleeUptime * 100), F1(params.shockPerSec * 60), F1(params.boltPerSec * 60), Round((params.imbueMult - 1) * 100))
   end
-  if not mh then notes[#notes + 1] = "Nincs fegyvered a főkézben: egy kétkezes bot, buzogány vagy balta a legnagyobb fejlesztés." end
-  notes[#notes + 1] = "A manát a modell nem számolja: az intellect csak a spell crit miatt ér valamit, a valóságban a több shock és gyógyítás miatt többet."
+  if not mh then notes[#notes + 1] = "You have no weapon in your main hand: a two-handed staff, mace or axe is the biggest upgrade." end
+  notes[#notes + 1] = "The model does not count mana: intellect is only worth something for spell crit, in reality more for extra shocks and healing."
 
   local unbuffed = S.Dps(sheet, params)
   local buffs = M.ResolveBuffs(level, input.buffs, input.data)
@@ -355,12 +355,12 @@ function S.Context(input)
   function ctx.weaponWarning(itemClass, sub)
     if itemClass ~= 2 then return nil end
     if (sub == 1 or sub == 5) and (tal.twoHand or 0) == 0 and not noTalent then
-      return "a Two-Handed Axes and Maces talent kell hozzá (Enhancement)"
+      return "needs the Two-Handed Axes and Maces talent (Enhancement)"
     end
     if not skills or not next(skills) then return nil end
     local line = M.WEAPON_SKILLS[sub]
     local s = line and skills[line]
-    if not s then return ("%s nincs kitanulva (fegyvermester)"):format(tostring(line)) end
+    if not s then return ("%s is not trained (weapon master)"):format(tostring(line)) end
     if s.rank < s.max - 15 then return ("%s skill %d/%d"):format(line, s.rank, s.max) end
     return nil
   end
@@ -370,21 +370,21 @@ function S.Context(input)
   local function Push(o) advice[#advice + 1] = WA.Combat.Finding(o) end
   if combat and combat.seconds >= 120 then
     if mh and params.meleeUptime < 0.6 and level >= 10 then
-      Push({ title = "Kevés közelharc", rule = "shamanMelee",
-        fact = ("A harcaidban az idő kb. %d%%-ában ütöttél."):format(Round(params.meleeUptime * 100)),
-        advice = "Enhancement szintezésnél húzz Lightning Bolttal, aztán üss; elementalként ez így rendben van." })
+      Push({ title = "Little melee", rule = "shamanMelee",
+        fact = ("In your fights you were swinging about %d%% of the time."):format(Round(params.meleeUptime * 100)),
+        advice = "When leveling Enhancement, pull with Lightning Bolt, then melee; as Elemental this is fine." })
     end
     if earth and params.shockPerSec * 60 < 2 then
-      Push({ title = "Ritkán shockolsz", fault = true, rule = "earthShock",
-        fact = ("Percenként kb. %s shock."):format(F1(params.shockPerSec * 60)),
-        advice = "Ha van manád, az Earth Shock minden 6 mp-ben mehet.",
-        missing = "a manád a harcokban" })
+      Push({ title = "You rarely shock", fault = true, rule = "earthShock",
+        fact = ("About %s shocks per minute."):format(F1(params.shockPerSec * 60)),
+        advice = "If you have mana, Earth Shock can go every 6 s.",
+        missing = "your mana in the fights" })
     end
     if level >= 10 and params.totemDps < 0.03 * level then
-      Push({ title = "Alig sebeznek a totemjeid", fault = true, rule = "searingTotem",
-        fact = ("A totemjeid kb. %s DPS-t adtak."):format(F1(params.totemDps)),
-        advice = "Hosszabb harcban vagy több mobnál a Searing Totem olcsó sebzés.",
-        missing = "hogy megtanultad-e, és a harcok hossza" })
+      Push({ title = "Your totems barely deal damage", fault = true, rule = "searingTotem",
+        fact = ("Your totems gave about %s DPS."):format(F1(params.totemDps)),
+        advice = "In a longer fight or with several mobs Searing Totem is cheap damage.",
+        missing = "whether you had learned it, and the length of the fights" })
     end
   end
   ctx.advice = advice
@@ -452,7 +452,7 @@ function S.Score(f, ctx)
   local baseline = ctx and WA.Combat.Comparable(f, ctx) and ctx.baseline or nil
   if baseline and baseline > 0 then
     local ratio = dps / baseline
-    Part("dps", "DPS a várthoz képest", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS, a felszerelésedtől várt %d %d%%-a"):format(
+    Part("dps", "DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS against the %d your gear should give: %d%%"):format(
       Round(dps), Round(baseline), Round(ratio * 100)))
   end
   local ab = f.ab or {}
@@ -460,24 +460,24 @@ function S.Score(f, ctx)
   local melee = Find(ab, "Melee")
   if mh and dur >= 6 then
     local up = S.SwingUptime(melee and melee.n or 0, dur, mh) or 0
-    Part("melee", "Folyamatosan ütsz", math.min(up / 0.85, 1) * 20, 20, ("%d ütés, a lehetséges %d%%-a"):format(melee and melee.n or 0, Round(up * 100)))
+    Part("melee", "You swing continuously", math.min(up / 0.85, 1) * 20, 20, ("%d swings, %d%% of the possible"):format(melee and melee.n or 0, Round(up * 100)))
   end
   if dur >= 12 and level >= 4 then
     local perMin = ShockCount(ab) / dur * 60
-    Part("shock", "Shock a harcban", math.min(perMin / 3, 1) * 15, 15, ("%s shock percenként (jó: 3 fölött)"):format(F1(perMin)))
+    Part("shock", "Shocks in the fight", math.min(perMin / 3, 1) * 15, 15, ("%s shocks per minute (good: over 3)"):format(F1(perMin)))
   end
   if dur >= 25 and level >= 10 then
     local used = false
     for _, a in ipairs(ab) do if IsTotem(a.name) then used = true end end
     for _, c in ipairs(f.casts or {}) do if (c[2] or ""):find("Totem") then used = true end end
-    Part("totem", "Totem a hosszú harcban", used and 10 or 0, 10, used and "volt totem" or "nem tettél le totemet (25 mp-nél hosszabb harc)")
+    Part("totem", "Totem in long fights", used and 10 or 0, 10, used and "totem was down" or "you dropped no totem (fights longer than 25 s)")
   end
   local storm = ctx and ctx.params and ctx.params.stormPerSec or 0
   if dur >= 12 and level >= 40 and (storm > 0 or Find(ab, "Stormstrike")) then
     local ss = Find(ab, "Stormstrike")
     local perMin = (ss and ss.n or 0) / dur * 60
     -- full points at 6 a minute: 80% of the 7.5 an 8 s cooldown allows (Wowhead Forever spell=17364)
-    Part("storm", "Stormstrike cooldownra", math.min(perMin / 6, 1) * 10, 10, ("%s Stormstrike percenként (8 mp a cooldown, legfeljebb 7,5)"):format(F1(perMin)))
+    Part("storm", "Stormstrike on cooldown", math.min(perMin / 6, 1) * 10, 10, ("%s Stormstrikes per minute (8 s cooldown, at most 7.5)"):format(F1(perMin)))
   end
   local got, max = 0, 0
   for _, p in ipairs(parts) do got, max = got + p.points, max + p.max end
@@ -522,55 +522,55 @@ function S.Advise(r, fights)
   local melee = Find(r.abilities, "Melee")
   local level = fights[1] and fights[1].level or 0
   if r.seconds < 300 or not melee or melee.n < 100 then
-    Push({ info = true, title = "Kevés még az adat", fact = ("Eddig %d harc, %d másodperc és %d ütés van rögzítve. Az arányok kb. 10 perc harc után megbízhatóak.")
+    Push({ info = true, title = "Not enough data yet", fact = ("So far %d fights, %d seconds and %d swings are recorded. The ratios are reliable after about 10 minutes of combat.")
       :format(r.fights, Round(r.seconds), melee and melee.n or 0) })
   end
   local _, share = S.Sources(r.abilities, r.damage)
   if level >= 10 and r.seconds >= 120 and share.spell > 50 and share.melee < 35 then
-    Push({ title = "A sebzésed nagyja varázslat", rule = "shamanMelee",
-      fact = ("A sebzésed %d%%-a varázslat, %d%%-a közelharc."):format(Round(share.spell), Round(share.melee)),
-      advice = "Enhancement szintezésnél a Lightning Bolt inkább húzásra jó, a mana shockra és gyógyításra; elementalként ez így rendben van." })
+    Push({ title = "Most of your damage is spells", rule = "shamanMelee",
+      fact = ("%d%% of your damage is spells, %d%% melee."):format(Round(share.spell), Round(share.melee)),
+      advice = "When leveling Enhancement, Lightning Bolt is better for pulling, and mana for shocks and healing; as Elemental this is fine." })
   end
   if melee and melee.n >= 50 then
     local miss = ((melee.miss or 0) + (melee.dodge or 0) + (melee.parry or 0)) / melee.n * 100
     if miss > 12 then
-      Push({ title = "Sok ütés megy mellé", rule = "hitGear",
-        fact = ("Az ütéseid %s%%-a miss, dodge vagy parry."):format(F1(miss)),
-        advice = "A +hit tárgyak segítenek; a parry csak szemből jön." })
+      Push({ title = "Many swings miss", rule = "hitGear",
+        fact = ("%s%% of your swings are a miss, dodge or parry."):format(F1(miss)),
+        advice = "+hit items help; parries only come from the front." })
     end
   end
   local perMin = r.seconds > 0 and ShockCount(r.abilities) / r.seconds * 60 or 0
   if level >= 4 and r.seconds >= 120 and perMin < 1.5 then
-    Push({ title = "Ritkán shockolsz", fault = true, rule = "earthShock",
-      fact = ("Percenként %s shock."):format(F1(perMin)),
-      advice = "Ha van manád, az Earth Shock azonnali sebzés és megszakítás; hosszabb harcban a Flame Shock.",
-      missing = "a manád a harcokban (a gyógyításra tartott mana nem látszik)" })
+    Push({ title = "You rarely shock", fault = true, rule = "earthShock",
+      fact = ("%s shocks per minute."):format(F1(perMin)),
+      advice = "If you have mana, Earth Shock is instant damage and an interrupt; Flame Shock in a longer fight.",
+      missing = "your mana in the fights (mana kept for healing does not show)" })
   end
   if level >= 10 and r.seconds >= 300 and share.totem < 2 then
-    Push({ title = "Alig sebeznek a totemjeid", fault = true, rule = "searingTotem",
-      fact = ("A sebzésed %s%%-a totemé."):format(F1(share.totem)),
-      advice = "A Searing Totem (10-től) olcsó sebzés hosszabb harcban; több mobra a Magma Totem (26-tól).",
-      missing = "hogy megtanultad-e a Searing Totemet, és a harcok hossza a letétel pillanatában" })
+    Push({ title = "Your totems barely deal damage", fault = true, rule = "searingTotem",
+      fact = ("%s%% of your damage is the totem's."):format(F1(share.totem)),
+      advice = "Searing Totem (from level 10) is cheap damage in a longer fight; Magma Totem (from level 26) for several mobs.",
+      missing = "whether you had learned Searing Totem, and the fights' length at the moment you dropped it" })
   end
   local imbueSeen = false
   for name in pairs(S.IMBUE) do if Find(r.abilities, name) then imbueSeen = true end end
   if level >= 30 and r.seconds >= 300 and not imbueSeen then
-    Push({ title = "Nincs Windfury- vagy Flametongue-sebzés", fault = true, rule = "windfury",
-      fact = "A harcokban nincs Windfury Attack vagy Flametongue Attack.",
-      advice = "30-tól a Windfury Weapon (lassú kétkezesen) a legerősebb imbue.",
-      missing = "melyik imbue volt a fegyvereden (a Rockbiter nem látszik a harcnaplóban)" })
+    Push({ title = "No Windfury or Flametongue damage", fault = true, rule = "windfury",
+      fact = "There is no Windfury Attack or Flametongue Attack in the fights.",
+      advice = "From level 30 Windfury Weapon (on a slow two-hander) is the strongest imbue.",
+      missing = "which imbue was on your weapon (Rockbiter does not show in the combat log)" })
   end
   local shield
   for _, a in ipairs(r.auras or {}) do if a.name == "Lightning Shield" then shield = a.uptimePct end end
   if level >= 8 and r.seconds >= 120 and (shield or 0) < 30 then
-    Push({ title = "Lightning Shield ritkán van fent", fault = true, rule = "lightningShield",
-      fact = ("A harcidő %d%%-ában volt fent a Lightning Shield."):format(Round(shield or 0)),
-      advice = "Ha a mob ütöget, ez ingyen sebzés.",
-      missing = "a manád, és hogy megtanultad-e" })
+    Push({ title = "Lightning Shield is rarely up", fault = true, rule = "lightningShield",
+      fact = ("Lightning Shield was up %d%% of combat time."):format(Round(shield or 0)),
+      advice = "If the mob keeps hitting you, this is free damage.",
+      missing = "your mana, and whether you had learned it" })
   end
   if melee and melee.n >= 100 then
     local landed = melee.hit + melee.crit
-    Push({ info = true, title = "Mért arányok", fact = ("Közelharc: %s%% miss, %s%% dodge, %s%% crit. Sebzés: közelharc %d%%, imbue %d%%, varázslat %d%%, totem %d%%, DoT %d%%.")
+    Push({ info = true, title = "Measured ratios", fact = ("Melee: %s%% miss, %s%% dodge, %s%% crit. Damage: melee %d%%, imbue %d%%, spells %d%%, totem %d%%, DoT %d%%.")
       :format(F1((melee.miss or 0) / melee.n * 100), F1((melee.dodge or 0) / melee.n * 100), F1(landed > 0 and melee.crit / landed * 100 or 0),
         Round(share.melee), Round(share.imbue), Round(share.spell), Round(share.totem), Round(share.dot)) })
   end

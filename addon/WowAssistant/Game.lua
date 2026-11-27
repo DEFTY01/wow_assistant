@@ -430,7 +430,7 @@ local function TalentNote(input, ctx)
     for _, w in ipairs(shift) do
       bits[#bits + 1] = ("%s %s → %s DPS / %d"):format(w.label, WA.Talent.F2(w.without), WA.Talent.F2(w.with), w.per)
     end
-    shiftCache = { key = k, note = #bits > 0 and ("A talentjeid miatt a statok értéke (talentek nélkül → velük): %s. Részletek: /wa talent."):format(table.concat(bits, ", ")) or nil }
+    shiftCache = { key = k, note = #bits > 0 and ("Your talents change the stats' values (without talents → with them): %s. Details: /wa talent."):format(table.concat(bits, ", ")) or nil }
   end
   return shiftCache.note
 end
@@ -450,7 +450,7 @@ function G.Context()
   -- WA-030: which spec the model counts for, first among the notes
   local sp = input.spec
   if sp and ctx.params and ctx.params.notes then
-    table.insert(ctx.params.notes, 1, ("Spec: %s – %s."):format(sp.name or "nincs még", sp.from or ""))
+    table.insert(ctx.params.notes, 1, ("Spec: %s – %s."):format(sp.name or "not yet", sp.from or ""))
   end
   return ctx
 end
@@ -503,7 +503,7 @@ function G.Offers()
       quality = QUALITY[it.q or 1] or "COMMON", stats = M.GameStats(it.st, it.dmg),
     }
     if not (item.itemClass == 2 and not item.stats.weapon) and M.Usable(G.Class(), item) and (it.price or 0) > 0 then
-      out[#out + 1] = { item = item, price = it.price, listings = it.count or 0, where = "Aukciósház (játékban szkennelve)" }
+      out[#out + 1] = { item = item, price = it.price, listings = it.count or 0, where = "Auction house (scanned in game)" }
     end
   end
   return out, ah.at
@@ -547,19 +547,19 @@ function G.PlanInput(ctx)
   local trainer = G.Trainer()
   local warnings = {}
   local c = WA.char or {}
-  if not c.bankAt then warnings[#warnings + 1] = "A bank tartalma ismeretlen: nyisd meg egyszer a bankot." end
+  if not c.bankAt then warnings[#warnings + 1] = "The bank's contents are unknown: open the bank once." end
   local classHu = ({ ROGUE = "rogue", HUNTER = "hunter", SHAMAN = "shaman", DRUID = "druid", WARLOCK = "warlock", MAGE = "mage", WARRIOR = "warrior", PRIEST = "priest", PALADIN = "paladin" })[ctx.class] or "class"
-  if #trainer == 0 then warnings[#warnings + 1] = ("Nincs trainer-adat: nyisd meg a %s trainer ablakát minden szűrővel."):format(classHu) end
+  if #trainer == 0 then warnings[#warnings + 1] = ("No trainer data: open the %s trainer's window with every filter on."):format(classHu) end
   if ctx.class == "HUNTER" and not (WA.char and WA.char.spells and #WA.char.spells > 0) then
-    warnings[#warnings + 1] = "A varázskönyved még nincs beolvasva: /reload után az addon megnézi, mit tudsz (Aimed Shot, Multi-Shot, pet)."
+    warnings[#warnings + 1] = "Your spellbook is not read yet: after /reload the addon checks what you know (Aimed Shot, Multi-Shot, pet)."
   end
   if not scanAt then
-    warnings[#warnings + 1] = "Még nem szkennelted az aukciósházat: /wa ah az aukciósháznál. Enélkül nincs AH-ajánlat és ár."
+    warnings[#warnings + 1] = "You have not scanned the auction house yet: /wa ah at the auction house. Without it there are no AH offers or prices."
   elseif #offers == 0 then
-    warnings[#warnings + 1] = "Az aukciósház-szkennelésed több mint 12 órás: /wa ah az aukciósháznál."
+    warnings[#warnings + 1] = "Your auction house scan is more than 12 hours old: /wa ah at the auction house."
   end
-  if not ctx.combat then warnings[#warnings + 1] = "Nincs rögzített harc: a modell tankönyvi értékekkel számol. /wa log, és fusson a feltöltő." end
-  if not WowAssistantData then warnings[#warnings + 1] = "Hiányzik a GameData.lua (dungeon loot): npm run addon:recipes" end
+  if not ctx.combat then warnings[#warnings + 1] = "No recorded fights: the model uses textbook values. /wa log, and keep the uploader running." end
+  if not WowAssistantData then warnings[#warnings + 1] = "GameData.lua is missing (dungeon loot): npm run addon:recipes" end
   local routes = WA.Routes.Plan({ profs = profs, recipes = recipes, book = G.Book(), owned = owned, level = level, target = 300 })
   return {
     ctx = ctx, gold = GetMoney(), offers = offers, ownedGear = ownedGear, crafts = crafts, owned = owned, book = G.Book(),
@@ -661,7 +661,7 @@ function G.AmmoPrice(id)
   local book = G.Book().unit(id)
   if book then return book.price, book.source end
   local sell = select(11, GetItemInfo(id))
-  if sell and sell > 0 then return sell * 4, "becslés" end
+  if sell and sell > 0 then return sell * 4, "estimate" end
   return nil, nil
 end
 

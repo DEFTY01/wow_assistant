@@ -492,19 +492,19 @@ end
 
 WA.Command("meter", function()
   local print = function(s) DEFAULT_CHAT_FRAME:AddMessage("|cffd4a24cWA meter|r " .. WA.Fix(s)) end
-  print(("Rögzített harcok: %d"):format(#(WA.charDB.meterFights or {})))
+  print(("Recorded fights: %d"):format(#(WA.charDB.meterFights or {})))
   local last = WA.charDB.meterFights and WA.charDB.meterFights[#WA.charDB.meterFights]
   if last then
-    print(("Utolsó: %s, %.1f mp, %d sebzés, %d cast, %d találat a célponton%s"):format(last.target, last.dur, last.dmg,
-      #(last.casts or {}), last.events or 0, last.secret and (", " .. last.secret .. " titkos érték") or ""))
+    print(("Last: %s, %.1f s, %d damage, %d casts, %d hits on the target%s"):format(last.target, last.dur, last.dmg,
+      #(last.casts or {}), last.events or 0, last.secret and (", " .. last.secret .. " secret values") or ""))
   end
-  if not C_DamageMeter then print("ez a kliens nem ad damage meter API-t.") return end
+  if not C_DamageMeter then print("this client gives no damage meter API.") return end
   local fns = {}
   for k, v in pairs(C_DamageMeter) do if type(v) == "function" then fns[#fns + 1] = k end end
   table.sort(fns)
   print("API: " .. table.concat(fns, ", "))
-  if not MT.last then print("Még nem volt harc ebben a munkamenetben.") return end
+  if not MT.last then print("No fight in this session yet.") return end
   local out = {}
   Dump(MT.last, "  ", 0, out)
   for _, line in ipairs(out) do print(line) end
-end, "/wa meter – mit adott a kliens az utolsó harcról (hibakereséshez)")
+end, "/wa meter – what the client gave about the last fight (for debugging)")

@@ -20,73 +20,73 @@ WA.Pets = P
 
 -- dmg, armor, hp: classic family modifiers. diet, signature ability, what it is good for.
 P.FAMILY = {
-  Cat = { hu = "Macska", dmg = 1.10, armor = 1.00, hp = 0.98, diet = { "hús", "hal" }, sig = "Prowl",
-    role = "A legtöbb sebzés: Claw + Bite, Prowl a nyitáshoz. Szólózáshoz és dungeonba a legjobb választás." },
-  Raptor = { hu = "Raptor", dmg = 1.10, armor = 1.03, hp = 0.95, diet = { "hús" }, sig = "Savage Rend",
-    role = "Macska-szintű sebzés, a Savage Rend vérzéssel. Kicsit kevesebb élet: tankolni gyengébb." },
-  Wolf = { hu = "Farkas", dmg = 1.00, armor = 1.05, hp = 1.00, diet = { "hús" }, sig = "Furious Howl",
-    role = "A Furious Howl az egész csapat közelharcos attack powerét emeli: csoportban és raidben érték." },
-  Boar = { hu = "Vaddisznó", dmg = 0.90, armor = 1.09, hp = 1.04, diet = { "minden" }, sig = "Charge",
-    role = "Charge-dzsal ránt aggrót és megállítja a mobot. Strapabíró, olcsón etethető (mindent megeszik)." },
-  Bear = { hu = "Medve", dmg = 0.91, armor = 1.05, hp = 1.08, diet = { "minden" }, sig = "Swipe",
-    role = "A legtöbb élet: jó tank. A Swipe 3 mobot üt, több mob tartásához. Mindent megeszik." },
-  Gorilla = { hu = "Gorilla", dmg = 1.02, armor = 1.00, hp = 1.04, diet = { "gyümölcs", "gomba" }, sig = "Thunderstomp",
-    role = "A Thunderstomp területre sebez és aggrót tart: több mobos húzásoknál a legjobb pet-tank." },
-  Turtle = { hu = "Teknős", dmg = 0.90, armor = 1.13, hp = 1.00, diet = { "hal", "gyümölcs", "gomba" }, sig = "Shell Shield",
-    role = "A legnagyobb páncél és Shell Shield (50% kevesebb sebzés): elit mobok és bossok tankolására." },
-  Crab = { hu = "Rák", dmg = 0.95, armor = 1.13, hp = 0.96, diet = { "kenyér", "hal", "gyümölcs", "gomba" }, sig = "Pinch",
-    role = "Nagy páncél, a Pinch lassít. Tanknak jó, sebzésre gyenge." },
-  Scorpid = { hu = "Skorpió", dmg = 0.94, armor = 1.10, hp = 1.00, diet = { "hús" }, sig = "Scorpid Poison",
-    role = "Strapabíró, a Scorpid Poison 5-ször halmozódó méreg. Jó közép-tank." },
-  Bat = { hu = "Denevér", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "gyümölcs", "gomba" }, sig = "Sonic Blast",
-    role = "Jó sebzés; a Sonic Blast lassítja a casterek varázslását. Dive-val gyorsan odaér." },
-  ["Bird of Prey"] = { hu = "Bagoly", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "hús" }, sig = "Mine!",
-    role = "Jó sebzés Claw-val; a Mine! lefegyverzi a harcos típusú mobokat 3 mp-re." },
-  ["Carrion Bird"] = { hu = "Dögevő madár", dmg = 1.07, armor = 1.05, hp = 1.00, diet = { "hús", "hal" }, sig = "Demoralizing Screech",
-    role = "Jó sebzés és páncél együtt; a Demoralizing Screech csökkenti a mobok attack powerét." },
-  ["Wind Serpent"] = { hu = "Szélkígyó", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "kenyér", "sajt", "hal" }, sig = "Lightning Breath",
-    role = "A Lightning Breath nature-sebzés, nem kerüli el a páncél: erős páncélos mobokon és casterként." },
-  Spider = { hu = "Pók", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "hús" }, sig = "Web",
-    role = "Jó sebzés; a Web helyhez köti a célpontot (menekülő mob, PvP)." },
-  Hyena = { hu = "Hiéna", dmg = 1.00, armor = 1.05, hp = 1.00, diet = { "gyümölcs", "hús" }, sig = "Tendon Rip",
-    role = "Átlagos; a Tendon Rip lassít és sebez. Kiegyensúlyozott, de nincs kiemelkedő erőssége." },
-  Crocolisk = { hu = "Krokodil", dmg = 1.00, armor = 1.10, hp = 0.95, diet = { "hús", "hal" }, sig = "Dismember",
-    role = "Nagy páncél; a Dismember 25%-kal gyengíti a gyógyítást (PvP, gyógyító mobok)." },
-  Tallstrider = { hu = "Gólyalábas", dmg = 1.00, armor = 1.00, hp = 1.05, diet = { "sajt", "gyümölcs", "gomba" }, sig = "Dust Cloud",
-    role = "Több élet; a Dust Cloud csökkenti a célpont páncélját, ezzel a te lövéseid is többet sebeznek." },
-  Fox = { hu = "Róka", dmg = 1.00, armor = 1.00, hp = 1.00, diet = nil, sig = "Trickster's Dance", new = true,
-    role = "Forever-újdonság: a Trickster's Dance 12 mp-re +50% kitérést és 30%-kal gyorsabb támadást ad. A család szorzói nem ismertek." },
+  Cat = { hu = "Cat", dmg = 1.10, armor = 1.00, hp = 0.98, diet = { "meat", "fish" }, sig = "Prowl",
+    role = "The most damage: Claw + Bite, Prowl to open. The best choice for solo play and dungeons." },
+  Raptor = { hu = "Raptor", dmg = 1.10, armor = 1.03, hp = 0.95, diet = { "meat" }, sig = "Savage Rend",
+    role = "Cat-level damage, with Savage Rend's bleed. A little less health: weaker for tanking." },
+  Wolf = { hu = "Wolf", dmg = 1.00, armor = 1.05, hp = 1.00, diet = { "meat" }, sig = "Furious Howl",
+    role = "Furious Howl raises the whole group's melee attack power: valuable in groups and raids." },
+  Boar = { hu = "Boar", dmg = 0.90, armor = 1.09, hp = 1.04, diet = { "everything" }, sig = "Charge",
+    role = "Pulls aggro and stops the mob with Charge. Tough and cheap to feed (eats everything)." },
+  Bear = { hu = "Bear", dmg = 0.91, armor = 1.05, hp = 1.08, diet = { "everything" }, sig = "Swipe",
+    role = "The most health: a good tank. Swipe hits 3 mobs, for holding several mobs. Eats everything." },
+  Gorilla = { hu = "Gorilla", dmg = 1.02, armor = 1.00, hp = 1.04, diet = { "fruit", "fungus" }, sig = "Thunderstomp",
+    role = "Thunderstomp deals area damage and holds aggro: the best pet tank for multi-mob pulls." },
+  Turtle = { hu = "Turtle", dmg = 0.90, armor = 1.13, hp = 1.00, diet = { "fish", "fruit", "fungus" }, sig = "Shell Shield",
+    role = "The most armor and Shell Shield (50% less damage): for tanking elite mobs and bosses." },
+  Crab = { hu = "Crab", dmg = 0.95, armor = 1.13, hp = 0.96, diet = { "bread", "fish", "fruit", "fungus" }, sig = "Pinch",
+    role = "High armor, Pinch slows. Good as a tank, weak for damage." },
+  Scorpid = { hu = "Scorpid", dmg = 0.94, armor = 1.10, hp = 1.00, diet = { "meat" }, sig = "Scorpid Poison",
+    role = "Tough, Scorpid Poison stacks 5 times. A good medium tank." },
+  Bat = { hu = "Bat", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "fruit", "fungus" }, sig = "Sonic Blast",
+    role = "Good damage; Sonic Blast slows casters' casting. Gets there fast with Dive." },
+  ["Bird of Prey"] = { hu = "Owl", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "meat" }, sig = "Mine!",
+    role = "Good damage with Claw; Mine! disarms warrior-type mobs for 3 s." },
+  ["Carrion Bird"] = { hu = "Carrion Bird", dmg = 1.07, armor = 1.05, hp = 1.00, diet = { "meat", "fish" }, sig = "Demoralizing Screech",
+    role = "Good damage and armor together; Demoralizing Screech lowers the mobs' attack power." },
+  ["Wind Serpent"] = { hu = "Wind Serpent", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "bread", "cheese", "fish" }, sig = "Lightning Breath",
+    role = "Lightning Breath is nature damage, armor does not reduce it: strong on heavily armored mobs and casters." },
+  Spider = { hu = "Spider", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "meat" }, sig = "Web",
+    role = "Good damage; Web roots the target (fleeing mob, PvP)." },
+  Hyena = { hu = "Hyena", dmg = 1.00, armor = 1.05, hp = 1.00, diet = { "fruit", "meat" }, sig = "Tendon Rip",
+    role = "Average; Tendon Rip slows and damages. Balanced, but has no standout strength." },
+  Crocolisk = { hu = "Crocodile", dmg = 1.00, armor = 1.10, hp = 0.95, diet = { "meat", "fish" }, sig = "Dismember",
+    role = "High armor; Dismember weakens healing by 25% (PvP, healer mobs)." },
+  Tallstrider = { hu = "Tallstrider", dmg = 1.00, armor = 1.00, hp = 1.05, diet = { "cheese", "fruit", "fungus" }, sig = "Dust Cloud",
+    role = "More health; Dust Cloud lowers the target's armor, so your shots deal more damage too." },
+  Fox = { hu = "Fox", dmg = 1.00, armor = 1.00, hp = 1.00, diet = nil, sig = "Trickster's Dance", new = true,
+    role = "New in Forever: Trickster's Dance gives +50% dodge and 30% faster attacks for 12 s. The family's multipliers are not known." },
 }
 
 -- What each pet ability does, in a line, and how much it is worth training.
 -- prio: 1 core damage, 2 the family's own, 3 useful, 4 movement, 9 do not train for leveling
 P.ABILITY = {
-  Bite = { hu = "Harapás: erős ütés 10 mp-enként, a legtöbb pet fő sebzése.", prio = 1 },
-  Claw = { hu = "Karmolás: fókuszból ütés, nincs cooldownja. Macska, madár, medve, skorpió fő sebzése.", prio = 1 },
-  ["Lightning Breath"] = { hu = "Villámlehelet: nature-sebzés távolról, páncélon át.", prio = 1 },
-  ["Savage Rend"] = { hu = "Vérzés 18 mp alatt (raptor).", prio = 2 },
-  ["Scorpid Poison"] = { hu = "Halmozódó nature-méreg (skorpió).", prio = 2 },
-  Thunderstomp = { hu = "Területi nature-sebzés és aggró (gorilla).", prio = 2 },
-  Swipe = { hu = "3 közeli ellenfelet üt (medve).", prio = 2 },
-  Pinch = { hu = "Sebzés és 50% lassítás (rák).", prio = 2 },
-  Dismember = { hu = "Sebzés és -25% gyógyítás a célponton (krokodil).", prio = 2 },
-  ["Tendon Rip"] = { hu = "Vérzés és 50% lassítás (hiéna).", prio = 2 },
-  Web = { hu = "Helyhez köti a célpontot (pók).", prio = 3 },
-  ["Sonic Blast"] = { hu = "Nature-sebzés, lassítja a varázslást (denevér).", prio = 2 },
-  ["Mine!"] = { hu = "Lefegyverzés 3 mp-re (bagoly).", prio = 3 },
-  ["Dust Cloud"] = { hu = "-páncél a célponton 30 mp-re (gólyalábas).", prio = 2 },
-  ["Demoralizing Screech"] = { hu = "Sebzés és -attack power a közeli mobokon (dögevő madár).", prio = 2 },
-  ["Furious Howl"] = { hu = "+melee attack power a csapatnak (farkas).", prio = 2 },
-  Charge = { hu = "Rohamozás: megállítja a mobot és erős első ütés (vaddisznó).", prio = 2 },
-  ["Shell Shield"] = { hu = "50% kevesebb sebzés 12 mp-re, lassabb támadás (teknős).", prio = 3 },
-  ["Trickster's Dance"] = { hu = "+50% kitérés és gyorsabb támadás 12 mp-re (róka).", prio = 2 },
-  Prowl = { hu = "Lopakodás; az első ütés +50% (macska).", prio = 3 },
-  Dash = { hu = "+mozgási sebesség 15 mp-re.", prio = 4 },
-  Dive = { hu = "+mozgási sebesség 15 mp-re.", prio = 4 },
-  Cower = { hu = "Csökkenti a pet aggróját: ha a pet tankol, ne tanítsd meg.", prio = 9 },
+  Bite = { hu = "Bite: a strong hit every 10 s, the main damage of most pets.", prio = 1 },
+  Claw = { hu = "Claw: a hit from focus, no cooldown. The main damage of cats, birds, bears and scorpids.", prio = 1 },
+  ["Lightning Breath"] = { hu = "Lightning Breath: nature damage from range, through armor.", prio = 1 },
+  ["Savage Rend"] = { hu = "A bleed over 18 s (raptor).", prio = 2 },
+  ["Scorpid Poison"] = { hu = "A stacking nature poison (scorpid).", prio = 2 },
+  Thunderstomp = { hu = "Area nature damage and aggro (gorilla).", prio = 2 },
+  Swipe = { hu = "Hits 3 nearby enemies (bear).", prio = 2 },
+  Pinch = { hu = "Damage and a 50% slow (crab).", prio = 2 },
+  Dismember = { hu = "Damage and −25% healing on the target (crocodile).", prio = 2 },
+  ["Tendon Rip"] = { hu = "A bleed and a 50% slow (hyena).", prio = 2 },
+  Web = { hu = "Roots the target (spider).", prio = 3 },
+  ["Sonic Blast"] = { hu = "Nature damage, slows casting (bat).", prio = 2 },
+  ["Mine!"] = { hu = "Disarms for 3 s (owl).", prio = 3 },
+  ["Dust Cloud"] = { hu = "−armor on the target for 30 s (tallstrider).", prio = 2 },
+  ["Demoralizing Screech"] = { hu = "Damage and −attack power on nearby mobs (carrion bird).", prio = 2 },
+  ["Furious Howl"] = { hu = "+melee attack power for the group (wolf).", prio = 2 },
+  Charge = { hu = "Charge: stops the mob and a strong first hit (boar).", prio = 2 },
+  ["Shell Shield"] = { hu = "50% less damage for 12 s, slower attacks (turtle).", prio = 3 },
+  ["Trickster's Dance"] = { hu = "+50% dodge and faster attacks for 12 s (fox).", prio = 2 },
+  Prowl = { hu = "Prowl; the first hit +50% (cat).", prio = 3 },
+  Dash = { hu = "+movement speed for 15 s.", prio = 4 },
+  Dive = { hu = "+movement speed for 15 s.", prio = 4 },
+  Cower = { hu = "Lowers the pet's threat: if the pet tanks, do not teach it.", prio = 9 },
 }
 
-local DIET_EN = { meat = "hús", fish = "hal", bread = "kenyér", cheese = "sajt", fruit = "gyümölcs", fungus = "gomba" }
+local DIET_EN = { meat = "meat", fish = "fish", bread = "bread", cheese = "cheese", fruit = "fruit", fungus = "fungus" }
 P.DIET_EN = DIET_EN
 
 local function Data() return WowAssistantPets end
@@ -113,9 +113,9 @@ function P.Reset() beasts = nil end
 function P.Speed(b) return (b.speed or 200) / 100 end
 function P.SpeedLabel(b)
   local s = P.Speed(b)
-  if s >= 2 - 1e-6 and s <= 2 + 1e-6 then return "2.0 mp" end
+  if s >= 2 - 1e-6 and s <= 2 + 1e-6 then return "2.0 s" end
   local pct = math.floor((2 / s - 1) * 100 + 0.5)
-  return ("%.1f mp (%s%d%%)"):format(s, pct >= 0 and "+" or "", pct)
+  return ("%.1f s (%s%d%%)"):format(s, pct >= 0 and "+" or "", pct)
 end
 
 -- Relative pet DPS: family damage × attack speed (a 2.0 s, 1.00 damage beast is 1).
@@ -208,9 +208,9 @@ end
 function P.Where(b)
   local lvl = b.min == b.max and tostring(b.min) or (b.min .. "–" .. b.max)
   local flags = {}
-  if b.rare then flags[#flags + 1] = "ritka" end
-  if b.elite then flags[#flags + 1] = "elit" end
-  return ("%s, %s. szint%s"):format(b.zone, lvl, #flags > 0 and (" (" .. table.concat(flags, ", ") .. ")") or "")
+  if b.rare then flags[#flags + 1] = "rare" end
+  if b.elite then flags[#flags + 1] = "elite" end
+  return ("%s, level %s%s"):format(b.zone, lvl, #flags > 0 and (" (" .. table.concat(flags, ", ") .. ")") or "")
 end
 
 -- What to teach the pet next. input = { level (hunter), pet = { family, level, tp, tpSpent, known = { [ability] = rank } }

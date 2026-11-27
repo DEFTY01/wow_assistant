@@ -54,25 +54,25 @@ local SPARK_HEIGHT = SPARK_BLOCK * 2 + 6
 
 local CATS = {
   loot    = "Loot",
-  quest   = "Küldetés",
+  quest   = "Quest",
   vendor  = "Vendor",
-  mail    = "Posta (AH-eladás is)",
-  ah      = "Aukciósház",
-  trade   = "Kereskedés",
-  repair  = "Javítás",
-  taxi    = "Repülés",
-  trainer = "Tréner",
-  other   = "Egyéb",
+  mail    = "Mail (AH sales too)",
+  ah      = "Auction house",
+  trade   = "Trade",
+  repair  = "Repair",
+  taxi    = "Flight",
+  trainer = "Trainer",
+  other   = "Other",
 }
 local CAT_ORDER = { "loot", "quest", "vendor", "mail", "ah", "trade", "repair", "taxi", "trainer", "other" }
 
 local INCOME_TIPS = {
-  loot   = "A mobokból hulló arany a fő forrásod: maradj a legjobb zónádban, és sűrű, gyorsan ölhető csoportokat válassz.",
-  vendor = "A vendornál eladott loot hozza a legtöbbet: tartsd üresen a táskát, és vigyél vissza minden eladható tárgyat.",
-  quest  = "A küldetések hozzák a legtöbbet: ha a jutalomtárgy nem kell, a legdrágábban eladhatót válaszd.",
-  mail   = "Az AH-eladásból (posta) jön sok arany: tegyél fel több alapanyagot (bőr, érc, gyógynövény, szövet).",
-  ah     = "Az aukciósház fontos forrás: a keresett alapanyagot AH-n add el, ne a vendornál.",
-  trade  = "A játékosoknak közvetlenül eladott áru jól megy nálad: ezt érdemes folytatni.",
+  loot   = "Gold dropped by mobs is your main source: stay in your best zone, and pick dense groups that die fast.",
+  vendor = "Loot sold at the vendor brings the most: keep your bags empty, and take back everything sellable.",
+  quest  = "Quests bring the most: if you do not need the reward item, pick the one that sells for the most.",
+  mail   = "A lot of gold comes from AH sales (mail): list more materials (leather, ore, herbs, cloth).",
+  ah     = "The auction house is an important source: sell sought-after materials on the AH, not at the vendor.",
+  trade  = "Goods sold directly to players do well for you: worth continuing.",
 }
 
 local KILL_FMTS = {
@@ -170,7 +170,7 @@ local function Safe(where, fn, ...)
   local ok, err = pcall(fn, ...)
   if not ok and not reported[where] then
     reported[where] = true
-    print("|cffff4040SessionBar hiba (" .. where .. "):|r " .. tostring(err))
+    print("|cffff4040SessionBar error (" .. where .. "):|r " .. tostring(err))
   end
   return ok
 end
@@ -514,9 +514,9 @@ end
 
 -- Mennyi adat áll egy zóna mögött (és mennyi ritka drop esett ott, ami nincs benne az értékben).
 local function Evidence(z)
-  local s = ("%d perc, %d ölés"):format(math.floor(z.active / 60), z.kills or 0)
+  local s = ("%d min, %d kills"):format(math.floor(z.active / 60), z.kills or 0)
   if (z.luckN or 0) > 0 then
-    s = s .. (", ritka drop: %d db %s"):format(z.luckN, Money(z.luck))
+    s = s .. (", rare drops: %d, %s"):format(z.luckN, Money(z.luck))
   end
   return s
 end
@@ -588,26 +588,26 @@ local function GoldAdvice()
   local here = ZoneName()
   local best = zones[1]
   if best and best.sure and best.rate > 0 then
-    add(("Legjobb farm-zónád: |cffffd100%s|r – %s/óra stabil bevétel (%s)."):format(
+    add(("Your best farm zone: |cffffd100%s|r – %s/hour steady income (%s)."):format(
       best.name, Money(best.rate), Evidence(best)))
     if best.name ~= here then
       local hereZ
       for _, z in ipairs(zones) do if z.name == here then hereZ = z end end
       if hereZ and best.rate > hereZ.rate * 1.2 then
-        add(("Itt (%s) %s/óra%s: a(z) %s %d%%-kal jobban fizet."):format(
-          here, Money(hereZ.rate), hereZ.sure and "" or " (még kevés adat)", best.name,
+        add(("Here (%s) %s/hour%s: %s pays %d%% better."):format(
+          here, Money(hereZ.rate), hereZ.sure and "" or " (little data yet)", best.name,
           hereZ.rate > 0 and math.floor((best.rate / hereZ.rate - 1) * 100) or 100))
       end
     end
   elseif best and best.rate > 0 then
-    add(("Még bizonytalan, de eddig |cffffd100%s|r a legjobb: %s/óra (%s). Fél óra vagy %d ölés után lesz megbízható."):format(
+    add(("Still uncertain, but so far |cffffd100%s|r is the best: %s/hour (%s). It becomes reliable after half an hour or %d kills."):format(
       best.name, Money(best.rate), Evidence(best), SURE_KILLS))
     best = nil -- bizonytalan zónára nem építünk célbecslést
   else
-    add("Még kevés az adat a zónák összevetéséhez (zónánként 10 aktív perc kell).")
+    add("Not enough data yet to compare zones (10 active minutes per zone needed).")
   end
   if session.lootLuckN > 0 then
-    add(("Ebben a sessionben %d ritka drop esett (%s vendor-áron). Ez szerencse, ezért nincs benne a zóna-értékben; AH-n általában többet ér."):format(
+    add(("This session %d rare drops fell (%s at vendor price). That is luck, so it is not in the zone value; on the AH it is usually worth more."):format(
       session.lootLuckN, Money(session.lootLuck)))
   end
 
@@ -619,32 +619,32 @@ local function GoldAdvice()
       if c ~= "other" and v > topV then top, topV = c, v end
     end
     if top then
-      add(("Fő bevételed: %s (%d%%). %s"):format(CATS[top], Pct(topV, total), INCOME_TIPS[top] or ""))
+      add(("Your main income: %s (%d%%). %s"):format(CATS[top], Pct(topV, total), INCOME_TIPS[top] or ""))
     end
   end
 
   if bags.junk > 0 then
-    add(("A táskádban %s értékű szürke tárgy van (%d db): add el a vendornál."):format(Money(bags.junk), bags.junkCount))
+    add(("Your bags hold %s worth of grey items (%d): sell them at the vendor."):format(Money(bags.junk), bags.junkCount))
   end
   if bags.total > 0 and bags.free <= BAG_WARN then
-    add(("Csak %d szabad hely maradt: tele táskával lootot hagysz a földön."):format(bags.free))
+    add(("Only %d free slots left: with full bags you leave loot on the ground."):format(bags.free))
   end
 
   local exp = MergedCats("expense")
   local expTotal = Sum(exp)
   if expTotal > 0 and (exp.repair or 0) / expTotal >= 0.3 then
-    add(("A kiadásaid %d%%-a javítás: kevesebb halál, több arany."):format(Pct(exp.repair, expTotal)))
+    add(("%d%% of your spending is repairs: fewer deaths, more gold."):format(Pct(exp.repair, expTotal)))
   end
 
   local st = GoalStatus("gold")
   if st and not st.done then
     local parts = {}
-    if st.eta then parts[#parts + 1] = ("a mostani tempóval ~%s"):format(FmtTime(st.eta)) end
+    if st.eta then parts[#parts + 1] = ("at the current pace ~%s"):format(FmtTime(st.eta)) end
     if best and best.rate > 0 and best.name ~= here then
-      parts[#parts + 1] = ("a(z) %s tempójával ~%s"):format(best.name, FmtTime(st.remaining / best.rate * 3600))
+      parts[#parts + 1] = ("at the pace of %s ~%s"):format(best.name, FmtTime(st.remaining / best.rate * 3600))
     end
     if #parts > 0 then
-      add(("A célig hátra %s: %s."):format(Money(st.remaining), table.concat(parts, ", ")))
+      add(("Left to the goal %s: %s."):format(Money(st.remaining), table.concat(parts, ", ")))
     end
   end
   return out
@@ -654,21 +654,21 @@ local function LevelAdvice()
   local out = {}
   local zones = RankZones("xp")
   if zones[1] then
-    out[#out + 1] = ("Legtöbb XP/óra: |cffffd100%s|r – %s/óra."):format(zones[1].name, Abbrev(zones[1].rate))
+    out[#out + 1] = ("Most XP/hour: |cffffd100%s|r – %s/hour."):format(zones[1].name, Abbrev(zones[1].rate))
   end
   local kill, quest = Sources(session)
   local total = session.xp + hist.src.xp
   kill, quest = kill + hist.src.kill, quest + hist.src.quest
   if total > 0 then
     if quest >= kill then
-      out[#out + 1] = ("XP-d %d%%-a küldetésből jön: gyűjts össze több questet egy zónában, és add le őket egyszerre."):format(Pct(quest, total))
+      out[#out + 1] = ("%d%% of your XP comes from quests: gather more quests in a zone, and turn them in at once."):format(Pct(quest, total))
     else
-      out[#out + 1] = ("XP-d %d%%-a mobölésből jön: a sűrű, saját szintű mobcsoportok a leggyorsabbak."):format(Pct(kill, total))
+      out[#out + 1] = ("%d%% of your XP comes from killing mobs: dense groups of mobs at your level are the fastest."):format(Pct(kill, total))
     end
   end
   local rested = Rested()
   if rested > 0 then
-    out[#out + 1] = ("Van %s pihent XP-d: amíg tart, a mobölés dupla XP-t ad."):format(Abbrev(rested))
+    out[#out + 1] = ("You have %s rested XP: while it lasts, killing mobs gives double XP."):format(Abbrev(rested))
   end
   return out
 end
@@ -689,17 +689,17 @@ local function SummaryLines(s, title)
   local dur = s.duration or ((s.last or time()) - s.start)
   local net = Net(s)
   local L = { "|cffffd100" .. title .. "|r" }
-  L[#L + 1] = ("Idő: %s (aktív %s)"):format(FmtTime(dur), FmtTime(a))
+  L[#L + 1] = ("Time: %s (active %s)"):format(FmtTime(dur), FmtTime(a))
   if (s.xp or 0) > 0 then
     local kill, quest, other = Sources(s)
-    L[#L + 1] = ("XP: +%s (%s/óra) – mob %s, küldetés %s, felfedezés/egyéb %s%s"):format(
+    L[#L + 1] = ("XP: +%s (%s/hour) – mobs %s, quests %s, discovery/other %s%s"):format(
       Abbrev(s.xp), Abbrev(Rate(s.xp, a, 60) or 0), Abbrev(kill), Abbrev(quest), Abbrev(other),
-      (s.levels or 0) > 0 and (", +%d szint"):format(s.levels) or "")
+      (s.levels or 0) > 0 and (", +%d levels"):format(s.levels) or "")
   end
-  L[#L + 1] = ("Arany: %s (%s/óra) · farm érték %s/óra"):format(Money(net, true), Money(Rate(net, a, 60) or 0, true),
+  L[#L + 1] = ("Gold: %s (%s/hour) · farm value %s/hour"):format(Money(net, true), Money(Rate(net, a, 60) or 0, true),
     Money(Rate(Farm(s), a, 60) or 0))
   if (s.lootLuckN or 0) > 0 then
-    L[#L + 1] = ("Ritka drop (szerencse, nincs a farm értékben): %d db, %s vendor-áron"):format(s.lootLuckN, Money(s.lootLuck))
+    L[#L + 1] = ("Rare drops (luck, not in the farm value): %d, %s at vendor price"):format(s.lootLuckN, Money(s.lootLuck))
   end
   local bestName, bestRate
   for name, z in pairs(s.zones or {}) do
@@ -708,13 +708,13 @@ local function SummaryLines(s, title)
       if not bestRate or r > bestRate then bestName, bestRate = name, r end
     end
   end
-  if bestName then L[#L + 1] = ("Legjobb zóna: %s (%s/óra)"):format(bestName, Money(bestRate, true)) end
+  if bestName then L[#L + 1] = ("Best zone: %s (%s/hour)"):format(bestName, Money(bestRate, true)) end
   if hist.n > 0 and a >= MIN_RATE_ACTIVE then
     local cmp = {}
     local xph, gph = Rate(s.xp, a, 60), Rate(net, a, 60)
-    if xph and hist.avgXph and (s.xp or 0) > 0 then cmp[#cmp + 1] = ("XP/óra %d%%"):format(Pct(xph, hist.avgXph)) end
-    if gph and hist.avgGph and hist.avgGph > 0 then cmp[#cmp + 1] = ("arany/óra %d%%"):format(Pct(gph, hist.avgGph)) end
-    if #cmp > 0 then L[#L + 1] = "Az átlagodhoz képest: " .. table.concat(cmp, ", ") end
+    if xph and hist.avgXph and (s.xp or 0) > 0 then cmp[#cmp + 1] = ("XP/hour %d%%"):format(Pct(xph, hist.avgXph)) end
+    if gph and hist.avgGph and hist.avgGph > 0 then cmp[#cmp + 1] = ("gold/hour %d%%"):format(Pct(gph, hist.avgGph)) end
+    if #cmp > 0 then L[#L + 1] = "Against your average: " .. table.concat(cmp, ", ") end
   end
   return L
 end
@@ -737,79 +737,79 @@ local function BuildRows(full)
   local maxed = IsMaxed()
 
   header(Icon(ICONS.clock) .. " Session: " .. FmtTime(now - session.start))
-  add("Aktív idő", FmtTime(a) .. (IsActive(now) and "" or " |cff888888(AFK, áll)|r"))
+  add("Active time", FmtTime(a) .. (IsActive(now) and "" or " |cff888888(AFK, idle)|r"))
 
   -- Tapasztalat és források
   if not maxed then
     local cur, max = UnitXP("player"), UnitXPMax("player")
     local rph = Rate(session.xp, a, 60) or 0
-    header(Icon(ICONS.xp) .. " Tapasztalat")
-    add("Szerzett XP", Abbrev(session.xp))
-    add("XP / óra", Abbrev(rph) .. Trend(Rate(session.xp, a, MIN_RATE_ACTIVE), hist.avgXph))
+    header(Icon(ICONS.xp) .. " Experience")
+    add("XP gained", Abbrev(session.xp))
+    add("XP / hour", Abbrev(rph) .. Trend(Rate(session.xp, a, MIN_RATE_ACTIVE), hist.avgXph))
     if session.xp > 0 then
       local kill, quest, other = Sources(session)
       local function src(v)
-        return ("%s (%d%%)  %s/óra"):format(Abbrev(v), Pct(v, session.xp), Abbrev(Rate(v, a, 60) or 0))
+        return ("%s (%d%%)  %s/hour"):format(Abbrev(v), Pct(v, session.xp), Abbrev(Rate(v, a, 60) or 0))
       end
-      add("   Mobölés", src(kill))
-      add("   Küldetés", src(quest))
-      add("   Felfedezés / egyéb", src(other))
+      add("   Mob kills", src(kill))
+      add("   Quests", src(quest))
+      add("   Discovery / other", src(other))
     end
-    add("Szint", ("%d  (%.1f%%)"):format(UnitLevel("player"), max > 0 and cur / max * 100 or 0))
-    if session.levels > 0 then add("Szintlépés a sessionben", session.levels) end
-    if rph > 0 then add("Szintlépésig", "~" .. FmtTime((max - cur) / rph * 3600)) end
+    add("Level", ("%d  (%.1f%%)"):format(UnitLevel("player"), max > 0 and cur / max * 100 or 0))
+    if session.levels > 0 then add("Levels this session", session.levels) end
+    if rph > 0 then add("To next level", "~" .. FmtTime((max - cur) / rph * 3600)) end
 
     -- Pihent XP tervező
     local rested = Rested()
     local cap = REST_CAP * max
     local per8 = REST_PER_8H * max
-    header(Icon(ICONS.rest) .. " Pihent XP")
+    header(Icon(ICONS.rest) .. " Rested XP")
     if rested > 0 then
-      add("Pihent XP", ("%s  (%d%% szint)"):format(Abbrev(rested), Pct(rested, max)))
+      add("Rested XP", ("%s  (%d%% of a level)"):format(Abbrev(rested), Pct(rested, max)))
       local rr = RestedRate()
-      if rr then add("Elfogy kb.", FmtTime(rested / rr * 3600) .. " játék múlva") end
+      if rr then add("Runs out in about", FmtTime(rested / rr * 3600) .. " of play") end
     else
-      add("Pihent XP", "|cff888888elfogyott|r")
+      add("Rested XP", "|cff888888used up|r")
     end
     if IsResting and Known(IsResting()) then
-      add("Pihenőhelyen vagy", ("|cff3cff3c+%s / 8 óra|r"):format(Abbrev(math.min(per8, math.max(0, cap - rested)))))
-      if full and cap > rested then add("   Tele lesz (150%)", "~" .. FmtTime((cap - rested) / per8 * 8 * 3600) .. " múlva") end
+      add("You are in a rest area", ("|cff3cff3c+%s / 8 hours|r"):format(Abbrev(math.min(per8, math.max(0, cap - rested)))))
+      if full and cap > rested then add("   Full (150%) in", "~" .. FmtTime((cap - rested) / per8 * 8 * 3600) .. " from now") end
     else
-      add("Kilépés", "|cffffd100fogadóban 4x gyorsabb|r")
+      add("Logout", "|cffffd1004x faster in an inn|r")
     end
   end
 
   -- Arany
   local inc, exp = Sum(session.income), Sum(session.expense)
-  header(Icon(ICONS.gold) .. " Arany")
-  add("Bevétel", Money(inc))
+  header(Icon(ICONS.gold) .. " Gold")
+  add("Income", Money(inc))
   if full then
     for _, c in ipairs(CAT_ORDER) do
       local v = session.income[c]
       if v and v > 0 then add("   " .. CATS[c], Money(v)) end
     end
   end
-  add("Kiadás", Money(exp))
+  add("Spending", Money(exp))
   if full then
     for _, c in ipairs(CAT_ORDER) do
       local v = session.expense[c]
       if v and v > 0 then add("   " .. CATS[c], Money(v)) end
     end
   end
-  add("Nettó", Money(inc - exp, true))
-  add("Nettó / óra", Money(Rate(inc - exp, a, 60) or 0, true) .. Trend(Rate(inc - exp, a, MIN_RATE_ACTIVE), hist.avgGph))
-  add("Farm érték / óra (stabil)", Money(Rate(Farm(session), a, 60) or 0))
-  if full and session.lootItems > 0 then add("   szürke/fehér loot vendor-ára", Money(session.lootItems)) end
+  add("Net", Money(inc - exp, true))
+  add("Net / hour", Money(Rate(inc - exp, a, 60) or 0, true) .. Trend(Rate(inc - exp, a, MIN_RATE_ACTIVE), hist.avgGph))
+  add("Farm value / hour (steady)", Money(Rate(Farm(session), a, 60) or 0))
+  if full and session.lootItems > 0 then add("   vendor price of grey/white loot", Money(session.lootItems)) end
   if session.lootLuckN > 0 then
-    add(("   ritka drop: %d db (külön)"):format(session.lootLuckN), "|cff1eff00" .. Money(session.lootLuck) .. "|r")
+    add(("   rare drops: %d (separate)"):format(session.lootLuckN), "|cff1eff00" .. Money(session.lootLuck) .. "|r")
   end
-  if full and session.kills > 0 then add("   érték / ölés", Money(Farm(session) / session.kills)) end
-  add("Egyenleg", Money(GetMoney()))
+  if full and session.kills > 0 then add("   value / kill", Money(Farm(session) / session.kills)) end
+  add("Balance", Money(GetMoney()))
 
   -- Zónák
   local here = ZoneName()
   if full then
-    header(Icon(ICONS.zone) .. " Zónák (ez a session)")
+    header(Icon(ICONS.zone) .. " Zones (this session)")
     local list = {}
     for name, z in pairs(session.zones) do list[#list + 1] = { name = name, z = z } end
     table.sort(list, function(x, y) return x.z.active > y.z.active end)
@@ -817,67 +817,67 @@ local function BuildRows(full)
       local z = list[i].z
       local label = (list[i].name == here and "|cffffffff" or "") .. list[i].name .. (list[i].name == here and "|r" or "")
       if z.active >= 60 then
-        add(label, ("%s XP/óra · %s/óra%s"):format(Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(ZoneFarm(z), z.active, 60)),
-          (z.luckN or 0) > 0 and (" |cff1eff00+%d ritka|r"):format(z.luckN) or ""))
+        add(label, ("%s XP/hour · %s/hour%s"):format(Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(ZoneFarm(z), z.active, 60)),
+          (z.luckN or 0) > 0 and (" |cff1eff00+%d rare|r"):format(z.luckN) or ""))
       else
-        add(label, "|cff888888kevés adat|r")
+        add(label, "|cff888888little data|r")
       end
     end
   else
     local z = session.zones[here]
     if z and z.active >= 60 then
-      add(Icon(ICONS.zone) .. " " .. here, ("%s XP/óra · %s/óra"):format(
+      add(Icon(ICONS.zone) .. " " .. here, ("%s XP/hour · %s/hour"):format(
         Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(ZoneFarm(z), z.active, 60))))
     end
   end
 
   -- Táska
   if bags.total > 0 then
-    header(Icon(ICONS.bag) .. " Táska")
+    header(Icon(ICONS.bag) .. " Bags")
     local col = bags.free <= 3 and "|cffff4040" or (bags.free <= BAG_WARN and "|cffffd100" or "|cffffffff")
-    add("Szabad hely", ("%s%d|r / %d"):format(col, bags.free, bags.total))
-    if bags.junk > 0 then add("Szürke tárgyak", ("%s  (%d db)"):format(Money(bags.junk), bags.junkCount)) end
+    add("Free slots", ("%s%d|r / %d"):format(col, bags.free, bags.total))
+    if bags.junk > 0 then add("Grey items", ("%s  (%d)"):format(Money(bags.junk), bags.junkCount)) end
   end
 
   -- Célok és tanácsok
   local gst, lst = GoalStatus("gold"), GoalStatus("level")
   if gst or lst then
-    header(Icon(ICONS.goal) .. " Célok")
+    header(Icon(ICONS.goal) .. " Goals")
     local function deadlineRow(st, fmtNeed)
       if not st.goal.deadline or st.done then return end
-      local label = "   Határidő " .. date("%H:%M", st.goal.deadline)
+      local label = "   Deadline " .. date("%H:%M", st.goal.deadline)
       if st.late then
-        add(label, "|cffff4040" .. (st.need and ("kell " .. fmtNeed(st.need) .. "/óra") or "lejárt") .. "|r")
+        add(label, "|cffff4040" .. (st.need and ("needs " .. fmtNeed(st.need) .. "/hour") or "expired") .. "|r")
       else
-        add(label, "|cff3cff3crendben|r")
+        add(label, "|cff3cff3con track|r")
       end
     end
     if gst then
-      add("Arany: " .. Money(gst.goal.target), gst.done and "|cff3cff3ckész!|r" or ("%d%%"):format(math.floor(gst.progress * 100)))
+      add("Gold: " .. Money(gst.goal.target), gst.done and "|cff3cff3cdone!|r" or ("%d%%"):format(math.floor(gst.progress * 100)))
       if not gst.done then
-        add("   Hátra", Money(gst.remaining))
-        if gst.eta then add("   Becsült idő", "~" .. FmtTime(gst.eta)) end
+        add("   Left", Money(gst.remaining))
+        if gst.eta then add("   Estimated time", "~" .. FmtTime(gst.eta)) end
         deadlineRow(gst, function(v) return Money(v) end)
       end
     end
     if lst then
-      add("Szint: " .. lst.goal.target, lst.done and "|cff3cff3ckész!|r" or ("%d%%"):format(math.floor(lst.progress * 100)))
+      add("Level: " .. lst.goal.target, lst.done and "|cff3cff3cdone!|r" or ("%d%%"):format(math.floor(lst.progress * 100)))
       if not lst.done then
-        add("   Hátra", "~" .. Abbrev(lst.remaining) .. " XP")
-        if lst.eta then add("   Becsült idő", "~" .. FmtTime(lst.eta)) end
+        add("   Left", "~" .. Abbrev(lst.remaining) .. " XP")
+        if lst.eta then add("   Estimated time", "~" .. FmtTime(lst.eta)) end
         deadlineRow(lst, Abbrev)
       end
     end
   end
   if full then
-    header(Icon(ICONS.gold) .. " Arany-tanács")
+    header(Icon(ICONS.gold) .. " Gold advice")
     local adv = GoldAdvice()
     for i = 1, math.min(4, #adv) do note(adv[i]) end
     if lst and not lst.done then
-      header(Icon(ICONS.xp) .. " Szint-tanács")
+      header(Icon(ICONS.xp) .. " Level advice")
       for _, s in ipairs(LevelAdvice()) do note(s) end
     end
-    if not gst and not lst then note("|cff888888Cél: /sbar goal gold 100  vagy  /sbar goal level 40 22:00|r") end
+    if not gst and not lst then note("|cff888888Goal: /sbar goal gold 100  or  /sbar goal level 40 22:00|r") end
   elseif gst and not gst.done then
     local adv = GoldAdvice()
     if adv[1] then note(adv[1]) end
@@ -885,17 +885,17 @@ local function BuildRows(full)
 
   -- Összevetés a korábbi sessionökkel
   if hist.n > 0 then
-    header(Icon(ICONS.trend) .. (" Összevetés (%d korábbi session)"):format(hist.n))
+    header(Icon(ICONS.trend) .. (" Comparison (%d earlier sessions)"):format(hist.n))
     if not maxed and hist.avgXph then
       local cx = Rate(session.xp, a, MIN_RATE_ACTIVE)
-      add("XP/óra most", (cx and Abbrev(cx) or "–") .. Trend(cx, hist.avgXph))
-      add("   átlag / legjobb", Abbrev(hist.avgXph) .. " / " .. Abbrev(hist.bestXph or 0))
+      add("XP/hour now", (cx and Abbrev(cx) or "–") .. Trend(cx, hist.avgXph))
+      add("   average / best", Abbrev(hist.avgXph) .. " / " .. Abbrev(hist.bestXph or 0))
     end
     if hist.avgGph then
       local cg = Rate(inc - exp, a, MIN_RATE_ACTIVE)
-      add("Arany/óra most", (cg and Money(cg, true) or "–") .. Trend(cg, hist.avgGph))
-      add("   átlag", Money(hist.avgGph, true))
-      if full then add("   legjobb", Money(hist.bestGph or 0, true)) end
+      add("Gold/hour now", (cg and Money(cg, true) or "–") .. Trend(cg, hist.avgGph))
+      add("   average", Money(hist.avgGph, true))
+      if full then add("   best", Money(hist.bestGph or 0, true)) end
     end
   end
   return rows
@@ -945,7 +945,7 @@ local function CreateSpark(parent, template)
   local f = CreateFrame("Frame", nil, parent, template)
   f:SetSize(SPARK_WIDTH, SPARK_HEIGHT)
   f.series = {}
-  local defs = { { key = "net", title = "Arany", r = 1, g = 0.82, b = 0 }, { key = "xp", title = "XP", r = 0.6, g = 0.45, b = 1 } }
+  local defs = { { key = "net", title = "Gold", r = 1, g = 0.82, b = 0 }, { key = "xp", title = "XP", r = 0.6, g = 0.45, b = 1 } }
   for si, d in ipairs(defs) do
     local top = -2 - (si - 1) * SPARK_BLOCK
     local s = { key = d.key, title = d.title, color = d, bars = {} }
@@ -980,7 +980,7 @@ local function UpdateSpark(f)
   local enough = time() - session.start >= 120
   for _, s in ipairs(f.series) do
     if not enough then
-      s.label:SetText(s.title .. ": |cff888888adatgyűjtés…|r")
+      s.label:SetText(s.title .. ": |cff888888collecting data…|r")
       for _, t in ipairs(s.bars) do t:Hide() end
     else
       local vals = SeriesValues(s.key, SPARK_N)
@@ -1130,7 +1130,7 @@ local function ShowTooltip()
     end
   end
   GameTooltip:AddLine(" ")
-  GameTooltip:AddLine("Húzás: mozgatás  ·  Nyíl: lenyitás  ·  /sbar", 0.5, 0.5, 0.5)
+  GameTooltip:AddLine("Drag: move  ·  Arrow: expand  ·  /sbar", 0.5, 0.5, 0.5)
   GameTooltip:Show()
   tipSpark:ClearAllPoints()
   tipSpark:SetPoint("TOPLEFT", GameTooltip, "BOTTOMLEFT", 0, -2)
@@ -1212,15 +1212,15 @@ local function CheckGoals(now)
       local g = st.goal
       if st.done and not g.announced then
         g.announced = true
-        Print(kind == "gold" and ("|cff3cff3cArany cél teljesítve: %s!|r"):format(Money(g.target))
-          or ("|cff3cff3cSzint cél teljesítve: %d!|r"):format(g.target))
+        Print(kind == "gold" and ("|cff3cff3cGold goal reached: %s!|r"):format(Money(g.target))
+          or ("|cff3cff3cLevel goal reached: %d!|r"):format(g.target))
         pcall(PlaySound, 888)
       elseif st.late and g.deadline and session.active >= MIN_ZONE_ACTIVE
         and now - (lastWarn[kind] or 0) >= WARN_EVERY then
         lastWarn[kind] = now
         local need = st.need and (kind == "gold" and Money(st.need) or Abbrev(st.need)) or "?"
-        Print(("|cffff4040A(z) %s cél lemarad|r: %s-ig óránként %s kellene, most %s megy."):format(
-          kind == "gold" and "arany" or "szint", date("%H:%M", g.deadline), need,
+        Print(("|cffff4040The %s goal is falling behind|r: until %s it would need %s an hour, now %s."):format(
+          kind == "gold" and "gold" or "level", date("%H:%M", g.deadline), need,
           st.rate and (kind == "gold" and Money(st.rate) or Abbrev(st.rate)) or "?"))
         if kind == "gold" then
           local adv = GoldAdvice()
@@ -1345,7 +1345,7 @@ function H.PLAYER_ENTERING_WORLD(isInitialLogin, isReloadingUi)
     if prev then
       Migrate(prev)
       -- Az összefoglaló az archiválás előtt készül, hogy ne önmagához hasonlítsa a sessiont.
-      summary = SummaryLines(prev, "Előző session összefoglalója")
+      summary = SummaryLines(prev, "Previous session summary")
     end
     if not ArchiveSession(prev) then summary = nil end
     charDB.current = NewSession()
@@ -1382,9 +1382,9 @@ function H.PLAYER_CAMPING()
   if not ready or campingShown then return end
   campingShown = true
   C_Timer.After(30, function() campingShown = false end)
-  PrintSummary(session, "Session összefoglaló")
+  PrintSummary(session, "Session summary")
   if not IsMaxed() and not (IsResting and Known(IsResting())) then
-    Print("|cffffd100Nem pihenőhelyen lépsz ki:|r fogadóban vagy városban négyszer gyorsabban gyűlik a pihent XP.")
+    Print("|cffffd100You are logging out outside a rest area:|r in an inn or a city rested XP builds four times faster.")
   end
 end
 
@@ -1554,26 +1554,26 @@ local function ShowGoal(kind)
   local st = GoalStatus(kind)
   if not st then return end
   local g = st.goal
-  local what = kind == "gold" and ("Arany cél: " .. Money(g.target)) or ("Szint cél: " .. g.target)
-  if st.done then Print(what .. " – |cff3cff3cteljesítve|r") return end
+  local what = kind == "gold" and ("Gold goal: " .. Money(g.target)) or ("Level goal: " .. g.target)
+  if st.done then Print(what .. " – |cff3cff3creached|r") return end
   local rem = kind == "gold" and Money(st.remaining) or ("~" .. Abbrev(st.remaining) .. " XP")
-  local line = ("%s – %d%%, hátra %s"):format(what, math.floor(st.progress * 100), rem)
-  if st.eta then line = line .. (", becsült idő ~%s"):format(FmtTime(st.eta)) end
+  local line = ("%s – %d%%, left %s"):format(what, math.floor(st.progress * 100), rem)
+  if st.eta then line = line .. (", estimated time ~%s"):format(FmtTime(st.eta)) end
   if g.deadline then
-    line = line .. (", határidő %s %s"):format(date("%H:%M", g.deadline),
-      st.late and "|cffff4040(lassú a tempó)|r" or "|cff3cff3c(rendben)|r")
+    line = line .. (", deadline %s %s"):format(date("%H:%M", g.deadline),
+      st.late and "|cffff4040(the pace is slow)|r" or "|cff3cff3c(on track)|r")
   end
   Print(line)
 end
 
 local function GoalCommand(args)
   local kind, val, dl = args[2], args[3], args[4]
-  if kind == "arany" then kind = "gold" elseif kind == "szint" then kind = "level" end
+  if kind == "gold" then kind = "gold" elseif kind == "level" then kind = "level" end
   if kind == "clear" or kind == "torol" then
-    if val == "gold" or val == "arany" then charDB.goals.gold = nil
-    elseif val == "level" or val == "szint" then charDB.goals.level = nil
+    if val == "gold" or val == "gold" then charDB.goals.gold = nil
+    elseif val == "level" or val == "level" then charDB.goals.level = nil
     else charDB.goals = {} end
-    Print("cél törölve.")
+    Print("goal cleared.")
     Tick()
     return
   end
@@ -1581,28 +1581,28 @@ local function GoalCommand(args)
     if charDB.goals.gold or charDB.goals.level then
       ShowGoal("gold"); ShowGoal("level")
     else
-      Print("nincs cél. Példák:")
+      Print("no goal. Examples:")
     end
-    Print("/sbar goal gold 100 [22:00]  – 100 arany egyenleg (opcionális határidővel)")
-    Print("/sbar goal gold +50  – +50 arany a mostanihoz képest")
+    Print("/sbar goal gold 100 [22:00]  – a 100 gold balance (with an optional deadline)")
+    Print("/sbar goal gold +50  – +50 gold on top of what you have now")
     Print("/sbar goal level 40 [22:00]  ·  /sbar goal clear [gold|level]")
     return
   end
   local deadline = ParseDeadline(dl)
-  if dl and not deadline then Print("a határidő formája ÓÓ:PP, pl. 22:00") return end
+  if dl and not deadline then Print("the deadline's format is HH:MM, e.g. 22:00") return end
   if kind == "gold" then
     local rel = val and val:sub(1, 1) == "+"
     local n = tonumber(((val or ""):gsub("^%+", ""):gsub("g$", ""):gsub(",", ".")))
-    if not n or n <= 0 then Print("adj meg arany összeget, pl. /sbar goal gold 100") return end
+    if not n or n <= 0 then Print("give a gold amount, e.g. /sbar goal gold 100") return end
     local copper = math.floor(n * 10000 + 0.5)
     local money = GetMoney()
     local target = rel and (money + copper) or copper
-    if target <= money then Print(("ennyi már megvan (%s)."):format(Money(money))) return end
+    if target <= money then Print(("you already have that much (%s)."):format(Money(money))) return end
     charDB.goals.gold = { target = target, base = rel and money or 0, deadline = deadline, set = time() }
   else
     local n = tonumber(val)
     local lvl = UnitLevel("player")
-    if not n or n <= lvl then Print(("a cél szint legyen nagyobb, mint a mostani (%d)."):format(lvl)) return end
+    if not n or n <= lvl then Print(("the goal level must be higher than the current one (%d)."):format(lvl)) return end
     charDB.goals.level = { target = math.floor(n), base = LevelNow(), deadline = deadline, set = time() }
   end
   lastWarn[kind] = nil
@@ -1616,63 +1616,63 @@ local function SessionCommand(msg)
   local args = {}
   for w in strtrim(msg or ""):lower():gmatch("%S+") do args[#args + 1] = w end
   local cmd, arg = args[1], args[2]
-  if not session then Print("még töltődik, próbáld újra pár másodperc múlva.") return end
+  if not session then Print("still loading, try again in a few seconds.") return end
   if cmd == "reset" then
-    local lines = SummaryLines(session, "Lezárt session")
+    local lines = SummaryLines(session, "Closed session")
     if ArchiveSession(session) then
       for _, line in ipairs(lines) do Print(line) end
     end
     charDB.current = NewSession()
     session = charDB.current
     lastSample = time()
-    Print("új session indult.")
+    Print("a new session started.")
     Tick()
   elseif cmd == "goal" or cmd == "cel" then -- the Hungarian words are old aliases
     GoalCommand(args)
   elseif cmd == "advice" or cmd == "tanacs" then
-    Print("|cffffd100Arany-tanács|r")
+    Print("|cffffd100Gold advice|r")
     for _, s in ipairs(GoldAdvice()) do Print(s) end
     if not IsMaxed() then
-      Print("|cffffd100Szint-tanács|r")
+      Print("|cffffd100Level advice|r")
       for _, s in ipairs(LevelAdvice()) do Print(s) end
     end
   elseif cmd == "zones" or cmd == "zonak" then
     local g, x = RankZones("gold"), RankZones("xp")
-    if #g == 0 then Print("még nincs zóna legalább 10 aktív perccel.") return end
-    Print("|cffffd100Stabil farm érték / óra zónánként|r (érme, küldetés, szürke/fehér loot – a ritka drop külön)")
+    if #g == 0 then Print("no zone with at least 10 active minutes yet.") return end
+    Print("|cffffd100Steady farm value / hour by zone|r (coin, quests, grey/white loot – rare drops separate)")
     for i = 1, math.min(5, #g) do
       local z = g[i]
-      Print(("%d. %s – %s/óra%s%s  |cff888888(%s)|r"):format(i, z.name, Money(z.rate),
-        z.sure and "" or " |cffff9933bizonytalan|r",
-        z.perKill and (", %s/ölés"):format(Money(z.perKill)) or "", Evidence(z)))
+      Print(("%d. %s – %s/hour%s%s  |cff888888(%s)|r"):format(i, z.name, Money(z.rate),
+        z.sure and "" or " |cffff9933uncertain|r",
+        z.perKill and (", %s/kill"):format(Money(z.perKill)) or "", Evidence(z)))
     end
     if not IsMaxed() then
-      Print("|cffffd100XP / óra zónánként|r")
+      Print("|cffffd100XP / hour by zone|r")
       for i = 1, math.min(5, #x) do Print(("%d. %s – %s"):format(i, x[i].name, Abbrev(x[i].rate))) end
     end
   elseif cmd == "summary" or cmd == "osszegzes" then
-    PrintSummary(session, "Session összefoglaló")
+    PrintSummary(session, "Session summary")
   elseif cmd == "autosummary" then
     db.summary = arg ~= "off"
-    Print("belépéskori összefoglaló: " .. (db.summary and "be" or "ki"))
+    Print("login summary: " .. (db.summary and "on" or "off"))
   elseif cmd == "lock" then
-    db.locked = true; Print("sáv rögzítve.")
+    db.locked = true; Print("bar locked.")
   elseif cmd == "unlock" then
-    db.locked = false; Print("sáv mozgatható.")
+    db.locked = false; Print("bar can be moved.")
   elseif cmd == "scale" and tonumber(arg) then
     db.scale = math.min(2, math.max(0.5, tonumber(arg)))
-    bar:SetScale(db.scale); Print("méret: " .. db.scale)
+    bar:SetScale(db.scale); Print("scale: " .. db.scale)
   elseif cmd == "hide" then
     db.hidden = true; bar:Hide()
   elseif cmd == "show" then
     db.hidden = false; bar:Show()
   elseif cmd == "history" then
-    if #charDB.history == 0 then Print("még nincs mentett session.") return end
+    if #charDB.history == 0 then Print("no saved session yet.") return end
     for i = 1, math.min(5, #charDB.history) do
       local h = charDB.history[i]
       local a = ActiveOf(h)
-      Print(("%s  %s (aktív %s)  XP +%s  nettó %s  (%s/óra)"):format(
-        date("%m.%d %H:%M", h.start), FmtTime(h.duration), FmtTime(a), Abbrev(h.xp or 0),
+      Print(("%s  %s (active %s)  XP +%s  net %s  (%s/hour)"):format(
+        date("%m/%d %H:%M", h.start), FmtTime(h.duration), FmtTime(a), Abbrev(h.xp or 0),
         Money(Net(h), true), Money(Rate(Net(h), a, 60) or 0, true)))
     end
   else
@@ -1682,7 +1682,7 @@ local function SessionCommand(msg)
 end
 WA.Session = { Command = SessionCommand }
 WA.SessionState = function() return session, charDB end
-WA.Command("sbar", SessionCommand, "/wa sbar goal | advice | zones | summary | history | reset | lock | unlock | scale | hide | show (régen /sbar)")
+WA.Command("sbar", SessionCommand, "/wa sbar goal | advice | zones | summary | history | reset | lock | unlock | scale | hide | show (formerly /sbar)")
 SLASH_SESSIONBAR1 = "/sbar"
 SLASH_SESSIONBAR2 = "/sessionbar"
 SlashCmdList.SESSIONBAR = SessionCommand

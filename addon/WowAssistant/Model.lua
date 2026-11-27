@@ -282,9 +282,9 @@ M.WEAPON_SKILLS = { [0] = "Axes", [1] = "Two-Handed Axes", [2] = "Bows", [3] = "
   [18] = "Crossbows" }
 local WEAPON_SKILLS = M.WEAPON_SKILLS
 M.SLOT_HU = {
-  HEAD = "fej", NECK = "nyak", SHOULDER = "váll", BACK = "köpeny", CHEST = "mellkas", WRIST = "csukló", HANDS = "kéz",
-  WAIST = "öv", LEGS = "láb", FEET = "lábfej", FINGER_1 = "gyűrű", FINGER_2 = "gyűrű", TRINKET_1 = "trinket",
-  TRINKET_2 = "trinket", MAIN_HAND = "főkéz", OFF_HAND = "balkéz / pajzs", RANGED = "távolsági", FINGER = "gyűrű", TRINKET = "trinket",
+  HEAD = "head", NECK = "neck", SHOULDER = "shoulder", BACK = "back", CHEST = "chest", WRIST = "wrist", HANDS = "hands",
+  WAIST = "waist", LEGS = "legs", FEET = "feet", FINGER_1 = "ring", FINGER_2 = "ring", TRINKET_1 = "trinket",
+  TRINKET_2 = "trinket", MAIN_HAND = "main hand", OFF_HAND = "off hand / shield", RANGED = "ranged", FINGER = "ring", TRINKET = "trinket",
 }
 
 -- GearItem { itemId, name, slot (INV type), itemClass, subclass, reqLevel, itemLevel, quality, stats }
@@ -306,14 +306,14 @@ end
 
 local function DescribeEffect(e)
   local bits = {}
-  if e.agi and e.str and e.agi == e.str then bits[#bits + 1] = ("+%d minden stat"):format(e.agi)
+  if e.agi and e.str and e.agi == e.str then bits[#bits + 1] = ("+%d all stats"):format(e.agi)
   else
     if e.agi then bits[#bits + 1] = ("+%d agi"):format(e.agi) end
     if e.str then bits[#bits + 1] = ("+%d str"):format(e.str) end
   end
   if e.ap then bits[#bits + 1] = ("+%d AP"):format(e.ap) end
   if e.crit then bits[#bits + 1] = ("+%s%% crit"):format(e.crit) end
-  if e.statPct then bits[#bits + 1] = ("+%d%% statok"):format(Round(e.statPct * 100)) end
+  if e.statPct then bits[#bits + 1] = ("+%d%% stats"):format(Round(e.statPct * 100)) end
   return table.concat(bits, ", ")
 end
 M.DescribeEffect = DescribeEffect
@@ -325,7 +325,7 @@ function M.ResolveBuffs(level, selected, D)
     for _, t in ipairs(b[5]) do if t[1] <= level then tier = t end end
     if not tier then
       out[#out + 1] = { id = b[1], name = b[2], source = b[3], group = b[4], effect = nil,
-        summary = ("%d-es szinttől"):format(b[5][1][1]), selected = false }
+        summary = ("from level %d"):format(b[5][1][1]), selected = false }
     else
       local e = Effect(tier)
       out[#out + 1] = { id = b[1], name = tier[2] or b[2], source = b[3], group = b[4], effect = e,
@@ -424,19 +424,19 @@ end
 function M.CalibrationNote(info)
   if not info or info.fights == 0 then return nil end
   local from
-  if not info.min then from = "szint nélküli harcokból"
-  elseif info.min == info.max then from = ("a(z) %d. szintről"):format(info.min)
-  else from = ("a(z) %d–%d. szintről"):format(info.min, info.max) end
+  if not info.min then from = "from fights without a level"
+  elseif info.min == info.max then from = ("from level %d"):format(info.min)
+  else from = ("from levels %d–%d"):format(info.min, info.max) end
   local same = info.min and info.min == info.max and info.min == info.level
   local tail
   if same or info.seconds <= 0 then
-    tail = "mind a mostani szinteden, teljes súllyal"
+    tail = "all at your current level, at full weight"
   else
-    tail = ("a mostani (%d.) szintedtől távolabbiak kevesebbet számítanak (5 szintenként fele súly): %s mp harcidőből %s mp számít (%d%%)")
+    tail = ("those further from your current level (%d) count less (half weight every 5 levels): of %s s of combat, %s s counts (%d%%)")
       :format(info.level or 0, Round(info.seconds), Round(info.counted), Round(info.counted / info.seconds * 100))
   end
-  return ("Honnan a számok: %d harc %s%s; %s."):format(info.fights, from,
-    info.noLevel > 0 and info.min and (" (%d szint nélkül)"):format(info.noLevel) or "", tail)
+  return ("Where the numbers come from: %d fights %s%s; %s."):format(info.fights, from,
+    info.noLevel > 0 and info.min and (" (%d without a level)"):format(info.noLevel) or "", tail)
 end
 
 ---------------------------------------------------------------------------
@@ -454,7 +454,7 @@ M.SPEC_NAMES = {
 
 -- class; points = { [tab] = points } from the client (nil: counted from list); list = the
 -- talents with their ranks ({ name, tab, rank }); override = the tab chosen by hand.
--- -> { tab, name, points, keys = { deep talents }, manual, from (why, in Hungarian) }; tab is nil
+-- -> { tab, name, points, keys = { deep talents }, manual, from (why, as text) }; tab is nil
 --    before the first talent point (the models then use their own default).
 function M.Spec(class, points, list, override)
   local names = M.SPEC_NAMES[class or ""] or {}
@@ -499,7 +499,7 @@ function M.Spec(class, points, list, override)
     out.tab = best
   end
   if not out.tab then
-    out.from = "még nincs talentpontod: a modell a kaszt alapértelmezése szerint számol"
+    out.from = "you have no talent points yet: the model counts with the class default"
     return out
   end
   out.name = names[out.tab]
@@ -508,11 +508,11 @@ function M.Spec(class, points, list, override)
   out.keys = {}
   for i = 1, math.min(2, #k) do out.keys[i] = k[i].name end
   if out.manual then
-    out.from = ("kézzel választva a Harc oldalon (a talentjeid szerint: %s)"):format(best and names[best] or "nincs még")
+    out.from = ("chosen by hand on the Combat page (by your talents: %s)"):format(best and names[best] or "not yet")
   else
-    out.from = ("a legtöbb pontod (%d) a(z) %s fában van%s%s"):format(pts[out.tab], out.name,
-      #out.keys > 0 and (", és megvan: " .. table.concat(out.keys, ", ")) or "",
-      tie and " (egyenlő pontszám: a mélyebb talent döntött)" or "")
+    out.from = ("most of your points (%d) are in the %s tree%s%s"):format(pts[out.tab], out.name,
+      #out.keys > 0 and (", and you have: " .. table.concat(out.keys, ", ")) or "",
+      tie and " (a tie: the deeper talent decided)" or "")
   end
   return out
 end
@@ -540,7 +540,7 @@ function M.RogueContext(input)
   local critNow = input.crit or 0
   local agiPerCrit = agi / math.max(0.1, critNow - (tal.malice or 0))
   if not (agiPerCrit > 3 and agiPerCrit < 60) then agiPerCrit = 2.2 + (26.8 * (level - 1)) / 59 end
-  notes[#notes + 1] = ("1%% crit ≈ %s agility (a saját statjaidból visszaszámolva)."):format(F1(agiPerCrit))
+  notes[#notes + 1] = ("1%% crit ≈ %s agility (worked back from your own stats)."):format(F1(agiPerCrit))
 
   -- talents (Talent.lua, the numbers of the rank's Wowhead Forever text): energy costs, damage %
   -- (Coup de Grace and Aggression add up on Eviscerate), crit bonus, off-hand, dodge/parry, combo points
@@ -615,14 +615,14 @@ function M.RogueContext(input)
     end
     params.otherDps = mix(0, other / secs, secs, 120)
     local weight = Round((wn / (wn + 100)) * 100)
-    notes[#notes + 1] = ("Kalibrálva %d rögzített harcból (%d mp, %d auto-attack): a mért értékek súlya most kb. %d%%, és a mintával együtt nő.")
+    notes[#notes + 1] = ("Calibrated from %d recorded fights (%d s, %d auto-attacks): the measured values now weigh about %d%%, and grow with the sample.")
       :format(combat.fights, Round(secs), Round(wn), weight)
-    notes[#notes + 1] = ("Auto-attack: %s%% alap miss, %s%% dodge, %s%% parry, %s%% glancing. Sinister Strike %s/perc (+%d bónusz), Eviscerate %s/perc (%d sebzés), egyéb források %s DPS.")
+    notes[#notes + 1] = ("Auto-attack: %s%% base miss, %s%% dodge, %s%% parry, %s%% glancing. Sinister Strike %s/min (+%d bonus), Eviscerate %s/min (%d damage), other sources %s DPS.")
       :format(F1(params.whiteMissBase), F1(params.dodge), F1(params.parry), F1(params.glance), F1(params.ssPerSec * 60),
         Round(params.ssBonus), F1(params.evisPerSec * 60), Round(params.evisDamage), F1(params.otherDps))
   else
-    notes[#notes + 1] = "Nincs rögzített harc, ezért tankönyvi értékekkel számol: 24% dual-wield miss, 5% dodge, hátulról ütve, " ..
-      "5 Sinister Strike után Eviscerate. Kapcsold be a harcnaplót (/wa log) a kalibráláshoz."
+    notes[#notes + 1] = "No recorded fights, so it uses textbook values: 24% dual-wield miss, 5% dodge, hitting from behind, " ..
+      "Eviscerate after 5 Sinister Strikes. Turn on the combat log (/wa log) to calibrate."
   end
 
   -- the rates above are at the character's own crit; Seal Fate moves them with crit from here
@@ -697,7 +697,7 @@ function M.RogueContext(input)
     if itemClass ~= 2 or not skills or not next(skills) then return nil end
     local line = WEAPON_SKILLS[sub]
     local s = skills[line]
-    if not s then return ("%s nincs kitanulva"):format(tostring(line)) end
+    if not s then return ("%s is not trained"):format(tostring(line)) end
     if s.rank < s.max - 15 then return ("%s skill %d/%d"):format(line, s.rank, s.max) end
     return nil
   end

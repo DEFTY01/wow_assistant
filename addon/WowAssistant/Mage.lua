@@ -137,9 +137,9 @@ function MG.Context(input)
   local schoolCrit = school == "fire" and input.spellCritFire or input.spellCritFrost
   local sheet = { sp = sp, spellCrit = schoolCrit or input.spellCrit or 0, spellHit = input.spellHit or 0, wand = wand,
     ap = input.ap or 0, crit = input.crit or 0, hit = input.hit or 0, mh = eq("MAIN_HAND").weapon }
-  notes[#notes + 1] = ("Fő varázslat: %s (%d. szintű rang, %s mp, %d–%d sebzés; Wowhead Forever), a spell power %d%%-ával%s. 1%% spell crit ≈ %s intellect. A pálca %s DPS, ez nem nő a spell powerrel.")
+  notes[#notes + 1] = ("Main spell: %s (level %d rank, %s s, %d–%d damage; Wowhead Forever), with %d%% of spell power%s. 1%% spell crit ≈ %s intellect. The wand is %s DPS, which does not grow with spell power.")
     :format(nuke, rank[1], F1(rank[4]), Round(rank[2]), Round(rank[3]), Round(coef * 100),
-      nuke == "Fireball" and " (a Wowhead a Fireballnál nem mutat együtthatót: a Frostbolt mintája szerint cast idő / 3,5)" or "",
+      nuke == "Fireball" and " (Wowhead shows no coefficient for Fireball: following Frostbolt, cast time / 3.5)" or "",
       F1(intPerCrit), F1(WandDps(wand)))
 
   -- talents: Accelerant / Improved Frostbolt shorten the nuke's cast (the coefficient stays the
@@ -150,8 +150,8 @@ function MG.Context(input)
   if school == "fire" and (tal.critMass or 0) > 0 then
     local gap = (input.spellCritFire or 0) - (input.spellCritFrost or 0)
     if not (input.spellCritFire and input.spellCritFrost and gap >= tal.critMass - 0.05) then critAdd = tal.critMass end
-    notes[#notes + 1] = critAdd > 0 and ("Critical Mass: +%s%% tűz crit hozzáadva (a játék tűz critje nem nagyobb ennyivel a fagy critnél, tehát a karakterlapon nincs benne)."):format(F1(critAdd))
-      or "Critical Mass: a játék tűz critje ennyivel nagyobb a fagy critnél, tehát a karakterlapon már benne van."
+    notes[#notes + 1] = critAdd > 0 and ("Critical Mass: +%s%% fire crit added (the game's fire crit is not that much higher than its frost crit, so the character sheet does not include it)."):format(F1(critAdd))
+      or "Critical Mass: the game's fire crit is that much higher than its frost crit, so the character sheet already includes it."
   end
 
   -- priors: the main nuke 60% of the time (mana, moving, pulling), the wand a tenth of it
@@ -194,12 +194,12 @@ function MG.Context(input)
     end
     if wand then params.wandUptime = mix(params.wandUptime, math.min(1, wandN / secs * wand.speed), secs, 120) end
     params.otherDps = mix(0, other / secs, secs, 120)
-    notes[#notes + 1] = ("Kalibrálva %d rögzített harcból (%d mp): %s %s percenként (%d sebzés spell power nélkül), pálca az idő %d%%-ában, minden más %s DPS.")
+    notes[#notes + 1] = ("Calibrated from %d recorded fights (%d s): %s %s per minute (%d damage without spell power), wand %d%% of the time, everything else %s DPS.")
       :format(combat.fights, Round(secs), F1(params.nukePerSec * 60), nuke, Round(params.nukeDamage), Round(params.wandUptime * 100), F1(params.otherDps))
   else
-    notes[#notes + 1] = "Nincs rögzített harc, ezért tankönyvi értékekkel számol. Kapcsold be a harcnaplót (/wa log) a kalibráláshoz."
+    notes[#notes + 1] = "No recorded fights, so it uses textbook values. Turn on the combat log (/wa log) to calibrate."
   end
-  notes[#notes + 1] = "A manát a modell nem számolja: az intellect csak a spell crit miatt ér valamit, a valóságban a nagyobb mana miatt többet (kevesebb pihenő, kevesebb pálca)."
+  notes[#notes + 1] = "The model does not count mana: intellect is only worth something for spell crit, in reality more for the bigger mana pool (less resting, less wand)."
 
   local unbuffed = MG.Dps(sheet, params)
   local buffs = M.ResolveBuffs(level, input.buffs, input.data)
@@ -318,7 +318,7 @@ function MG.Score(f, ctx)
   local baseline = ctx and WA.Combat.Comparable(f, ctx) and ctx.baseline or nil
   if baseline and baseline > 0 then
     local ratio = dps / baseline
-    Part("dps", "DPS a várthoz képest", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS, a felszerelésedtől várt %d %d%%-a"):format(
+    Part("dps", "DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS against the %d your gear should give: %d%%"):format(
       Round(dps), Round(baseline), Round(ratio * 100)))
   end
   local ab = f.ab or {}
@@ -334,13 +334,13 @@ function MG.Score(f, ctx)
     local wand = ctx and ctx.sheet and ctx.sheet.wand
     if shoot and wand then busy = busy + shoot.n * wand.speed end
     local up = math.min(1, busy / dur)
-    Part("active", "Folyamatosan castolsz", math.min(up / 0.8, 1) * 20, 20, ("az idő kb. %d%%-ában castoltál vagy lőttél pálcával (a castokból és a lövésekből)"):format(Round(up * 100)))
+    Part("active", "You cast continuously", math.min(up / 0.8, 1) * 20, 20, ("you were casting or wanding about %d%% of the time (from the casts and the shots)"):format(Round(up * 100)))
   end
   if type(f.gems) == "table" and #f.gems > 0 then
     local gain, over = 0, 0
     for _, t in ipairs(f.gems) do gain, over = gain + (t.gain or 0), over + (t.over or 0) end
     local kept = gain > 0 and 1 - over / gain or 1
-    Part("mana", "A manaital nem megy kárba", kept * 15, 15, ("%d manaital vagy mana gem: %d mana, ebből %d a maximum fölött elveszett"):format(#f.gems, Round(gain), Round(over)))
+    Part("mana", "No mana potion wasted", kept * 15, 15, ("%d mana potions or mana gems: %d mana, of which %d was lost over the maximum"):format(#f.gems, Round(gain), Round(over)))
   end
   local got, max = 0, 0
   for _, x in ipairs(parts) do got, max = got + x.points, max + x.max end
@@ -372,7 +372,7 @@ end
 
 local function Clock(start, tenths)
   local s = (start or 0) + (tonumber(tenths) or 0) / 10
-  return date and date("%m.%d. %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
+  return date and date("%m/%d %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
 end
 
 function MG.Advise(r, fights)
@@ -380,7 +380,7 @@ function MG.Advise(r, fights)
   local out = {}
   local function Push(o) out[#out + 1] = C.Finding(o) end
   if r.seconds < 300 then
-    Push({ info = true, title = "Kevés még az adat", fact = ("Eddig %d harc és %d másodperc van rögzítve. Az arányok kb. 10 perc harc után megbízhatóak.")
+    Push({ info = true, title = "Not enough data yet", fact = ("So far %d fights and %d seconds are recorded. The ratios are reliable after about 10 minutes of combat.")
       :format(r.fights, Round(r.seconds)) })
   end
   local _, share = MG.Sources(r.abilities, r.damage)
@@ -390,24 +390,24 @@ function MG.Advise(r, fights)
     local lines = {}
     for i = 1, math.min(3, #items.wasteful) do
       local x = items.wasteful[i]
-      lines[i] = ("%s: %d manát adott, ebből %d elveszett"):format(Clock(x.start, x.t.t), x.t.gain, x.t.over)
+      lines[i] = ("%s: gave %d mana, %d of it lost"):format(Clock(x.start, x.t.t), x.t.gain, x.t.over)
     end
-    Push({ title = "Manaital teli manánál", fault = true, rule = "manaItemCap",
-      fact = ("%d manaital vagy mana gem a mana nagyobbik felét a maximum fölé adta, az elveszett (harcnapló: a mana-esemény maga mondja meg, mennyi ment a maximum fölé):\n- %s%s\nÖsszesen %d, %d mana, ebből %d elveszett.")
-        :format(#items.wasteful, table.concat(lines, "\n- "), #items.wasteful > 3 and ("\n- … és még " .. (#items.wasteful - 3)) or "",
+    Push({ title = "Mana potion at full mana", fault = true, rule = "manaItemCap",
+      fact = ("%d mana potions or mana gems put most of their mana over the maximum, and it was lost (combat log: the mana event itself says how much went over the maximum):\n- %s%s\nIn total %d, %d mana, %d of it lost.")
+        :format(#items.wasteful, table.concat(lines, "\n- "), #items.wasteful > 3 and ("\n- … plus " .. (#items.wasteful - 3)) or "",
           items.n, Round(items.gain), Round(items.over)),
-      advice = "Manaitalt és mana gemet akkor használj, amikor legalább annyi mana hiányzik, amennyit ad." })
+      advice = "Use mana potions and mana gems when you are missing at least as much mana as they give." })
   elseif items.n > 0 then
-    Push({ info = true, title = "Manaitalok", fact = ("%d manaital vagy mana gem a harcokban: %d mana, ebből %d ment a maximum fölé."):format(items.n, Round(items.gain), Round(items.over)) })
+    Push({ info = true, title = "Mana potions", fact = ("%d mana potions or mana gems in the fights: %d mana, %d of it went over the maximum."):format(items.n, Round(items.gain), Round(items.over)) })
   end
   if r.seconds >= 300 and share.wand >= 25 then
-    Push({ title = "Sokat pálcázol", rule = "wandFlat",
-      fact = ("A sebzésed %s%%-a a pálcáé."):format(F1(share.wand)),
-      advice = "A pálca sebzése nem nő a spell powerrel: ha gyakran fogy el a manád, több intellect és spirit, vagy rövidebb pihenő helyett ital segít.",
-      missing = "a manád a harcok alatt (a harcnapló nem mutatja)" })
+    Push({ title = "You wand a lot", rule = "wandFlat",
+      fact = ("%s%% of your damage is the wand's."):format(F1(share.wand)),
+      advice = "Wand damage does not grow with spell power: if you often run out of mana, more intellect and spirit, or a drink instead of a shorter rest, helps.",
+      missing = "your mana during the fights (the combat log does not show it)" })
   end
   if r.seconds >= 120 then
-    Push({ info = true, title = "Mért arányok", fact = ("Sebzés: direkt varázslat %d%%, DoT %d%%, AoE %d%%, pálca %d%%, egyéb %d%%.")
+    Push({ info = true, title = "Measured ratios", fact = ("Damage: direct spells %d%%, DoTs %d%%, AoE %d%%, wand %d%%, other %d%%.")
       :format(Round(share.nuke), Round(share.dot), Round(share.aoe), Round(share.wand), Round(share.other + share.melee)) })
   end
   return out

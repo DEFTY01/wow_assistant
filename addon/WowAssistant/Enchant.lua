@@ -47,19 +47,19 @@ E.PROFILES = {
 -- talent tab (1-3) -> role, by class; a tab not listed is a damage dealer
 local HEALER_TABS = { DRUID = { [3] = true }, PALADIN = { [1] = true }, PRIEST = { [1] = true, [2] = true }, SHAMAN = { [3] = true } }
 local TANK_TABS = { WARRIOR = { [3] = true }, PALADIN = { [2] = true } }
-E.ROLE_HU = { dps = "Sebző (DPS)", tank = "Tank", healer = "Gyógyító" }
+E.ROLE_HU = { dps = "Damage (DPS)", tank = "Tank", healer = "Healer" }
 
 -- role, reason. override: "dps" / "tank" / "healer" chosen on the page; form: the druid's form now.
 function E.Role(class, tab, form, override)
-  if override == "dps" or override == "tank" or override == "healer" then return override, "kézzel választva" end
-  if not tab then return "dps", "még nincs tehetségpontod: sebzőként számolok" end
-  if HEALER_TABS[class] and HEALER_TABS[class][tab] then return "healer", "a legtöbb tehetségpontod gyógyító fában van" end
-  if TANK_TABS[class] and TANK_TABS[class][tab] then return "tank", "a legtöbb tehetségpontod tank fában van" end
+  if override == "dps" or override == "tank" or override == "healer" then return override, "chosen by hand" end
+  if not tab then return "dps", "you have no talent points yet: counting as damage" end
+  if HEALER_TABS[class] and HEALER_TABS[class][tab] then return "healer", "most of your talent points are in a healer tree" end
+  if TANK_TABS[class] and TANK_TABS[class][tab] then return "tank", "most of your talent points are in a tank tree" end
   if class == "DRUID" and tab == 2 then
-    if form == "bear" then return "tank", "Feral fa, és most Bear Formban vagy" end
-    return "dps", "Feral fa, nem Bear Formban: Cat sebzőként számolok (tankoláshoz válaszd a Tankot)"
+    if form == "bear" then return "tank", "Feral tree, and you are in Bear Form now" end
+    return "dps", "Feral tree, not in Bear Form: counting as Cat damage (pick Tank for tanking)"
   end
-  return "dps", "a legtöbb tehetségpontod sebző fában van"
+  return "dps", "most of your talent points are in a damage tree"
 end
 
 -- The weights for a role, or nil when the damage model values it (or nothing does).
@@ -67,12 +67,12 @@ function E.Profile(class, tab, role, hasModel)
   if role == "tank" then
     if class == "DRUID" then return E.PROFILES.BEAR end
     if class == "WARRIOR" then return E.PROFILES.WARRIOR_PROT end
-    return E.PROFILES.WARRIOR_PROT, "a " .. (class or "?") .. " tankra nincs saját súlytábla: a Protection Warrioré"
+    return E.PROFILES.WARRIOR_PROT, "a " .. (class or "?") .. " tank has no weight table of its own: using the Protection Warrior's"
   end
   if role == "healer" then
     if class == "PRIEST" and tab == 1 then return E.PROFILES.PRIEST_DISC end
     if class == "PRIEST" then return E.PROFILES.PRIEST_HOLY end
-    return E.PROFILES.PRIEST_HOLY, "erre a gyógyítóra nincs saját súlytábla: a Holy Priesté"
+    return E.PROFILES.PRIEST_HOLY, "this healer has no weight table of its own: using the Holy Priest's"
   end
   if hasModel then return nil end
   if class == "PRIEST" then return E.PROFILES.SHADOW end
@@ -99,14 +99,14 @@ function E.Weighted(stats, w, weaponSpeed)
   return v, table.concat(parts, " + ")
 end
 
-local STAT_HU = { str = "Strength", agi = "Agility", sta = "Stamina", int = "Intellect", spi = "Spirit", armor = "páncél", def = "Defense",
-  dodge = "% dodge", block = "% block", heal = "gyógyítás", sp = "spell damage", mp5 = "mana / 5 mp", dmg = "fegyversebzés",
-  crit = "% crit", haste = "% gyorsaság", resAll = "minden ellenállás", run = "% futássebesség", threat = "% threat" }
+local STAT_HU = { str = "Strength", agi = "Agility", sta = "Stamina", int = "Intellect", spi = "Spirit", armor = "armor", def = "Defense",
+  dodge = "% dodge", block = "% block", heal = "healing", sp = "spell damage", mp5 = "mana / 5 s", dmg = "weapon damage",
+  crit = "% crit", haste = "% haste", resAll = "all resistances", run = "% run speed", threat = "% threat" }
 function E.Describe(stats)
   local bits = {}
   for k, v in pairs(stats) do
     local school = k:match("^sp_(%a+)") or k:match("^res_(%a+)")
-    local label = school and (k:find("^sp_") and (school .. " spell damage") or (school .. " ellenállás")) or STAT_HU[k] or k
+    local label = school and (k:find("^sp_") and (school .. " spell damage") or (school .. " resistance")) or STAT_HU[k] or k
     bits[#bits + 1] = ((v > 0 and "+" or "") .. v .. (label:sub(1, 1) == "%" and "" or " ") .. label)
   end
   table.sort(bits)
@@ -186,14 +186,14 @@ function E.Report(input)
               if w then add.weapon = { min = w.min + (e.stats.dmg or 0), max = w.max + (e.stats.dmg or 0), speed = w.speed } end
               local s = ctx.score(add, { slot }, it.item.equipLoc == "INVTYPE_2HWEAPON", it.item.sub)
               value = s and s.gain or 0
-              how = "a sebzésmodell: a tárgyad + az enchant"
+              how = "the damage model: your item + the enchant"
             elseif profile then
               value, how = E.Weighted(e.stats, profile.w, speed)
             end
             if value and value > 0.005 then
               local cost, partial = Cost(e.reagents, input.book)
               local detail = e.text .. "\n" .. (how or "")
-              if role == "tank" and e.stats.sta then detail = detail .. ("\n+%d életerő (%d HP / Stamina)"):format(e.stats.sta * E.HEALTH_PER_STA, E.HEALTH_PER_STA) end
+              if role == "tank" and e.stats.sta then detail = detail .. ("\n+%d health (%d HP / Stamina)"):format(e.stats.sta * E.HEALTH_PER_STA, E.HEALTH_PER_STA) end
               best[#best + 1] = { spell = e.spell, name = e.name, value = value, effect = E.Describe(e.stats), cost = cost, partial = partial,
                 skill = e.skill, trainer = e.trainerCost >= 0, detail = detail }
             end

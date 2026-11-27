@@ -317,9 +317,9 @@ end
 WA.Command("style", function(rest)
   rest = (rest or ""):lower()
   if rest ~= "wow" and rest ~= "flat" then
-    WA.Print("/wa style wow | flat – most: " .. S.Name())
+    WA.Print("/wa style wow | flat – now: " .. S.Name())
     return
   end
   WA.db.style = rest
-  WA.Print("ablakstílus: " .. rest .. " (a /reload után látszik)")
-end, "/wa style wow | flat – ablakstílus (játékos vagy letisztult)")
+  WA.Print("window style: " .. rest .. " (shown after /reload)")
+end, "/wa style wow | flat – window style (game-like or clean)")

@@ -142,13 +142,13 @@ function D.Context(input)
 
   -- attack power in Cat Form: read in Cat Form now, else the last value read there, else the
   -- caster's attack power + agility (the Classic rule)
-  local ap, apFrom = input.ap or 0, "most, Cat Formban olvasva"
+  local ap, apFrom = input.ap or 0, "now, read in Cat Form"
   if cat and input.form ~= "cat" then
-    if input.catAp then ap, apFrom = input.catAp, "utoljára Cat Formban olvasva"
+    if input.catAp then ap, apFrom = input.catAp, "last read in Cat Form"
     else
       -- Predatory Strikes (a % of the level) and Heart of the Wild's strength only count in a form
       ap = (input.ap or 0) + agi + level * (tal.predatory or 0) / 100 + 2 * (input.str or 0) * (tal.hotwStr or 0) / 100
-      apFrom = "becsült: a mostani AP + agility (Cat Formban olvasva pontosabb)"
+      apFrom = "estimated: current AP + agility (more precise when read in Cat Form)"
     end
   end
   local mh = eq("MAIN_HAND").weapon
@@ -159,11 +159,11 @@ function D.Context(input)
   local moonkin = not cat and (tal.moonkinDmg or 0) > 0
   if moonkin and input.form ~= "moonkin" then sheet.spellCrit = sheet.spellCrit + (tal.moonkinCrit or 0) end
   if cat then
-    notes[#notes + 1] = ("Cat Form: a mancs a fegyvered DPS-ét üti másodpercenként (%s), a fegyver sebessége nem számít. Attack power %d (%s); 1 strength = 2 AP, 1 agility = 1 AP (a klasszikus szabály, Foreverre nincs ellenőrizve), 1%% crit ≈ %s agility.")
+    notes[#notes + 1] = ("Cat Form: the claws hit for your weapon's DPS per second (%s), the weapon's speed does not matter. Attack power %d (%s); 1 strength = 2 AP, 1 agility = 1 AP (the classic rule, not verified for Forever), 1%% crit ≈ %s agility.")
       :format(F1(D.PawAvg(mh)), Round(ap), apFrom, F1(agiPerCrit))
   else
-    notes[#notes + 1] = (balance and "Balance spec: Wrath, Moonfire és a botod%s. 1%% spell crit ≈ %s intellect."
-      or "Cat Form előtt: Wrath, Moonfire és a botod%s. 1%% spell crit ≈ %s intellect."):format(moonkin and ", Moonkin Formban" or "", F1(intPerCrit))
+    notes[#notes + 1] = (balance and "Balance spec: Wrath, Moonfire and your staff%s. 1%% spell crit ≈ %s intellect."
+      or "Before Cat Form: Wrath, Moonfire and your staff%s. 1%% spell crit ≈ %s intellect."):format(moonkin and ", in Moonkin Form" or "", F1(intPerCrit))
   end
 
   -- caster prior: a Wrath-sized cast every 3 s (mana, moving, Moonfire between); the Wrath of
@@ -238,17 +238,17 @@ function D.Context(input)
     if melee and melee.n > 0 then params.dodge = mix(params.dodge, (melee.dodge or 0) / melee.n * 100, melee.n, 100) end
     params.otherDps = mix(0, other / secs / all, secs, 120)
     if cat then
-      notes[#notes + 1] = ("Kalibrálva %d rögzített harcból (%d mp): mancs az idő %d%%-ában, %s építő képesség percenként (+%d sebzés a mancshoz), finisherek és vérzés %s DPS, egyéb %s DPS.")
+      notes[#notes + 1] = ("Calibrated from %d recorded fights (%d s): claws %d%% of the time, %s builders per minute (+%d damage on the claws), finishers and bleeds %s DPS, other %s DPS.")
         :format(combat.fights, Round(secs), Round(params.meleeUptime * 100), F1(params.buildPerSec * 60), Round(params.buildBonus),
           F1(params.finishDps), F1(params.otherDps))
     else
-      notes[#notes + 1] = ("Kalibrálva %d rögzített harcból (%d mp): %s varázslat percenként (%d sebzés), egyéb %s DPS.")
+      notes[#notes + 1] = ("Calibrated from %d recorded fights (%d s): %s spells per minute (%d damage), other %s DPS.")
         :format(combat.fights, Round(secs), F1(params.castPerSec * 60), Round(params.castDamage), F1(params.otherDps))
     end
   else
-    notes[#notes + 1] = "Nincs rögzített harc, ezért tankönyvi értékekkel számol. Kapcsold be a harcnaplót (/wa log) a kalibráláshoz."
+    notes[#notes + 1] = "No recorded fights, so it uses textbook values. Turn on the combat log (/wa log) to calibrate."
   end
-  notes[#notes + 1] = "A manát és a formaváltást a modell nem számolja: az intellect csak a spell crit miatt ér valamit."
+  notes[#notes + 1] = "The model does not count mana or shapeshifting: intellect is only worth something for spell crit."
 
   local unbuffed = D.Dps(sheet, params)
   local buffs = M.ResolveBuffs(level, input.buffs, input.data)
@@ -327,7 +327,7 @@ function D.Context(input)
     if itemClass ~= 2 or not skills or not next(skills) then return nil end
     local line = M.WEAPON_SKILLS[sub]
     local s = line and skills[line]
-    if not s then return ("%s nincs kitanulva (fegyvermester)"):format(tostring(line)) end
+    if not s then return ("%s is not trained (weapon master)"):format(tostring(line)) end
     -- in Cat Form the weapon skill does not count (feral combat skill instead)
     if not cat and s.rank < s.max - 15 then return ("%s skill %d/%d"):format(line, s.rank, s.max) end
     return nil
@@ -395,7 +395,7 @@ function D.Score(f, ctx)
   local baseline = ctx and WA.Combat.Comparable(f, ctx) and ctx.baseline or nil
   if baseline and baseline > 0 then
     local ratio = dps / baseline
-    Part("dps", "DPS a várthoz képest", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS, a felszerelésedtől várt %d %d%%-a"):format(
+    Part("dps", "DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS against the %d your gear should give: %d%%"):format(
       Round(dps), Round(baseline), Round(ratio * 100)))
   end
   local ab = f.ab or {}
@@ -404,29 +404,29 @@ function D.Score(f, ctx)
     if dur >= 6 then
       -- the paw swings once a second (sim/druid/forms.go GetCatWeapon)
       local up = math.min(1, (melee and melee.n or 0) / dur)
-      Part("melee", "Folyamatosan ütsz", math.min(up / 0.85, 1) * 20, 20, ("%d ütés, a lehetséges %d%%-a (Cat Formban másodpercenként egy)"):format(melee and melee.n or 0, Round(up * 100)))
+      Part("melee", "You swing continuously", math.min(up / 0.85, 1) * 20, 20, ("%d swings, %d%% of the possible (one a second in Cat Form)"):format(melee and melee.n or 0, Round(up * 100)))
     end
     if (f.samples or 0) > 0 then
       local pct = (f.capped or 0) / f.samples * 100
-      Part("energy", "Energia nem megy kárba", (1 - math.min(pct / 20, 1)) * 15, 15, ("az idő %s%%-ában volt tele az energiád"):format(F1(pct)))
+      Part("energy", "No wasted energy", (1 - math.min(pct / 20, 1)) * 15, 15, ("your energy was full %s%% of the time"):format(F1(pct)))
     end
     local fin, cps = 0, 0
     for _, e in pairs(Finishers(f.casts)) do fin, cps = fin + e.casts, cps + e.cp end
     if fin > 0 then
       local avg = cps / fin
-      Part("finisher", "Finisher elég combo ponttal", math.max(0, math.min((avg - 2) / 3, 1)) * 15, 15,
-        ("%d finisher (Rip, Ferocious Bite), átlag %s combo ponttal"):format(fin, F1(avg)))
+      Part("finisher", "Finishers with enough combo points", math.max(0, math.min((avg - 2) / 3, 1)) * 15, 15,
+        ("%d finishers (Rip, Ferocious Bite), average %s combo points"):format(fin, F1(avg)))
     end
     if dur >= 15 then
       local up = D.BleedUptime(ab, "Rake", dur) or 0
-      Part("rake", "Rake a hosszabb harcban", math.min(up / 60, 1) * 10, 10, ("a Rake a harc kb. %d%%-ában vérzett (a tickekből: 3 mp-enként egy)"):format(Round(up)))
+      Part("rake", "Rake in longer fights", math.min(up / 60, 1) * 10, 10, ("Rake was bleeding about %d%% of the fight (from the ticks: one every 3 s)"):format(Round(up)))
     end
   else
     local casts = 0
     for _, a in ipairs(ab) do if D.SPELLS[a.name] then casts = casts + a.n end end
     if dur >= 6 then
       local perMin = casts / dur * 60
-      Part("spell", "Varázslat a harcban", math.min(perMin / 15, 1) * 30, 30, ("%s varázslat percenként (jó: 15 fölött, Wrath 1,5 mp)"):format(F1(perMin)))
+      Part("spell", "Spells in the fight", math.min(perMin / 15, 1) * 30, 30, ("%s spells per minute (good: over 15, Wrath 1.5 s)"):format(F1(perMin)))
     end
   end
   local got, max = 0, 0
@@ -464,7 +464,7 @@ end
 
 local function Clock(start, tenths)
   local s = (start or 0) + (tonumber(tenths) or 0) / 10
-  return date and date("%m.%d. %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
+  return date and date("%m/%d %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
 end
 
 -- Advice from all the recorded fights (instead of the rogue's).
@@ -475,16 +475,16 @@ function D.Advise(r, fights)
   local melee = Find(r.abilities, "Melee")
   local level = fights[1] and fights[1].level or 0
   if r.seconds < 300 then
-    Push({ info = true, title = "Kevés még az adat", fact = ("Eddig %d harc és %d másodperc van rögzítve. Az arányok kb. 10 perc harc után megbízhatóak.")
+    Push({ info = true, title = "Not enough data yet", fact = ("So far %d fights and %d seconds are recorded. The ratios are reliable after about 10 minutes of combat.")
       :format(r.fights, Round(r.seconds)) })
   end
   local _, share = D.Sources(r.abilities, r.damage)
   local catDmg = share.cat + share.bleed
   if r.energyCappedPct and r.energyCappedPct > 8 then
-    Push({ title = "Sokszor tele az energiád", fault = true, rule = "energyCap",
-      fact = ("Cat Formban a harcidő %s%%-ában tele energiával álltál (a harcnapló energiaértékei)."):format(F1(r.energyCappedPct)),
-      advice = "Ha közben ütni tudtál volna: 100 energiánál az 5 pontos Ferocious Bite a fölösleges energiát is sebzéssé teszi.",
-      missing = "hogy akkor volt-e használható képességed (távolság, stun, futó vagy elérhetetlen célpont)" })
+    Push({ title = "Your energy is often full", fault = true, rule = "energyCap",
+      fact = ("In Cat Form you sat at full energy for %s%% of combat time (the combat log's energy values)."):format(F1(r.energyCappedPct)),
+      advice = "If you could have attacked meanwhile: at 100 energy a 5-point Ferocious Bite turns the extra energy into damage too.",
+      missing = "whether you had a usable ability at that moment (range, stun, a fleeing or unreachable target)" })
   end
   -- Ferocious Bite on 1-2 points: the same proof as the rogue's Eviscerate (Combat.lua EvisMistake)
   local ev = r.finisherEvidence and r.finisherEvidence["Ferocious Bite"] or { seen = 0, proven = {}, justified = 0, unchecked = 0 }
@@ -494,51 +494,51 @@ function D.Advise(r, fights)
     local lines = {}
     for i = 1, math.min(3, #ev.proven) do
       local p, e = ev.proven[i], ev.proven[i].e
-      lines[i] = ("%s, %s: %d pont, életereje előtte %d / %s, a sebzés %d%s, utána még %s%s mp-ig élt"):format(
-        Clock(p.start, e.t), e.target or "?", e.cp, e.hpBefore, e.maxHp and tostring(e.maxHp) or "?", e.dmg, e.crit and " (krit)" or "",
-        e.livedKnown and "" or "legalább ", F1(e.lived))
+      lines[i] = ("%s, %s: %d points, its health before %d / %s, the damage %d%s, it lived %s%s s more"):format(
+        Clock(p.start, e.t), e.target or "?", e.cp, e.hpBefore, e.maxHp and tostring(e.maxHp) or "?", e.dmg, e.crit and " (crit)" or "",
+        e.livedKnown and "" or "at least ", F1(e.lived))
     end
-    Push({ title = "Kevés combo pontos Ferocious Bite", fault = true, rule = "biteCp",
-      fact = ("%d Ferocious Bite ment 1–2 combo ponttal úgy, hogy a célpont nem halt meg tőle, több mint négyszer annyi életereje maradt, mint az ütés normál sebzése (a legnagyobb dobás krittel sem ölt volna), és utána még legalább %d mp-ig élt (harcnapló):\n- %s%s%s")
-        :format(#ev.proven, C.EVIS_ROOM, table.concat(lines, "\n- "), #ev.proven > 3 and ("\n- … és még " .. (#ev.proven - 3)) or "",
-          ev.unchecked > 0 and ("\nTovábbi " .. ev.unchecked .. " kevés pontosnál a célpont élete nem látszik.") or ""),
-      advice = "Ilyenkor építs még 1–2 pontot Claw-val: a Bite ára ugyanaz a 35 energia, a sebzése pontonként nő." })
+    Push({ title = "Low-combo-point Ferocious Bite", fault = true, rule = "biteCp",
+      fact = ("%d Ferocious Bites went out with 1–2 combo points while the target did not die from them, had more than four times the hit's normal damage left in health (even the biggest roll with a crit would not have killed it), and lived at least %d s more (combat log):\n- %s%s%s")
+        :format(#ev.proven, C.EVIS_ROOM, table.concat(lines, "\n- "), #ev.proven > 3 and ("\n- … plus " .. (#ev.proven - 3)) or "",
+          ev.unchecked > 0 and ("\nAnother " .. ev.unchecked .. " low-point ones: the target's health does not show.") or ""),
+      advice = "In that case build 1–2 more points with Claw: Bite costs the same 35 energy, and its damage grows with every point." })
   elseif bite and bite.casts >= 5 and bite.avgCp < 4 and ev.unchecked == 0 and ev.justified > 0 then
-    Push({ title = "Kevés pontos Ferocious Bite, de indokolt", rule = "biteCp",
-      fact = ("A Ferocious Bite-jaid átlagosan %s combo ponttal mentek. Mind a %d darab 1–2 pontos ellenőrizhető volt a harcnaplóban, és egyik sem volt hiba: ölt, kevés életerejű célpontra ment, vagy a célpont hamar meghalt.")
+    Push({ title = "Low-point Ferocious Bite, but justified", rule = "biteCp",
+      fact = ("Your Ferocious Bites went out with %s combo points on average. All %d of the 1–2 point ones could be checked in the combat log, and none was a mistake: they killed, went on a low-health target, or the target died soon.")
         :format(F1(bite.avgCp), ev.justified) })
   elseif bite and bite.casts >= 5 and bite.avgCp < 4 then
-    Push({ title = "Kevés combo pontos Ferocious Bite", fault = true, rule = "biteCp",
-      fact = ("A Ferocious Bite-jaid átlagosan %s combo ponttal mentek (%d használat)."):format(F1(bite.avgCp), bite.casts) ..
-        (ev.justified > 0 and (" Az 1–2 pontosak közül %d a harcnapló szerint indokolt volt, %d nem ellenőrizhető."):format(ev.justified, ev.unchecked) or ""),
-      advice = "4–5 ponttal több sebzés jut egy energiára, kivéve ha a mob 1–2 ponttal is meghal.",
-      missing = "a célpont életereje a cast pillanatában (meghalt volna-e kevesebb ponttal is)" .. (ev.unchecked > 0 and (", " .. ev.unchecked .. " kevés pontos Bite-nál") or "") })
+    Push({ title = "Low-combo-point Ferocious Bite", fault = true, rule = "biteCp",
+      fact = ("Your Ferocious Bites went out with %s combo points on average (%d uses)."):format(F1(bite.avgCp), bite.casts) ..
+        (ev.justified > 0 and (" Of the 1–2 point ones, %d were justified by the combat log, %d cannot be checked."):format(ev.justified, ev.unchecked) or ""),
+      advice = "With 4–5 points you get more damage per energy, unless the mob dies with 1–2 points too.",
+      missing = "the target's health at the moment of the cast (whether it would have died with fewer points)" .. (ev.unchecked > 0 and (", " .. ev.unchecked .. " low-point Bites") or "") })
   end
   -- Rake: an observation only (whether the fight was long enough to be worth a bleed is not known)
   local rake = D.BleedUptime(r.abilities, "Rake", r.seconds)
   local avgFight = r.fights > 0 and r.seconds / r.fights or 0
   if catDmg > 20 and avgFight >= 15 and r.seconds >= 300 and (rake or 0) < 25 then
-    Push({ title = "Ritkán vérzik a Rake", fault = true, rule = "rakeBleed",
-      fact = ("A Rake a harcidő kb. %d%%-ában vérzett (a tickekből számolva); az átlagos harcod %d mp."):format(Round(rake or 0), Round(avgFight)),
-      advice = "15 mp-nél hosszabb harcban a Rake 9 mp vérzést ad egy combo pont mellé.",
-      missing = "hogy megtanultad-e a Rake-et, és a harc várható hossza a döntés pillanatában" })
+    Push({ title = "Rake rarely bleeds", fault = true, rule = "rakeBleed",
+      fact = ("Rake was bleeding about %d%% of combat time (counted from the ticks); your average fight is %d s."):format(Round(rake or 0), Round(avgFight)),
+      advice = "In fights longer than 15 s Rake gives 9 s of bleeding on top of a combo point.",
+      missing = "whether you had learned Rake, and the fight's expected length at the moment of the decision" })
   end
   if level >= 20 and r.seconds >= 300 and share.spell > 50 and catDmg < 25 then
-    Push({ title = "A sebzésed nagyja varázslat", rule = "druidCat",
-      fact = ("A sebzésed %d%%-a varázslat, %d%%-a Cat Form-képesség és vérzés."):format(Round(share.spell), Round(catDmg)),
-      advice = "Feral szintezésnél a Cat Form gyorsabb és manát sem kér; balance-ként ez így rendben van." })
+    Push({ title = "Most of your damage is spells", rule = "druidCat",
+      fact = ("%d%% of your damage is spells, %d%% Cat Form abilities and bleeds."):format(Round(share.spell), Round(catDmg)),
+      advice = "When leveling Feral, Cat Form is faster and needs no mana; as Balance this is fine." })
   end
   if melee and melee.n >= 50 then
     local miss = ((melee.miss or 0) + (melee.dodge or 0) + (melee.parry or 0)) / melee.n * 100
     if miss > 12 then
-      Push({ title = "Sok ütés megy mellé", rule = "hitGear",
-        fact = ("Az ütéseid %s%%-a miss, dodge vagy parry."):format(F1(miss)),
-        advice = "A +hit tárgyak segítenek; a parry csak szemből jön." })
+      Push({ title = "Many swings miss", rule = "hitGear",
+        fact = ("%s%% of your swings are a miss, dodge or parry."):format(F1(miss)),
+        advice = "+hit items help; parries only come from the front." })
     end
   end
   if melee and melee.n >= 100 then
     local landed = melee.hit + melee.crit
-    Push({ info = true, title = "Mért arányok", fact = ("Közelharc: %s%% miss, %s%% dodge, %s%% crit. Sebzés: mancs %d%%, Cat Form-képesség %d%%, vérzés %d%%, medve %d%%, varázslat %d%%.")
+    Push({ info = true, title = "Measured ratios", fact = ("Melee: %s%% miss, %s%% dodge, %s%% crit. Damage: claws %d%%, Cat Form abilities %d%%, bleeds %d%%, bear %d%%, spells %d%%.")
       :format(F1((melee.miss or 0) / melee.n * 100), F1((melee.dodge or 0) / melee.n * 100), F1(landed > 0 and melee.crit / landed * 100 or 0),
         Round(share.melee), Round(share.cat), Round(share.bleed), Round(share.bear), Round(share.spell)) })
   end

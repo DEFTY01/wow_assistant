@@ -271,7 +271,7 @@ local function FinishScan(reason)
   local prev = char.ah
   char.ah = { at = time(), items = ah.items, note = reason, dbg = ah.dbg, mode = "search",
     prices = prev and prev.prices, qty = prev and prev.qty, pricesAt = prev and (prev.pricesAt or prev.at) }
-  Announce(string.format("AH-szkenneles kesz: %d targy%s. Mentes: /wa save", #ah.items, reason and (" (" .. reason .. ")") or ""))
+  Announce(string.format("AH scan done: %d items%s. Save: /wa save", #ah.items, reason and (" (" .. reason .. ")") or ""))
   ah = nil
 end
 
@@ -285,7 +285,7 @@ local function NextSearch()
   ah.index = ah.index + 1
   local entry = ah.queue[ah.index]
   if not entry then return FinishScan() end
-  if ah.index % 25 == 0 then Print(string.format("AH-szkenneles: %d / %d, eddig %d targy", ah.index, #ah.queue, #ah.items)) end
+  if ah.index % 25 == 0 then Print(string.format("AH scan: %d / %d, %d items so far", ah.index, #ah.queue, #ah.items)) end
   ah.current = entry
   local order = Enum and Enum.AuctionHouseSortOrder and (Enum.AuctionHouseSortOrder.Buyout or Enum.AuctionHouseSortOrder.Price)
   local ok = pcall(C_AuctionHouse.SendSearchQuery, entry.key, Sorts(order), false)
@@ -370,7 +370,7 @@ local function OnBrowseResults()
   while #ah.queue > 500 do table.remove(ah.queue) end
   ah.dbg.browse = #(C_AuctionHouse.GetBrowseResults() or {})
   ah.dbg.queued = #ah.queue
-  Announce(string.format("AH-szkenneles: %d targy lekerdezese indul (kb. %d perc). Hagyd nyitva az aukcioshazat.", #ah.queue, math.ceil(#ah.queue * 0.4 / 60)))
+  Announce(string.format("AH scan: querying %d items (about %d minutes). Keep the auction house open.", #ah.queue, math.ceil(#ah.queue * 0.4 / 60)))
   ah.phase = "search"
   ah.index = 0
   ah.harvest = OnItemResults
@@ -379,11 +379,11 @@ end
 
 local function StartSlowScan()
   if not (C_AuctionHouse and C_AuctionHouse.SendBrowseQuery and C_AuctionHouse.GetBrowseResults) then
-    Print("Ez a kliens nem tamogatja az aukcioshaz lekerdezeset addonbol.")
+    Print("This client does not support querying the auction house from an addon.")
     return
   end
   if not (AuctionHouseFrame and AuctionHouseFrame:IsShown()) then
-    Print("Nyisd meg az aukcioshazat, aztan ird be ujra: /wa ah")
+    Print("Open the auction house, then type it again: /wa ah")
     return
   end
   local level = UnitLevel("player")
@@ -397,11 +397,11 @@ local function StartSlowScan()
     filters = {},
     itemClassFilters = { { classID = 2 }, { classID = 4 } },
   })
-  Announce("AH-szkenneles elindult: a kinalat lekerese...")
+  Announce("AH scan started: requesting the offers...")
   -- If the browse never completes, say so instead of hanging silently.
   C_Timer.After(20, function()
     if ah and ah.phase == "browse" then
-      if #(C_AuctionHouse.GetBrowseResults() or {}) > 0 then OnBrowseResults() else FinishScan("a kinalat nem jott meg") end
+      if #(C_AuctionHouse.GetBrowseResults() or {}) > 0 then OnBrowseResults() else FinishScan("the offers did not arrive") end
     end
   end)
 end
@@ -459,7 +459,7 @@ local function FinishFull()
   full = nil
   local priced = 0
   for _ in pairs(f.prices) do priced = priced + 1 end
-  local note = f.closed and "az aukcioshaz bezarult, reszleges" or nil
+  local note = f.closed and "the auction house closed, partial" or nil
   if WowAssistantVC and f.books then WowAssistantVC.SetBooks(f.books, time()) end
   char.ah = {
     at = time(), mode = "full", note = note, items = f.items,
@@ -467,7 +467,7 @@ local function FinishFull()
     dbg = { auctions = f.n, read = f.i, priced = priced, gear = #f.items, unresolved = f.unresolved or 0,
       seconds = math.floor(Now() - f.t0 + 0.5) },
   }
-  Announce(string.format("Teljes AH-szken kesz %d mp alatt: %d aukcio, %d targy ara, %d felszereles%s. Mentes: /wa save",
+  Announce(string.format("Full AH scan done in %d s: %d auctions, %d item prices, %d gear items%s. Save: /wa save",
     char.ah.dbg.seconds, f.i, priced, #f.items, note and (" (" .. note .. ")") or ""))
 end
 
@@ -503,7 +503,7 @@ local function StartDetails()
     if C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, g.id) end
   end
   full.gearList, full.di, full.phase = list, 0, "detail"
-  Print(string.format("AH: %d felszereles adatainak beolvasasa...", #list))
+  Print(string.format("AH: reading the data of %d gear items...", #list))
   Later(DetailStep, 1) -- a moment for the item data requested above
 end
 
@@ -564,7 +564,7 @@ local function ScanStep()
   end
   full.i = stop
   if stop < full.n and not full.closed then
-    if full.i % 40000 < SCAN_CHUNK then Print(string.format("AH: %d / %d aukcio feldolgozva", full.i, full.n)) end
+    if full.i % 40000 < SCAN_CHUNK then Print(string.format("AH: %d / %d auctions processed", full.i, full.n)) end
     Later(ScanStep)
   else
     full.phase = "pending"
@@ -577,31 +577,31 @@ local function OnReplicateList()
   local n = C_AuctionHouse.GetNumReplicateItems() or 0
   if n == 0 then return end
   full.phase, full.n = "scan", n
-  Announce(string.format("AH: %d aukcio megjott (%d mp), feldolgozas...", n, math.floor(Now() - full.t0 + 0.5)))
+  Announce(string.format("AH: %d auctions arrived (%d s), processing...", n, math.floor(Now() - full.t0 + 0.5)))
   ScanStep()
 end
 
 local function StartFullScan()
   if not (AuctionHouseFrame and AuctionHouseFrame:IsShown()) then
-    Print("Nyisd meg az aukcioshazat, aztan ird be ujra: /wa ah")
+    Print("Open the auction house, then type it again: /wa ah")
     return
   end
-  if full or ah then Print("Mar fut egy szkenneles.") return end
+  if full or ah then Print("A scan is already running.") return end
   local wait = FULL_COOLDOWN - (time() - (WA.db.lastFullScan or 0))
   if wait > 0 then
-    Print(string.format("Teljes szken 15 percenkent egyszer lehet: meg %d perc. Addig a lassu szken hasznalhato: /wa ah slow", math.ceil(wait / 60)))
+    Print(string.format("A full scan is allowed once every 15 minutes: %d more minutes. Until then the slow scan works: /wa ah slow", math.ceil(wait / 60)))
     return
   end
   full = { phase = "wait", level = UnitLevel("player"), prices = {}, qty = {}, gear = {}, pending = {}, items = {}, books = {},
     i = 0, n = 0, t0 = Now() }
   WA.db.lastFullScan = time()
   C_AuctionHouse.ReplicateItems()
-  Announce("Teljes AH-szken: az osszes aukcio letoltese... Hagyd nyitva az aukcioshazat.")
+  Announce("Full AH scan: downloading every auction... Keep the auction house open.")
   -- The server sends nothing while the 15-minute cooldown runs (also after a scan by another addon).
   C_Timer.After(90, function()
     if full and full.phase == "wait" then
       full = nil
-      Announce("Nem jott meg a teljes lista (lehet, hogy 15 percen belul mar volt teljes szken, akar mas addontol). Probald kesobb, vagy: /wa ah slow")
+      Announce("The full list did not arrive (maybe there was already a full scan within 15 minutes, even from another addon). Try later, or: /wa ah slow")
     end
   end)
 end
@@ -610,18 +610,18 @@ local function OnAuctionClosed()
   if full then
     if full.phase == "wait" then
       full = nil
-      Print("Teljes AH-szken megszakitva: bezartad az aukcioshazat.")
+      Print("Full AH scan interrupted: you closed the auction house.")
     else
       full.closed = true -- the downloaded list is gone; finish with what was read
     end
   end
-  if ah then FinishScan("az aukcioshaz bezarult, reszleges") end
+  if ah then FinishScan("the auction house closed, partial") end
 end
 
 -- Full scan when the client supports it, otherwise the item-by-item search.
 local function StartScan(mode)
-  if full or ah then Print("Mar fut egy AH-szkenneles, varj, amig vegez.") return end
-  if mode ~= "lassu" and C_AuctionHouse and C_AuctionHouse.ReplicateItems and C_AuctionHouse.GetReplicateItemInfo then
+  if full or ah then Print("An AH scan is already running, wait until it finishes.") return end
+  if mode ~= "slow" and C_AuctionHouse and C_AuctionHouse.ReplicateItems and C_AuctionHouse.GetReplicateItemInfo then
     return StartFullScan()
   end
   return StartSlowScan()
@@ -700,17 +700,17 @@ local function Status(msg)
   if not char then return end
   msg = (msg or ""):lower()
   ScanAll()
-  if msg == "ah" or msg == "ah lassu" then
+  if msg == "ah" or msg == "ah slow" then
     char.errors = char.errors or {}
     char.errors.ah = nil
-    Safe("ah", StartScan, msg == "ah lassu" and "lassu" or nil)
-    if char.errors and char.errors.ah then Print("hiba (ah): " .. char.errors.ah) end
+    Safe("ah", StartScan, msg == "ah slow" and "slow" or nil)
+    if char.errors and char.errors.ah then Print("error (ah): " .. char.errors.ah) end
     return
   end
   if msg == "log" then
     WA.db.logCombat = not WA.db.logCombat
     if LoggingCombat then LoggingCombat(WA.db.logCombat and true or false) end
-    Print(WA.db.logCombat and "harcnaplo BEKAPCSOLVA (minden belepeskor magatol indul)." or "harcnaplo kikapcsolva.")
+    Print(WA.db.logCombat and "combat log ON (starts by itself on every login)." or "combat log off.")
     return
   end
   if msg == "save" then
@@ -721,19 +721,19 @@ local function Status(msg)
   for _ in pairs(char.bags or {}) do bagCount = bagCount + 1 end
   for _ in pairs(char.trainer or {}) do trainerCount = trainerCount + 1 end
   for _ in pairs(char.errors or {}) do errCount = errCount + 1 end
-  Print(string.format("%s, %d fele targy a taskakban, %d trainer skill, harcnaplo: %s, bank: %s.",
+  Print(string.format("%s, %d kinds of items in your bags, %d trainer skills, combat log: %s, bank: %s.",
     GetCoinText and GetCoinText(char.money or 0) or tostring(char.money),
-    bagCount, trainerCount, (LoggingCombat and LoggingCombat()) and "megy" or "all (/wa log)", char.bankAt and "megvan" or "meg nincs"))
+    bagCount, trainerCount, (LoggingCombat and LoggingCombat()) and "running" or "all (/wa log)", char.bankAt and "read" or "not yet"))
   if errCount > 0 then
-    for name, err in pairs(char.errors) do Print("hiba (" .. name .. "): " .. err) end
+    for name, err in pairs(char.errors) do Print("error (" .. name .. "): " .. err) end
   end
-  Print("Aukcioshaz: /wa ah (teljes szken, 15 percenkent), /wa ah slow (targyankent). Mentes: /wa save. Minden parancs: /wa help")
+  Print("Auction house: /wa ah (full scan, every 15 minutes), /wa ah slow (item by item). Save: /wa save. Every command: /wa help")
 end
 WA.Status = Status
-WA.Command("status", function() Status("") end, "/wa status – gold, taska, trainer, harcnaplo allapota")
+WA.Command("status", function() Status("") end, "/wa status – gold, bags, trainer, combat log state")
 -- "lassu" is the old (Hungarian) spelling of "slow", still accepted
-WA.Command("ah", function(rest) Status((rest == "slow" or rest == "lassu") and "ah lassu" or "ah") end, "/wa ah [slow] – aukcioshaz szkenneles (teljes vagy targyankent)")
-WA.Command("log", function() Status("log") end, "/wa log – harcnaplo be/ki")
-WA.Command("save", function() Status("save") end, "/wa save – mentes (/reload)")
+WA.Command("ah", function(rest) Status((rest == "slow" or rest == "lassu") and "ah slow" or "ah") end, "/wa ah [slow] – auction house scan (full or item by item)")
+WA.Command("log", function() Status("log") end, "/wa log – combat log on/off")
+WA.Command("save", function() Status("save") end, "/wa save – save (/reload)")
 -- Plain /wa: the main window once UI.lua is loaded, else the status line.
 WA.Command("", function(msg) if WA.ToggleMain then WA.ToggleMain() else Status(msg) end end)

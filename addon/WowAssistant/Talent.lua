@@ -88,7 +88,7 @@ function T.Match(tree, data)
         votes[d.tree] = (votes[d.tree] or 0) + 1
         out.byName[x.name] = d
         if d.max ~= x.max or d.tier ~= x.tier or d.col ~= x.col then
-          m.differs[#m.differs + 1] = ("%s (játék: %d rang, %d. sor %d. oszlop; adat: %d rang, %d. sor %d. oszlop)")
+          m.differs[#m.differs + 1] = ("%s (game: %d ranks, row %d column %d; data: %d ranks, row %d column %d)")
             :format(x.name, x.max, x.tier, x.col, d.max, d.tier, d.col)
         else
           m.matched = m.matched + 1
@@ -128,29 +128,29 @@ end
 T.TICKET = { ROGUE = "WA-032a", WARRIOR = "WA-032b", MAGE = "WA-032c", WARLOCK = "WA-032d", HUNTER = "WA-032e",
   SHAMAN = "WA-032f", DRUID = "WA-032g", PRIEST = "WA-032h", PALADIN = "WA-032i" }
 -- Reasons for talents the model does not count, in plain words.
-local SURVIVAL = "túlélés (dodge, parry, kevesebb sebzés): a tankmodellbe kerül (WA-023), a sebzést nem változtatja"
-local UTILITY = "nem sebzés: mozgás, lopakodás, irányítás vagy védekező cooldown"
-local POISON = "a mérgek sebzését a modell a harcaidból méri (egyéb források), külön nem számolja"
-local MULTI = "több célpont: a modell egy célpontra számol"
-local THREAT = "fenyegetés (threat): a tankmodellbe kerül (WA-024)"
-local RAGE = "rage: a modell nem szimulálja a rage-et; a Heroic Strike és a specialok gyakoriságát a harcaidból méri (a rage a rotációs ticketben jön: WA-008a, WA-008b)"
-local MANA = "mana: a modell nem számolja a manát (a mana és a pihenő a rotációs ticketben jön)"
-local RESIST = "a célpont ellenállását (resistance) a modell nem számolja"
-local DEMON = "a démon fajtájától függ; a démon sebzését a modell a harcaidból méri"
-local PET = "a pet sebzését a modell a harcaidból méri; a pet critje és sebessége külön nincs benne"
-local HEAL = "gyógyítás: a gyógyítómodellbe kerül (WA-017), a sebzést nem változtatja"
-local BEAR = "medve (tank): a medvemodell a tankmodellben jön (WA-026)"
-local PUSHBACK = "a cast-visszalökés (pushback) ellen véd: a modell nem számol azzal, hogy ütnek cast közben"
-local TANK = "blokk, vagy a téged érő ütések és critek után hat: a modell nem számolja, mi ér téged (tankmodell, WA-025)"
+local SURVIVAL = "survival (dodge, parry, less damage taken): goes into the tank model (WA-023), does not change damage"
+local UTILITY = "not damage: movement, stealth, control or a defensive cooldown"
+local POISON = "the model measures poison damage from your fights (other sources), it does not count it separately"
+local MULTI = "several targets: the model counts one target"
+local THREAT = "threat: goes into the tank model (WA-024)"
+local RAGE = "rage: the model does not simulate rage; it measures how often Heroic Strike and the specials go from your fights (rage comes in the rotation tickets: WA-008a, WA-008b)"
+local MANA = "mana: the model does not count mana (mana and resting come in the rotation ticket)"
+local RESIST = "the model does not count the target's resistance"
+local DEMON = "depends on the demon type; the model measures the demon's damage from your fights"
+local PET = "the model measures the pet's damage from your fights; the pet's crit and speed are not in it separately"
+local HEAL = "healing: goes into the healer model (WA-017), does not change damage"
+local BEAR = "bear (tank): the bear model comes with the tank model (WA-026)"
+local PUSHBACK = "protects against cast pushback: the model does not count being hit while casting"
+local TANK = "works on block, or on hits and crits you take: the model does not count what hits you (tank model, WA-025)"
 local function ROTATION(what, ticket)
-  return ("a(z) %s még nincs külön a modellben; a rotációs ticketben jön (%s)"):format(what, ticket)
+  return ("%s is not in the model separately yet; it comes in the rotation ticket (%s)"):format(what, ticket)
 end
 -- counted by the suggested rotation (Rotation.lua, the Harc page), not by the gear model's DPS
 local function IN_ROTATION(what, ticket)
-  return ("a Harc oldal Javasolt rotáció része számol vele (%s; %s); a felszerelés-modell DPS-ében nincs benne"):format(what, ticket)
+  return ("the Suggested rotation section of the Combat page counts it (%s; %s); it is not in the gear model's DPS"):format(what, ticket)
 end
 local function COOLDOWN(ticket)
-  return ("aktív képesség cooldownnal: a cooldown ideje nincs a talentadatban, a rotációs ticketben jön (%s)"):format(ticket)
+  return ("an active ability with a cooldown: the cooldown is not in the talent data, it comes in the rotation ticket (%s)"):format(ticket)
 end
 T.EFFECTS = {
   -- Warrior (WA-032b): white swings, Heroic Strike and the weapon specials, the rest measured
@@ -162,19 +162,19 @@ T.EFFECTS = {
     ["Improved Rend"] = { reason = ROTATION("Rend", "WA-008a") },
     ["Improved Charge"] = { reason = RAGE },
     ["Improved Tactical Mastery"] = { reason = RAGE },
-    ["Improved Overpower"] = { reason = ROTATION("Overpower (a fegyveres specialok között, együtt mérve)", "WA-008a") },
+    ["Improved Overpower"] = { reason = ROTATION("Overpower (among the weapon specials, measured together)", "WA-008a") },
     ["Anger Management"] = { reason = RAGE },
-    ["Deep Wounds"] = { reason = "a sebzését a modell a harcaidból méri (Deep Wounds dot, egyéb források); hogy újabb crit újraindítja vagy halmozza, arról nincs Forever-forrás, ezért külön nem számolja" },
+    ["Deep Wounds"] = { reason = "the model measures its damage from your fights (Deep Wounds dot, other sources); there is no Forever source on whether a new crit restarts or stacks it, so it is not counted separately" },
     ["Spearing Strike"] = { reason = ROTATION("Spearing Strike", "WA-008a") },
-    ["Two-Handed Weapon Specialization"] = { { key = "twoHandSpec", val = 1, what = "kétkezes fegyver sebzés %" } },
-    Impale = { { key = "impale", val = 1, what = "képességek crit-sebzés bónusz %" } },
+    ["Two-Handed Weapon Specialization"] = { { key = "twoHandSpec", val = 1, what = "two-handed weapon damage %" } },
+    Impale = { { key = "impale", val = 1, what = "ability crit damage bonus %" } },
     Bloodthrill = { reason = ROTATION("Overpower", "WA-008a") },
     ["Sweeping Strikes"] = { reason = MULTI },
-    Weaponmaster = { { key = "weaponmaster", val = 3, what = "extra támadás esély % (kard)" },
-      partial = "a fejsze/polearm crit része és a buzogány/bot páncéltörése nincs a modellben" },
+    Weaponmaster = { { key = "weaponmaster", val = 3, what = "extra attack chance % (sword)" },
+      partial = "the axe/polearm crit part and the mace/staff armor penetration are not in the model" },
     ["Improved Slam"] = { reason = ROTATION("Slam", "WA-008a") },
     ["Improved Hamstring"] = { reason = UTILITY },
-    ["Mortal Strike"] = { reason = "a fegyveres specialok között a harcaidból méri (gyakoriság és sebzés); külön a rotációs ticketben jön (WA-008a)" },
+    ["Mortal Strike"] = { reason = "measured from your fights among the weapon specials (rate and damage); comes separately in the rotation ticket (WA-008a)" },
     -- Protection
     ["Improved Bloodrage"] = { reason = RAGE },
     ["Shield Specialization"] = { reason = SURVIVAL },
@@ -192,53 +192,53 @@ T.EFFECTS = {
     ["Improved Shield Wall"] = { reason = SURVIVAL },
     ["Concussion Blow"] = { reason = UTILITY },
     ["Focused Rage"] = { reason = RAGE },
-    Bastion = { { key = "bastion", val = 1, what = "sebzés % pajzzsal" } },
+    Bastion = { { key = "bastion", val = 1, what = "damage % with a shield" } },
     ["Shield Slam"] = { reason = ROTATION("Shield Slam", "WA-024") },
     -- Fury
     ["Booming Voice"] = { reason = RAGE },
-    Cruelty = { { key = "cruelty", val = 1, what = "crit %", stat = { "crit" } }, sheet = "a játék karakterlapja (GetCritChance) már tartalmazza" },
+    Cruelty = { { key = "cruelty", val = 1, what = "crit %", stat = { "crit" } }, sheet = "the game's character sheet (GetCritChance) already includes it" },
     ["Lingering Rage"] = { reason = RAGE },
     ["Unbridled Wrath"] = { reason = RAGE },
     ["Furious Precision"] = { { key = "ohHit", val = 1, what = "off-hand hit %" } },
     ["Piercing Howl"] = { reason = UTILITY },
     ["Blood Craze"] = { reason = SURVIVAL },
-    Enrage = { reason = "a kapott ütésektől függ: hogy milyen gyakran ütnek meg, az a harcadatból még nem jön" },
-    ["Dual Wield Specialization"] = { { key = "dualWield", val = 1, what = "off-hand sebzés %" }, partial = "az off-hand rage része (a rage-et a modell nem szimulálja)" },
+    Enrage = { reason = "depends on the hits you take: how often you get hit does not come from the combat data yet" },
+    ["Dual Wield Specialization"] = { { key = "dualWield", val = 1, what = "off-hand damage %" }, partial = "the off hand's part of rage (the model does not simulate rage)" },
     ["Reckless Swings"] = { reason = RAGE },
     ["Improved Execute"] = { reason = RAGE },
     ["Improved Berserker Rage"] = { reason = RAGE },
     ["Death Wish"] = { reason = COOLDOWN("WA-008b") },
     ["Gore Drinker"] = { reason = SURVIVAL },
     ["Improved Intercept"] = { reason = UTILITY },
-    ["Improved Whirlwind"] = { reason = ROTATION("Whirlwind (a fegyveres specialok között, együtt mérve)", "WA-008b") },
-    Flurry = { { key = "flurry", val = 1, what = "támadási sebesség % a crit utáni 3 ütésre" } },
-    Bloodthirst = { reason = "a harcaidból méri (egyéb források); külön a rotációs ticketben jön (WA-008b)" },
+    ["Improved Whirlwind"] = { reason = ROTATION("Whirlwind (among the weapon specials, measured together)", "WA-008b") },
+    Flurry = { { key = "flurry", val = 1, what = "attack speed % for the 3 swings after a crit" } },
+    Bloodthirst = { reason = "measured from your fights (other sources); comes separately in the rotation ticket (WA-008b)" },
   },
   -- Mage (WA-032c): the main nuke (Frostbolt or Fireball) and the wand, the rest measured (Mage.lua).
   MAGE = {
     -- Fire
-    Incineration = { reason = ROTATION("Fire Blast, Scorch, Ice Lance és Arcane Blast", "WA-009b") },
-    Accelerant = { { key = "accelerant", val = 1, what = "Fireball cast idő − mp" } },
-    Ignite = { { key = "ignite", val = 1, what = "tűz crit sebzésének %-a égésként" } },
+    Incineration = { reason = ROTATION("Fire Blast, Scorch, Ice Lance and Arcane Blast", "WA-009b") },
+    Accelerant = { { key = "accelerant", val = 1, what = "Fireball cast time − s" } },
+    Ignite = { { key = "ignite", val = 1, what = "% of fire crit damage as a burn" } },
     ["Flame Throwing"] = { reason = UTILITY },
     Impact = { reason = UTILITY },
     ["Burning Soul"] = { reason = UTILITY },
     ["Improved Flamestrike"] = { reason = MULTI },
     Pyroblast = { reason = ROTATION("Pyroblast", "WA-009b") },
     ["Improved Fire Blast"] = { reason = ROTATION("Fire Blast", "WA-009b") },
-    ["Improved Scorch"] = { reason = ROTATION("Scorch (a sebezhetőség a Scorch használatától függ)", "WA-009b") },
+    ["Improved Scorch"] = { reason = ROTATION("Scorch (the vulnerability depends on using Scorch)", "WA-009b") },
     ["Improved Fire Ward"] = { reason = SURVIVAL },
     ["Heating Up"] = { reason = ROTATION("Pyroblast", "WA-009b") },
     ["Master of Elements"] = { reason = MANA },
-    ["Critical Mass"] = { { key = "critMass", val = 1, what = "tűz spell crit %", gap = { "spellCritFire", "spellCritFrost" } } },
+    ["Critical Mass"] = { { key = "critMass", val = 1, what = "fire spell crit %", gap = { "spellCritFire", "spellCritFrost" } } },
     ["Blast Wave"] = { reason = MULTI },
-    ["Fire Power"] = { reason = "a célponton lévő tűzhatások számától függ: ezt a harcadat még nem adja" },
+    ["Fire Power"] = { reason = "depends on the number of fire effects on the target: the combat data does not give this yet" },
     Combustion = { reason = COOLDOWN("WA-009b") },
     -- Frost
     ["Frost Warding"] = { reason = SURVIVAL },
-    ["Improved Frostbolt"] = { { key = "impFrostbolt", val = 1, what = "Frostbolt cast idő − mp" } },
-    Precision = { { key = "precision", val = 1, what = "spell hit %", stat = { "spellHit" } }, sheet = "a játék karakterlapja (GetSpellHitModifier) adja; harcnapló mellett a mért miss számít" },
-    ["Ice Shards"] = { { key = "iceShards", val = 1, what = "fagy crit-sebzés bónusz %" } },
+    ["Improved Frostbolt"] = { { key = "impFrostbolt", val = 1, what = "Frostbolt cast time − s" } },
+    Precision = { { key = "precision", val = 1, what = "spell hit %", stat = { "spellHit" } }, sheet = "from the game's character sheet (GetSpellHitModifier); with a combat log the measured miss counts" },
+    ["Ice Shards"] = { { key = "iceShards", val = 1, what = "frost crit damage bonus %" } },
     Frostbite = { reason = UTILITY },
     ["Improved Frost Nova"] = { reason = UTILITY },
     Permafrost = { reason = UTILITY },
@@ -247,14 +247,14 @@ T.EFFECTS = {
     ["Ice Lance"] = { reason = ROTATION("Ice Lance", "WA-009c") },
     ["Arctic Reach"] = { reason = UTILITY },
     ["Ice Block"] = { reason = SURVIVAL },
-    Shatter = { reason = ROTATION("fagyott célpont (Frost Nova, Frostbite)", "WA-009c") },
+    Shatter = { reason = ROTATION("frozen target (Frost Nova, Frostbite)", "WA-009c") },
     ["Improved Cone of Cold"] = { reason = MULTI },
     ["Cold Snap"] = { reason = COOLDOWN("WA-009c") },
-    ["Fingers of Frost"] = { reason = ROTATION("fagyott célpont (Fingers of Frost)", "WA-009c") },
+    ["Fingers of Frost"] = { reason = ROTATION("frozen target (Fingers of Frost)", "WA-009c") },
     ["Winter's Chill"] = { reason = ROTATION("Cone of Cold", "WA-009c") },
     ["Ice Barrier"] = { reason = COOLDOWN("WA-009c") },
     -- Arcane
-    ["Wand Specialization"] = { { key = "wandSpec", val = 1, what = "pálca sebzés %" } },
+    ["Wand Specialization"] = { { key = "wandSpec", val = 1, what = "wand damage %" } },
     ["Improved Channeling"] = { reason = UTILITY },
     ["Arcane Resilience"] = { reason = SURVIVAL },
     ["Arcane Subtlety"] = { reason = RESIST },
@@ -262,16 +262,16 @@ T.EFFECTS = {
     ["Arcane Concentration"] = { reason = MANA },
     ["Missile Barrage"] = { reason = ROTATION("Arcane Missiles", "WA-009a") },
     ["Arcane Geometry"] = { reason = UTILITY },
-    ["Arcane Impact"] = { reason = ROTATION("arcane varázslatok (Arcane Missiles, Arcane Blast)", "WA-009a") },
+    ["Arcane Impact"] = { reason = ROTATION("arcane spells (Arcane Missiles, Arcane Blast)", "WA-009a") },
     ["Arcane Blast"] = { reason = ROTATION("Arcane Blast", "WA-009a") },
     ["Arcane Shielding"] = { reason = SURVIVAL },
     ["Improved Counterspell"] = { reason = UTILITY },
     ["Arcane Meditation"] = { reason = MANA },
     ["Arcane Wrath"] = { reason = ROTATION("Arcane Wrath", "WA-009a") },
     ["Presence of Mind"] = { reason = COOLDOWN("WA-009a") },
-    ["Arcane Mind"] = { { key = "arcaneMind", val = 1, what = "intellect %" }, partial = "az arcane crit-bónusz része (az arcane varázslatok még nincsenek külön a modellben)" },
-    ["Arcane Instability"] = { { key = "instability", val = 1, what = "spell sebzés %" },
-      partial = "a crit része a karakterlapon (GetSpellCritChance) már benne van" },
+    ["Arcane Mind"] = { { key = "arcaneMind", val = 1, what = "intellect %" }, partial = "the arcane crit bonus part (arcane spells are not in the model separately yet)" },
+    ["Arcane Instability"] = { { key = "instability", val = 1, what = "spell damage %" },
+      partial = "the crit part is already on the character sheet (GetSpellCritChance)" },
     ["Arcane Power"] = { reason = COOLDOWN("WA-009a") },
   },
   -- Warlock (WA-032d): direct spells, DoTs and drains, the demon and the wand (Warlock.lua); the
@@ -279,115 +279,115 @@ T.EFFECTS = {
   WARLOCK = {
     -- Destruction
     ["Destructive Reach"] = { reason = UTILITY },
-    ["Improved Shadow Bolt"] = { reason = "a Shadow Bolt critjeitől és a 12 mp-es időtartamtól függ; hogy mennyi ideig van fent, az aura-idővonalból jön (WA-005)" },
-    Bane = { reason = "a direkt varázslatok gyakoriságát a modell a harcaidból méri; a cast idő a rotációs ticketben jön (WA-010c)" },
+    ["Improved Shadow Bolt"] = { reason = "depends on Shadow Bolt's crits and the 12 s duration; how long it is up comes from the aura timeline (WA-005)" },
+    Bane = { reason = "the model measures how often the direct spells go from your fights; the cast time comes in the rotation ticket (WA-010c)" },
     ["Molten Skin"] = { reason = SURVIVAL },
     Cataclysm = { reason = MANA },
-    Aftermath = { { key = "aftermath", val = 1, what = "Immolate kezdő sebzés %" }, partial = "a Conflagrate lassítása (irányítás)" },
-    Ruin = { { key = "ruin", val = 1, what = "Destruction varázslatok crit-bónusz %" } },
+    Aftermath = { { key = "aftermath", val = 1, what = "Immolate initial damage %" }, partial = "Conflagrate's slow (control)" },
+    Ruin = { { key = "ruin", val = 1, what = "Destruction spell crit bonus %" } },
     Shadowburn = { reason = ROTATION("Shadowburn", "WA-010c") },
     Intensity = { reason = UTILITY },
-    ["Agonizing Flames"] = { { key = "agonizing", val = 2, what = "Destruction varázslatok sebzés %" }, partial = "a Searing Pain crit része" },
+    ["Agonizing Flames"] = { { key = "agonizing", val = 2, what = "Destruction spell damage %" }, partial = "Searing Pain's crit part" },
     Conflagrate = { reason = ROTATION("Conflagrate", "WA-010c") },
     Pyroclasm = { reason = UTILITY },
     ["Bane of Havoc"] = { reason = MULTI },
     ["Fire and Brimstone"] = { reason = ROTATION("Conflagrate", "WA-010c") },
-    ["Shadow and Flame"] = { reason = ROTATION("Conflagrate és Shadowburn", "WA-010c") },
+    ["Shadow and Flame"] = { reason = ROTATION("Conflagrate and Shadowburn", "WA-010c") },
     Incinerate = { reason = ROTATION("Incinerate", "WA-010c") },
     -- Affliction
     ["Improved Life Tap"] = { reason = MANA },
-    Suppression = { { key = "suppression", val = 1, what = "hit %", stat = { "spellHit" } }, sheet = "a játék karakterlapja (GetSpellHitModifier) adja; harcnapló mellett a mért miss számít" },
-    ["Improved Corruption"] = { { key = "impCorruption", val = 2, what = "Corruption sebzés %" }, partial = "a cast idő része (a DoT-okat a modell a harcaidból méri)" },
+    Suppression = { { key = "suppression", val = 1, what = "hit %", stat = { "spellHit" } }, sheet = "from the game's character sheet (GetSpellHitModifier); with a combat log the measured miss counts" },
+    ["Improved Corruption"] = { { key = "impCorruption", val = 2, what = "Corruption damage %" }, partial = "the cast time part (the model measures the DoTs from your fights)" },
     ["Grim Reach"] = { reason = UTILITY },
     ["Soul Harvest"] = { reason = MANA },
-    ["Improved Drains"] = { { key = "impDrains", val = 1, what = "drain sebzés %" } },
-    ["Improved Bane of Agony"] = { { key = "impAgony", val = 1, what = "Bane of Agony sebzés %" } },
+    ["Improved Drains"] = { { key = "impDrains", val = 1, what = "drain damage %" } },
+    ["Improved Bane of Agony"] = { { key = "impAgony", val = 1, what = "Bane of Agony damage %" } },
     ["Fel Concentration"] = { reason = UTILITY },
     ["Amplify Curse"] = { reason = COOLDOWN("WA-010a") },
-    Pandemic = { reason = "a DoT-ok critjét a modell külön nem számolja (a mért DoT-sebzésben benne van); a rotációs ticketben jön (WA-010a)" },
-    Malevolence = { { key = "malevolence", val = 1, what = "árnyék crit %", gap = { "spellCrit", "spellCritFire" } } },
+    Pandemic = { reason = "the model does not count DoT crits separately (they are in the measured DoT damage); comes in the rotation ticket (WA-010a)" },
+    Malevolence = { { key = "malevolence", val = 1, what = "shadow crit %", gap = { "spellCrit", "spellCritFire" } } },
     Nightfall = { reason = ROTATION("Shadow Trance (Nightfall)", "WA-010a") },
     ["Curse of Exhaustion"] = { reason = UTILITY },
-    ["Siphon Life"] = { reason = "a DoT-ok között a harcaidból méri; külön a rotációs ticketben jön (WA-010a)" },
-    ["Soul Siphon"] = { reason = "a célponton lévő DoT-ok számától függ: ezt az aura-idővonal adja majd (WA-005)" },
-    ["Shadow Mastery"] = { { key = "shadowMastery", val = 1, what = "árnyék varázslatok sebzés %" } },
+    ["Siphon Life"] = { reason = "measured from your fights among the DoTs; comes separately in the rotation ticket (WA-010a)" },
+    ["Soul Siphon"] = { reason = "depends on the number of DoTs on the target: the aura timeline will give this (WA-005)" },
+    ["Shadow Mastery"] = { { key = "shadowMastery", val = 1, what = "shadow spell damage %" } },
     Wrack = { reason = ROTATION("Wrack", "WA-010a") },
     -- Demonology
     ["Improved Health Funnel"] = { reason = SURVIVAL },
     ["Improved Imp"] = { reason = DEMON },
     ["Demonic Embrace"] = { reason = SURVIVAL },
-    ["Unholy Power"] = { { key = "unholyPower", val = 1, what = "démon sebzés %" } },
+    ["Unholy Power"] = { { key = "unholyPower", val = 1, what = "demon damage %" } },
     ["Demonic Aegis"] = { reason = SURVIVAL },
     ["Improved Voidwalker"] = { reason = DEMON },
     ["Fel Vitality"] = { reason = MANA },
     ["Demonic Energies"] = { reason = MANA },
     ["Improved Sayaad"] = { reason = DEMON },
-    ["Demonic Sacrifice"] = { reason = "attól függ, melyik démont áldozod fel; hogy fent van-e, az aura-idővonalból jön (WA-005)" },
+    ["Demonic Sacrifice"] = { reason = "depends on which demon you sacrifice; whether it is up comes from the aura timeline (WA-005)" },
     ["Master Summoner"] = { reason = UTILITY },
-    Decimation = { reason = ROTATION("Soul Fire és a 35% alatti szakasz", "WA-010b") },
+    Decimation = { reason = ROTATION("Soul Fire and the below-35% phase", "WA-010b") },
     ["Fel Domination"] = { reason = UTILITY },
     ["Demonic Brand"] = { reason = DEMON },
     ["Improved Felhunter"] = { reason = DEMON },
-    ["Soul Link"] = { reason = "aktiválni kell; hogy fent van-e, az aura-idővonalból jön (WA-005)" },
-    ["Demonic Knowledge"] = { { key = "demonicKnowledge", val = 1, what = "a szinted %-a spell powerként" },
-      sheet = "a játék spell powere (GetSpellBonusDamage) már tartalmazza, amíg a démon kint van" },
+    ["Soul Link"] = { reason = "must be activated; whether it is up comes from the aura timeline (WA-005)" },
+    ["Demonic Knowledge"] = { { key = "demonicKnowledge", val = 1, what = "% of your level as spell power" },
+      sheet = "the game's spell power (GetSpellBonusDamage) already includes it while the demon is out" },
     ["Master Demonologist"] = { reason = DEMON },
-    ["Demonic Pact"] = { reason = "a Demonic Sacrifice-tól függ (aura-idővonal, WA-005)" },
+    ["Demonic Pact"] = { reason = "depends on Demonic Sacrifice (aura timeline, WA-005)" },
   },
   -- Rogue (WA-032a): the model is Sinister Strike + Eviscerate with white swings (Model.lua); every
   -- talent of the three trees is either counted in it or has its reason.
   ROGUE = {
     -- Combat
-    ["Coup de Grace"] = { { key = "coup", val = 1, what = "Eviscerate sebzés %" }, partial = "a Death Mark része nincs a modellben" },
-    ["Efficient Strikes"] = { { key = "efficient", val = 1, what = "Sinister Strike energiaköltség −" } },
+    ["Coup de Grace"] = { { key = "coup", val = 1, what = "Eviscerate damage %" }, partial = "the Death Mark part is not in the model" },
+    ["Efficient Strikes"] = { { key = "efficient", val = 1, what = "Sinister Strike energy cost −" } },
     ["Lightning Reflexes"] = { reason = SURVIVAL },
-    ["Puncturing Wounds"] = { reason = ROTATION("Backstab és a Mutilate", "WA-007a, WA-007c") },
+    ["Puncturing Wounds"] = { reason = ROTATION("Backstab and Mutilate", "WA-007a, WA-007c") },
     Deflection = { reason = SURVIVAL },
-    Precision = { { key = "precision", val = 1, what = "hit %", stat = { "hit" } }, sheet = "a játék karakterlapja (GetHitModifier) már tartalmazza" },
+    Precision = { { key = "precision", val = 1, what = "hit %", stat = { "hit" } }, sheet = "the game's character sheet (GetHitModifier) already includes it" },
     ["Improved Sprint"] = { reason = UTILITY },
     Endurance = { reason = UTILITY },
-    Riposte = { reason = ROTATION("Riposte (parry után)", "WA-007b") },
+    Riposte = { reason = ROTATION("Riposte (after a parry)", "WA-007b") },
     Composure = { reason = ROTATION("Poised", "WA-007b") },
     ["Improved Kick"] = { reason = UTILITY },
-    ["Flawless Execution"] = { { key = "flawless", val = 1, what = "Eviscerate energiaköltség −" } },
-    ["Weapon Expertise"] = { { key = "expertise", val = 1, what = "dodge és parry esély −%" } },
-    Aggression = { { key = "aggression", val = 1, what = "Sinister Strike és Eviscerate sebzés %" } },
-    ["Dual Wield Specialization"] = { { key = "dualWield", val = 1, what = "off-hand sebzés %" } },
-    ["Blade Flurry"] = { reason = IN_ROTATION("egy használat értéke", "WA-007b") },
-    ["Hack and Slash"] = { { key = "hackSlash", val = 1, what = "extra támadás esély % (fejsze, kard)" },
-      partial = "a dagger/ököl crit része és a buzogány páncéltörése nincs a modellben" },
-    ["Flash of Steel"] = { reason = IN_ROTATION("a Shank energiája és cooldownja", "WA-007b") },
-    ["Adrenaline Rush"] = { reason = IN_ROTATION("egy használat értéke", "WA-007b") },
+    ["Flawless Execution"] = { { key = "flawless", val = 1, what = "Eviscerate energy cost −" } },
+    ["Weapon Expertise"] = { { key = "expertise", val = 1, what = "dodge and parry chance −%" } },
+    Aggression = { { key = "aggression", val = 1, what = "Sinister Strike and Eviscerate damage %" } },
+    ["Dual Wield Specialization"] = { { key = "dualWield", val = 1, what = "off-hand damage %" } },
+    ["Blade Flurry"] = { reason = IN_ROTATION("the value of one use", "WA-007b") },
+    ["Hack and Slash"] = { { key = "hackSlash", val = 1, what = "extra attack chance % (axe, sword)" },
+      partial = "the dagger/fist crit part and the mace armor penetration are not in the model" },
+    ["Flash of Steel"] = { reason = IN_ROTATION("Shank's energy and cooldown", "WA-007b") },
+    ["Adrenaline Rush"] = { reason = IN_ROTATION("the value of one use", "WA-007b") },
     -- Assassination
     ["Improved Gouge"] = { reason = UTILITY },
-    ["Remorseless Attacks"] = { reason = "ölés utáni hatás: hogy hány ellenfelet öltél, az a harcadatból még nem jön" },
-    Malice = { { key = "malice", val = 1, what = "crit %", stat = { "crit" } }, sheet = "a játék karakterlapja (GetCritChance) már tartalmazza" },
-    Ruthlessness = { { key = "ruthlessness", val = 1, what = "finisher utáni combo pont esély %" } },
+    ["Remorseless Attacks"] = { reason = "an after-kill effect: how many enemies you killed does not come from the combat data yet" },
+    Malice = { { key = "malice", val = 1, what = "crit %", stat = { "crit" } }, sheet = "the game's character sheet (GetCritChance) already includes it" },
+    Ruthlessness = { { key = "ruthlessness", val = 1, what = "combo point chance % after a finisher" } },
     ["Improved Expose Armor"] = { reason = ROTATION("Expose Armor", "WA-007a") },
-    ["Improved Slice and Dice"] = { reason = IN_ROTATION("a Slice and Dice ideje", "WA-007b; Assassination: WA-007a") },
-    Vigor = { reason = "csak a maximális energiát emeli; a tartós sebzést ebben a modellben nem változtatja" },
-    ["Blood Splatter"] = { reason = ROTATION("Rupture és a Garrote", "WA-007a") },
-    Lethality = { { key = "lethality", val = 1, what = "Sinister Strike crit-sebzés bónusz %" } },
+    ["Improved Slice and Dice"] = { reason = IN_ROTATION("Slice and Dice's duration", "WA-007b; Assassination: WA-007a") },
+    Vigor = { reason = "only raises maximum energy; it does not change sustained damage in this model" },
+    ["Blood Splatter"] = { reason = ROTATION("Rupture and Garrote", "WA-007a") },
+    Lethality = { { key = "lethality", val = 1, what = "Sinister Strike crit damage bonus %" } },
     ["Vile Poisons"] = { reason = POISON },
     ["Cold Blood"] = { reason = COOLDOWN("WA-007a") },
     ["Improved Poisons"] = { reason = POISON },
-    ["Relentless Strikes"] = { { key = "relentless", val = 1, what = "finisher combo pontonként esély %" },
-      { key = "relentlessEnergy", val = 2, what = "visszakapott energia" } },
+    ["Relentless Strikes"] = { { key = "relentless", val = 1, what = "chance % per finisher combo point" },
+      { key = "relentlessEnergy", val = 2, what = "energy refunded" } },
     Venom = { reason = ROTATION("Shank", "WA-007a") },
     ["Improved Kidney Shot"] = { reason = ROTATION("Kidney Shot", "WA-007a") },
-    ["Seal Fate"] = { { key = "sealFate", val = 1, what = "crit utáni extra combo pont esély %" } },
+    ["Seal Fate"] = { { key = "sealFate", val = 1, what = "extra combo point chance % after a crit" } },
     Mutilate = { reason = ROTATION("Mutilate", "WA-007a") },
     -- Subtlety
     Setup = { reason = SURVIVAL },
     ["Master of Deception"] = { reason = UTILITY },
-    Opportunity = { reason = ROTATION("Backstab, a Garrote, az Ambush és a Mutilate", "WA-007c") },
-    ["Dirty Deeds"] = { reason = ROTATION("nyitás (Cheap Shot, Garrote)", "WA-007c") },
+    Opportunity = { reason = ROTATION("Backstab, Garrote, Ambush and Mutilate", "WA-007c") },
+    ["Dirty Deeds"] = { reason = ROTATION("opener (Cheap Shot, Garrote)", "WA-007c") },
     Camouflage = { reason = UTILITY },
     ["Improved Ambush"] = { reason = ROTATION("Ambush", "WA-007c") },
     ["Dirty Tricks"] = { reason = UTILITY },
-    Initiative = { reason = ROTATION("nyitás (Ambush, Garrote, Cheap Shot)", "WA-007c") },
-    Premeditation = { reason = ROTATION("nyitás", "WA-007c") },
-    ["Serrated Blades"] = { reason = "páncéltörés és Rupture: a modell nem számol a célpont páncéljával, és Rupture sincs benne (WA-007c)" },
+    Initiative = { reason = ROTATION("opener (Ambush, Garrote, Cheap Shot)", "WA-007c") },
+    Premeditation = { reason = ROTATION("opener", "WA-007c") },
+    ["Serrated Blades"] = { reason = "armor penetration and Rupture: the model does not count the target's armor, and Rupture is not in it (WA-007c)" },
     Elusiveness = { reason = UTILITY },
     ["Ghostly Strike"] = { reason = ROTATION("Ghostly Strike", "WA-007c") },
     ["Quick Getaway"] = { reason = UTILITY },
@@ -401,14 +401,14 @@ T.EFFECTS = {
   -- pet and Serpent Sting (Hunter.lua).
   HUNTER = {
     -- Beast Mastery
-    ["Deadly Aspects"] = { reason = "a gyorsító proc fenntartási ideje az aura-idővonalból jön (WA-005)" },
+    ["Deadly Aspects"] = { reason = "the haste proc's uptime comes from the aura timeline (WA-005)" },
     ["Endurance Training"] = { reason = SURVIVAL },
-    ["Focused Fire"] = { { key = "focusedFire", val = 1, what = "minden sebzés % pettel" } },
+    ["Focused Fire"] = { { key = "focusedFire", val = 1, what = "all damage % with a pet" } },
     ["Improved Aspect of the Monkey"] = { reason = SURVIVAL },
     ["Improved Revive Pet"] = { reason = UTILITY },
     Pathfinding = { reason = UTILITY },
     ["Bestial Swiftness"] = { reason = UTILITY },
-    ["Unleashed Fury"] = { { key = "unleashedFury", val = 1, what = "pet sebzés %" } },
+    ["Unleashed Fury"] = { { key = "unleashedFury", val = 1, what = "pet damage %" } },
     ["Improved Mend Pet"] = { reason = UTILITY },
     Ferocity = { reason = PET },
     ["Summon Hawk"] = { reason = ROTATION("Summon Hawk", "WA-011a") },
@@ -418,18 +418,18 @@ T.EFFECTS = {
     Frenzy = { reason = PET },
     ["Bestial Wrath"] = { reason = COOLDOWN("WA-011a") },
     -- Survival
-    ["Improved Tracking"] = { reason = "attól függ, mit követsz (tracking) és milyen típusú a célpont" },
+    ["Improved Tracking"] = { reason = "depends on what you track and the target's type" },
     Deflection = { reason = SURVIVAL },
     Entrapment = { reason = UTILITY },
-    ["Savage Strikes"] = { { key = "savageStrikes", val = 1, what = "közelharci képességek crit %" } },
+    ["Savage Strikes"] = { { key = "savageStrikes", val = 1, what = "melee ability crit %" } },
     Survivalist = { reason = SURVIVAL },
     ["Improved Wing Clip"] = { reason = UTILITY },
-    ["Clever Traps"] = { reason = ROTATION("csapdák", "WA-011c") },
-    Surefooted = { { key = "surefooted", val = 1, what = "hit %", stat = { "hit" } }, sheet = "a játék karakterlapja (GetHitModifier) már tartalmazza", partial = "a lassítás rövidítése (mozgás)" },
+    ["Clever Traps"] = { reason = ROTATION("traps", "WA-011c") },
+    Surefooted = { { key = "surefooted", val = 1, what = "hit %", stat = { "hit" } }, sheet = "the game's character sheet (GetHitModifier) already includes it", partial = "shorter slows (movement)" },
     Deterrence = { reason = SURVIVAL },
     ["Survival Tactics"] = { reason = UTILITY },
-    ["Predator's Edge"] = { { key = "predatorCrit", val = 1, what = "közelharci képességek crit-sebzés %" },
-      { key = "predatorOh", val = 2, what = "off-hand sebzés %" } },
+    ["Predator's Edge"] = { { key = "predatorCrit", val = 1, what = "melee ability crit damage %" },
+      { key = "predatorOh", val = 2, what = "off-hand damage %" } },
     Counterattack = { reason = ROTATION("Counterattack", "WA-011c") },
     Resourcefulness = { reason = MANA },
     ["Expose Prey"] = { reason = ROTATION("Mongoose Bite", "WA-011c") },
@@ -440,19 +440,19 @@ T.EFFECTS = {
     -- Marksmanship
     ["Hawk Eye"] = { reason = UTILITY },
     ["Improved Concussive Shot"] = { reason = UTILITY },
-    ["Lethal Attacks"] = { { key = "lethal", val = 1, what = "crit %", stat = { "rangedCrit", "crit" } }, sheet = "a játék karakterlapja (GetRangedCritChance) már tartalmazza" },
-    ["Improved Stings"] = { { key = "impStings", val = 1, what = "Serpent Sting sebzés %" }, partial = "a Viper és a Scorpid Sting része" },
+    ["Lethal Attacks"] = { { key = "lethal", val = 1, what = "crit %", stat = { "rangedCrit", "crit" } }, sheet = "the game's character sheet (GetRangedCritChance) already includes it" },
+    ["Improved Stings"] = { { key = "impStings", val = 1, what = "Serpent Sting damage %" }, partial = "the Viper and Scorpid Sting part" },
     Efficiency = { reason = MANA },
-    ["Careful Aim"] = { { key = "carefulAim", val = 1, what = "intellect %-a attack powerként" } },
-    ["Rapid Killing"] = { reason = "ölés utáni hatás és Rapid Fire cooldown: az ölések száma a harcadatból még nem jön" },
-    ["Improved Arcane Shot"] = { reason = "az Arcane Shot gyakoriságát a modell a harcaidból méri; a cooldown a rotációs ticketben jön (WA-011b)" },
-    ["Lone Wolf"] = { { key = "loneWolf", val = 1, what = "minden sebzés % pet nélkül" } },
-    ["Trueshot Aura"] = { { key = "trueshot", val = 2, what = "ranged attack power" }, sheet = "a játék ranged attack powere már tartalmazza, amíg az aura fent van" },
-    ["Mortal Shots"] = { { key = "mortal", val = 1, what = "távolsági crit-sebzés bónusz %" } },
+    ["Careful Aim"] = { { key = "carefulAim", val = 1, what = "% of intellect as attack power" } },
+    ["Rapid Killing"] = { reason = "an after-kill effect and the Rapid Fire cooldown: the number of kills does not come from the combat data yet" },
+    ["Improved Arcane Shot"] = { reason = "the model measures how often Arcane Shot goes from your fights; the cooldown comes in the rotation ticket (WA-011b)" },
+    ["Lone Wolf"] = { { key = "loneWolf", val = 1, what = "all damage % without a pet" } },
+    ["Trueshot Aura"] = { { key = "trueshot", val = 2, what = "ranged attack power" }, sheet = "the game's ranged attack power already includes it while the aura is up" },
+    ["Mortal Shots"] = { { key = "mortal", val = 1, what = "ranged crit damage bonus %" } },
     ["Rapid Recuperation"] = { reason = MANA },
-    Barrage = { { key = "barrage", val = 1, what = "Multi-Shot és Aimed Shot sebzés %" } },
+    Barrage = { { key = "barrage", val = 1, what = "Multi-Shot and Aimed Shot damage %" } },
     ["Scatter Shot"] = { reason = UTILITY },
-    ["Ranged Weapon Specialization"] = { { key = "rangedSpec", val = 1, what = "távolsági fegyveres sebzés %" } },
+    ["Ranged Weapon Specialization"] = { { key = "rangedSpec", val = 1, what = "ranged weapon damage %" } },
     ["Sniper Shot"] = { reason = ROTATION("Sniper Shot", "WA-011b") },
   },
   -- Paladin (WA-032i): white swings with a seal, Holy Strike, the rest (Judgement, Consecration,
@@ -461,32 +461,32 @@ T.EFFECTS = {
     -- Retribution
     Deflection = { reason = SURVIVAL },
     Benediction = { reason = MANA },
-    ["Improved Judgement"] = { reason = "a Judgement sebzését és gyakoriságát a modell a harcaidból méri; a rövidebb cooldown a rotációs ticketben jön (WA-015a)" },
-    Conviction = { { key = "conviction", val = 1, what = "crit %", stat = { "crit" } }, sheet = "a játék közelharci és spell critje már tartalmazza" },
+    ["Improved Judgement"] = { reason = "the model measures Judgement's damage and rate from your fights; the shorter cooldown comes in the rotation ticket (WA-015a)" },
+    Conviction = { { key = "conviction", val = 1, what = "crit %", stat = { "crit" } }, sheet = "the game's melee and spell crit already include it" },
     ["Sanctified Judgement"] = { reason = MANA },
     Vindication = { reason = SURVIVAL },
     ["Unyielding Faith"] = { reason = UTILITY },
-    ["Seal of Command"] = { { key = "sealCommand", val = "rank", what = "képesség: Seal of Command a Seal of Righteousness helyett" } },
+    ["Seal of Command"] = { { key = "sealCommand", val = "rank", what = "ability: Seal of Command instead of Seal of Righteousness" } },
     ["Pursuit of Justice"] = { reason = UTILITY },
     ["Eye for an Eye"] = { reason = TANK },
-    ["Sacred Arbiter"] = { { key = "sacredArbiter", val = 1, what = "Holy Strike sebzés %" }, partial = "a Judgement frissítése" },
-    ["Two-Handed Weapon Specialization"] = { { key = "twoHandSpec", val = 1, what = "fizikai és holy sebzés % kétkezes fegyverrel" }, partial = "a kisebb fenyegetés" },
+    ["Sacred Arbiter"] = { { key = "sacredArbiter", val = 1, what = "Holy Strike damage %" }, partial = "refreshing the Judgement" },
+    ["Two-Handed Weapon Specialization"] = { { key = "twoHandSpec", val = 1, what = "physical and holy damage % with a two-handed weapon" }, partial = "the lower threat" },
     ["Turn Evil"] = { reason = UTILITY },
     Repentance = { reason = UTILITY },
-    Vengeance = { reason = "crit után 30 mp-ig halmozódik: az aura-idővonalból jön (WA-005)" },
-    ["Champion of the Light"] = { { key = "champion", val = 1, what = "intellect %-a spell powerként" }, sheet = "a modell a játék spell powerét használja; a tárgyak intellectjét spell powerként is számolja", partial = "a Hammer of Wrath cast ideje" },
-    ["Unsealed Wrath"] = { reason = ROTATION("Unsealed Wrath (seal váltás)", "WA-015a") },
+    Vengeance = { reason = "stacks for 30 s after a crit: comes from the aura timeline (WA-005)" },
+    ["Champion of the Light"] = { { key = "champion", val = 1, what = "% of intellect as spell power" }, sheet = "the model uses the game's spell power; it also counts the items' intellect as spell power", partial = "Hammer of Wrath's cast time" },
+    ["Unsealed Wrath"] = { reason = ROTATION("Unsealed Wrath (switching seals)", "WA-015a") },
     -- Holy
     ["Spiritual Focus"] = { reason = PUSHBACK },
     ["Divine Strength"] = { { key = "divineStrength", val = 1, what = "strength %" } },
     ["Healing Light"] = { reason = HEAL },
     Reverence = { reason = MANA },
-    ["Improved Seals"] = { { key = "impSeals", val = 1, what = "seal sebzés %" }, partial = "a Judgement (a modell a harcaidból méri)" },
-    ["Purifying Power"] = { reason = "az Exorcism és a Holy Wrath sebzését a modell a harcaidból méri; a rövidebb cooldown a rotációs ticketben jön (WA-015b)" },
+    ["Improved Seals"] = { { key = "impSeals", val = 1, what = "seal damage %" }, partial = "the Judgement (the model measures it from your fights)" },
+    ["Purifying Power"] = { reason = "the model measures Exorcism's and Holy Wrath's damage from your fights; the shorter cooldown comes in the rotation ticket (WA-015b)" },
     ["Divine Favor"] = { reason = HEAL },
     Illumination = { reason = MANA },
     ["Holy Conduit"] = { reason = MANA },
-    ["Divine Precision"] = { reason = "a holy varázslatok (Judgement, Exorcism) hitje: ezeket a modell a harcaidból méri" },
+    ["Divine Precision"] = { reason = "the hit of holy spells (Judgement, Exorcism): the model measures these from your fights" },
     ["Infusion of Light"] = { reason = HEAL },
     ["Oath of Light"] = { reason = HEAL },
     ["Consecrated Ground"] = { reason = MULTI },
@@ -497,7 +497,7 @@ T.EFFECTS = {
     -- Protection
     ["Divine Intellect"] = { { key = "divineIntellect", val = 1, what = "intellect %" } },
     Redoubt = { reason = SURVIVAL },
-    Precision = { { key = "precision", val = 1, what = "hit %", stat = { "hit" } }, sheet = "a játék hit-módosítója (GetHitModifier) már tartalmazza" },
+    Precision = { { key = "precision", val = 1, what = "hit %", stat = { "hit" } }, sheet = "the game's hit modifier (GetHitModifier) already includes it" },
     ["Guardian's Favor"] = { reason = UTILITY },
     ["Sacred Duty"] = { reason = SURVIVAL },
     ["Templar's Bulwark"] = { reason = SURVIVAL },
@@ -511,15 +511,15 @@ T.EFFECTS = {
     ["Holy Shield"] = { reason = TANK },
     Reckoning = { reason = TANK },
     ["Iron Creed"] = { reason = THREAT },
-    Shieldsworn = { reason = "a Holy Strike gyakoriságát a modell a harcaidból méri; a pajzsos ütés a tankmodellben jön (WA-025)" },
+    Shieldsworn = { reason = "the model measures how often Holy Strike goes from your fights; the shield hit comes in the tank model (WA-025)" },
   },
   -- Priest (WA-032h): Smite, Mind Blast, Shadow Word: Pain, Mind Flay, Holy Fire and the wand
   -- (Priest.lua); healing and shields go to the healer model.
   PRIEST = {
     -- Discipline
-    ["Power in Light"] = { reason = "csak ha a célponton van Holy Fire vagy Shadow Word: Pain: ennek idejét az aura-idővonal adja (WA-005)" },
-    ["Wand Specialization"] = { { key = "wandSpec", val = 1, what = "pálca sebzés %" } },
-    ["Twin Disciplines"] = { { key = "twin", val = 1, what = "instant varázslatok sebzése % (Shadow Word: Pain)" }, partial = "a Devouring Plague és a Shadow Word: Death (a modell egyéb forrásként méri) és a gyógyítás" },
+    ["Power in Light"] = { reason = "only if Holy Fire or Shadow Word: Pain is on the target: the aura timeline gives how long (WA-005)" },
+    ["Wand Specialization"] = { { key = "wandSpec", val = 1, what = "wand damage %" } },
+    ["Twin Disciplines"] = { { key = "twin", val = 1, what = "instant spell damage % (Shadow Word: Pain)" }, partial = "Devouring Plague and Shadow Word: Death (the model measures them as other sources) and healing" },
     ["Silent Resolve"] = { reason = THREAT },
     ["Holy Precision"] = { { key = "holyHit", val = 1, what = "holy hit %" } },
     ["Mental Strength"] = { { key = "mentalStrength", val = 1, what = "intellect %" } },
@@ -538,69 +538,69 @@ T.EFFECTS = {
     -- Holy
     ["Twilight Focus"] = { reason = PUSHBACK },
     ["Improved Renew"] = { reason = HEAL },
-    ["Holy Specialization"] = { { key = "holySpec", val = 1, what = "holy crit %", gap = { "spellCritHoly", "spellCritShadow" } }, sheet = "ha a játék holy critje ennyivel nagyobb a shadow critnél, már tartalmazza; különben a modell hozzáadja" },
+    ["Holy Specialization"] = { { key = "holySpec", val = 1, what = "holy crit %", gap = { "spellCritHoly", "spellCritShadow" } }, sheet = "if the game's holy crit is this much higher than the shadow crit, it already includes it; otherwise the model adds it" },
     ["Spell Warding"] = { reason = SURVIVAL },
-    ["Divine Fury"] = { { key = "divineFury", val = 1, what = "a Smite és a Holy Fire cast ideje rövidebb (mp)" }, partial = "a Heal és a Greater Heal" },
+    ["Divine Fury"] = { { key = "divineFury", val = 1, what = "shorter Smite and Holy Fire cast time (s)" }, partial = "Heal and Greater Heal" },
     ["Holy Nova"] = { reason = MULTI },
     ["Blessed Recovery"] = { reason = SURVIVAL },
     Inspiration = { reason = HEAL },
     ["Holy Reach"] = { reason = UTILITY },
     ["Improved Healing"] = { reason = HEAL },
-    ["Searing Light"] = { { key = "searing", val = 1, what = "holy sebzés %" }, partial = "az ingyen Holy Nova (mana)" },
+    ["Searing Light"] = { { key = "searing", val = 1, what = "holy damage %" }, partial = "the free Holy Nova (mana)" },
     ["Holy Binding"] = { reason = HEAL },
     ["Litany of Light"] = { reason = MANA },
     ["Spirit of Redemption"] = { reason = SURVIVAL },
-    ["Spiritual Guidance"] = { reason = "a spiritből jövő spell power: a modell nem olvassa a spiritet (a tárgyakét sem), a karakterlap spell powerét használja" },
+    ["Spiritual Guidance"] = { reason = "spell power from spirit: the model does not read spirit (nor the items'), it uses the character sheet's spell power" },
     ["Spiritual Healing"] = { reason = HEAL },
     ["Prayer of Mending"] = { reason = HEAL },
     -- Shadow
     ["Shadow Focus"] = { { key = "shadowHit", val = 1, what = "shadow hit %" } },
     Blackout = { reason = UTILITY },
     ["Spirit Tap"] = { reason = MANA },
-    ["Improved Mind Blast"] = { { key = "impMindBlast", val = 1, what = "a Mind Blast cooldownja rövidebb (mp)" } },
-    ["Improved Shadow Word: Pain"] = { reason = "a DoT hosszát a modell nem követi: a Shadow Word: Pain tickjeit a harcaidból méri" },
+    ["Improved Mind Blast"] = { { key = "impMindBlast", val = 1, what = "shorter Mind Blast cooldown (s)" } },
+    ["Improved Shadow Word: Pain"] = { reason = "the model does not follow DoT duration: it measures Shadow Word: Pain's ticks from your fights" },
     ["Shadow Reach"] = { reason = UTILITY },
     ["Improved Psychic Scream"] = { reason = UTILITY },
-    ["Mind Flay"] = { { key = "mindFlay", val = "rank", what = "képesség: a Mind Flay a töltelék a Smite helyett" } },
-    ["Improved Mind Flay"] = { { key = "impMindFlay", val = 1, what = "% több sebzés tickenként az előzőnél" } },
+    ["Mind Flay"] = { { key = "mindFlay", val = "rank", what = "ability: Mind Flay is the filler instead of Smite" } },
+    ["Improved Mind Flay"] = { { key = "impMindFlay", val = 1, what = "% more damage per tick than the previous one" } },
     ["Dark Inspiration"] = { reason = MANA },
     ["Vampiric Embrace"] = { reason = HEAL },
-    ["Shadow Weaving"] = { reason = "a halmozás a harc hosszától függ: az aura-idővonalból jön (WA-005)" },
+    ["Shadow Weaving"] = { reason = "the stacking depends on the fight's length: comes from the aura timeline (WA-005)" },
     Silence = { reason = UTILITY },
     ["Devouring Contagion"] = { reason = MULTI },
-    ["Early Demise"] = { reason = "csak 20% életerő alatti célponton: a modell nem bontja a harcot a célpont életereje szerint" },
-    Darkness = { { key = "darkness", val = 1, what = "shadow sebzés %" } },
-    Shadowform = { { key = "shadowformDmg", val = 1, what = "shadow sebzés % Shadowformban" }, { key = "shadowformCrit", val = 3, what = "shadow crit-bónusz %" },
-      partial = "a mana és a fizikai sebzés csökkentése" },
+    ["Early Demise"] = { reason = "only on targets under 20% health: the model does not split the fight by the target's health" },
+    Darkness = { { key = "darkness", val = 1, what = "shadow damage %" } },
+    Shadowform = { { key = "shadowformDmg", val = 1, what = "shadow damage % in Shadowform" }, { key = "shadowformCrit", val = 3, what = "shadow crit bonus %" },
+      partial = "reducing mana and physical damage" },
   },
   -- Druid (WA-032g): Cat Form (paw, builders, finishers and bleeds) or the caster (Wrath-sized
   -- casts, Moonkin Form), Druid.lua; bear talents go to the tank model, healing to the healer model.
   DRUID = {
     -- Feral Combat
-    Ferocity = { { key = "ferocity", val = 1, what = "a Claw és a Rake energiaköltsége kevesebb" }, partial = "a Maul és a Swipe (medve, több célpont)" },
-    Furor = { reason = "formaváltás: a modell nem számolja a formaváltást és a vele kapott rage-et vagy energiát" },
+    Ferocity = { { key = "ferocity", val = 1, what = "lower Claw and Rake energy cost" }, partial = "Maul and Swipe (bear, several targets)" },
+    Furor = { reason = "shapeshifting: the model does not count shapeshifting or the rage or energy it gives" },
     ["Feral Swiftness"] = { reason = SURVIVAL },
     ["Feral Instinct"] = { reason = MULTI },
     ["Brutal Impact"] = { reason = UTILITY },
     ["Thick Hide"] = { reason = SURVIVAL },
-    ["Shredding Attacks"] = { reason = "a Shred csak hátulról megy, a Lacerate medve: az építő képességek gyakoriságát a modell a harcaidból méri (WA-013b)" },
-    ["Savage Fury"] = { { key = "savage", val = 1, what = "Claw, Rake és Shred sebzés %" }, partial = "a Maul és a Swipe (medve)" },
+    ["Shredding Attacks"] = { reason = "Shred only works from behind, Lacerate is bear: the model measures how often the builders go from your fights (WA-013b)" },
+    ["Savage Fury"] = { { key = "savage", val = 1, what = "Claw, Rake and Shred damage %" }, partial = "Maul and Swipe (bear)" },
     ["Feral Charge"] = { reason = UTILITY },
-    ["Sharpened Claws"] = { { key = "sharpened", val = 1, what = "crit % formában", stat = { "crit" }, form = "cat" }, sheet = "Cat Formban olvasva a karakterlap már tartalmazza; más formában olvasva a modell hozzáadja" },
-    ["Predatory Strikes"] = { { key = "predatory", val = 1, what = "a szinted %-a attack powerként formában", stat = { "ap" }, form = "cat", scale = "level" }, sheet = "a Cat Formban olvasott attack power már tartalmazza; becsült attack powerhez a modell hozzáadja" },
+    ["Sharpened Claws"] = { { key = "sharpened", val = 1, what = "crit % in form", stat = { "crit" }, form = "cat" }, sheet = "read in Cat Form, the character sheet already includes it; read in another form, the model adds it" },
+    ["Predatory Strikes"] = { { key = "predatory", val = 1, what = "% of your level as attack power in form", stat = { "ap" }, form = "cat", scale = "level" }, sheet = "attack power read in Cat Form already includes it; the model adds it to estimated attack power" },
     Lacerate = { reason = BEAR },
-    ["Predatory Discipline"] = { reason = "a Ferocious Bite sebzését a modell a harcaidból méri (finisherek); az energia a rotációs ticketben jön (WA-013b)" },
-    ["Blood Frenzy"] = { reason = "a finisherek gyakoriságát a modell a harcaidból méri; a combo pontok a rotációs ticketben jönnek (WA-013b)" },
-    ["Leader of the Pack"] = { { key = "lotp", val = 2, what = "crit % formában (aura)", stat = { "crit" }, form = "cat" }, sheet = "Cat Formban olvasva a karakterlap már tartalmazza; más formában olvasva a modell hozzáadja" },
-    ["Natural Instinct"] = { { key = "natInst", val = 1, what = "a képességek crit-bónusza %" }, partial = "az intellectből jövő gyógyítás" },
-    ["Rend and Tear"] = { reason = "a célpont vérzésének idejét a modell nem követi; az aura-idővonalból jön (WA-005)" },
+    ["Predatory Discipline"] = { reason = "the model measures Ferocious Bite's damage from your fights (finishers); energy comes in the rotation ticket (WA-013b)" },
+    ["Blood Frenzy"] = { reason = "the model measures how often finishers go from your fights; combo points come in the rotation ticket (WA-013b)" },
+    ["Leader of the Pack"] = { { key = "lotp", val = 2, what = "crit % in form (aura)", stat = { "crit" }, form = "cat" }, sheet = "read in Cat Form, the character sheet already includes it; read in another form, the model adds it" },
+    ["Natural Instinct"] = { { key = "natInst", val = 1, what = "ability crit bonus %" }, partial = "healing from intellect" },
+    ["Rend and Tear"] = { reason = "the model does not follow the target's bleed duration; it comes from the aura timeline (WA-005)" },
     ["Natural Reaction"] = { reason = SURVIVAL },
     ["Primal Bite"] = { reason = BEAR },
     ["Shifting Power"] = { reason = MANA },
     -- Restoration
     ["Nature's Focus"] = { reason = PUSHBACK },
-    ["Heart of the Wild"] = { { key = "hotwInt", val = 1, what = "intellect %" }, { key = "hotwStr", val = 3, what = "strength % Cat Formban" }, partial = "a medve staminája (tankmodell)" },
-    Naturalist = { { key = "naturalist", val = 2, what = "minden sebzés %" }, partial = "a Healing Touch cast ideje" },
+    ["Heart of the Wild"] = { { key = "hotwInt", val = 1, what = "intellect %" }, { key = "hotwStr", val = 3, what = "strength % in Cat Form" }, partial = "the bear's stamina (tank model)" },
+    Naturalist = { { key = "naturalist", val = 2, what = "all damage %" }, partial = "Healing Touch's cast time" },
     Reflection = { reason = MANA },
     ["Natural Shapeshifter"] = { reason = MANA },
     Subtlety = { reason = THREAT },
@@ -610,52 +610,52 @@ T.EFFECTS = {
     ["Improved Rejuvenation"] = { reason = HEAL },
     Swiftmend = { reason = HEAL },
     ["Nature's Swiftness"] = { reason = COOLDOWN("WA-013a") },
-    ["Living Spirit"] = { reason = "spirit: a mana-visszatöltést növeli; a modell nem számolja a manát" },
+    ["Living Spirit"] = { reason = "spirit: raises mana regeneration; the model does not count mana" },
     ["Improved Tranquility"] = { reason = HEAL },
     ["Improved Regrowth"] = { reason = HEAL },
     ["Wild Growth"] = { reason = HEAL },
     -- Balance
-    ["Starlight Wrath"] = { reason = "a varázslatok gyakoriságát a modell a harcaidból méri; a rövidebb cast idő a rotációs ticketben jön (WA-013a)" },
-    Genesis = { reason = "a periodikus sebzést (DoT, vérzés) a modell a harcaidból méri (finisherek, egyéb források), külön nem számolja" },
+    ["Starlight Wrath"] = { reason = "the model measures how often spells go from your fights; the shorter cast time comes in the rotation ticket (WA-013a)" },
+    Genesis = { reason = "the model measures periodic damage (DoT, bleed) from your fights (finishers, other sources), it does not count it separately" },
     Moonglow = { reason = MANA },
-    ["Moon and Stars"] = { reason = ROTATION("Moonfire (a varázslatokat a modell együtt méri)", "WA-013a") },
-    ["Nature's Majesty"] = { { key = "majesty", val = 1, what = "crit %", stat = { "crit", "spellCrit" } }, sheet = "a játék közelharci és spell critje már tartalmazza" },
-    ["Nature's Reach"] = { { key = "reachHit", val = 2, what = "hit %", stat = { "hit", "spellHit" } }, sheet = "a játék hit-módosítói (GetHitModifier, GetSpellHitModifier) már tartalmazzák", partial = "a hatótáv" },
+    ["Moon and Stars"] = { reason = ROTATION("Moonfire (the model measures spells together)", "WA-013a") },
+    ["Nature's Majesty"] = { { key = "majesty", val = 1, what = "crit %", stat = { "crit", "spellCrit" } }, sheet = "the game's melee and spell crit already include it" },
+    ["Nature's Reach"] = { { key = "reachHit", val = 2, what = "hit %", stat = { "hit", "spellHit" } }, sheet = "the game's hit modifiers (GetHitModifier, GetSpellHitModifier) already include it", partial = "the range" },
     ["Improved Entangling Roots"] = { reason = UTILITY },
-    ["Nature's Splendor"] = { reason = "a DoT-ok hosszát a modell nem követi (a periodikus sebzést a harcaidból méri)" },
+    ["Nature's Splendor"] = { reason = "the model does not follow DoT durations (it measures periodic damage from your fights)" },
     ["Insect Swarm"] = { reason = ROTATION("Insect Swarm", "WA-013a") },
-    Vengeance = { { key = "vengeance", val = 1, what = "arcane és nature crit-bónusz %" } },
+    Vengeance = { { key = "vengeance", val = 1, what = "arcane and nature crit bonus %" } },
     ["Improved Starfire"] = { reason = UTILITY },
     Overgrowth = { reason = UTILITY },
-    ["Nature's Grace"] = { reason = "a varázslatok gyakoriságát a modell a harcaidból méri; a crit utáni gyorsítás a rotációs ticketben jön (WA-013a)" },
-    Eclipse = { { key = "eclipse", val = 1, what = "Wrath crit %" }, partial = "a Starfire rövidebb cast ideje (rotáció, WA-013a)" },
+    ["Nature's Grace"] = { reason = "the model measures how often spells go from your fights; the haste after a crit comes in the rotation ticket (WA-013a)" },
+    Eclipse = { { key = "eclipse", val = 1, what = "Wrath crit %" }, partial = "Starfire's shorter cast time (rotation, WA-013a)" },
     Dreamstate = { reason = MANA },
-    ["Moonkin Form"] = { { key = "moonkinDmg", val = 1, what = "arcane és nature sebzés % Moonkin Formban" }, { key = "moonkinCrit", val = 5, what = "crit % (aura)", stat = { "spellCrit" }, form = "moonkin" },
-      sheet = "a crit-aurát Moonkin Formban olvasva a karakterlap már tartalmazza; más formában olvasva a modell hozzáadja", partial = "a páncél és az Omen of Clarity" },
+    ["Moonkin Form"] = { { key = "moonkinDmg", val = 1, what = "arcane and nature damage % in Moonkin Form" }, { key = "moonkinCrit", val = 5, what = "crit % (aura)", stat = { "spellCrit" }, form = "moonkin" },
+      sheet = "read in Moonkin Form, the character sheet already includes the crit aura; read in another form, the model adds it", partial = "armor and Omen of Clarity" },
   },
   -- Shaman (WA-032f): melee with an imbue, Stormstrike, shocks, Lightning Bolt and totems
   -- (Shaman.lua); healing talents go to the healer model.
   SHAMAN = {
     -- Elemental
     Convection = { reason = MANA },
-    Concussion = { { key = "concussion", val = 1, what = "Lightning Bolt és Earth Shock sebzés %" }, partial = "a Chain Lightning része (több célpont)" },
-    ["Elemental Devastation"] = { reason = "a közelharci crit-proc fenntartási ideje az aura-idővonalból jön (WA-005)" },
-    Reverberation = { reason = "a shockok gyakoriságát a modell a harcaidból méri; a rövidebb cooldown a rotációs ticketben jön (WA-012a)" },
-    ["Elemental Alacrity"] = { reason = "a Lightning Bolt gyakoriságát a modell a harcaidból méri; a rövidebb cast idő a rotációs ticketben jön (WA-012a)" },
-    ["Call of Flame"] = { { key = "callFlame", val = 1, what = "tűztotemek és Flame Shock sebzés %" }, partial = "a Fire Nova (több célpont) és a hosszabb Flame Shock" },
+    Concussion = { { key = "concussion", val = 1, what = "Lightning Bolt and Earth Shock damage %" }, partial = "the Chain Lightning part (several targets)" },
+    ["Elemental Devastation"] = { reason = "the melee crit proc's uptime comes from the aura timeline (WA-005)" },
+    Reverberation = { reason = "the model measures how often shocks go from your fights; the shorter cooldown comes in the rotation ticket (WA-012a)" },
+    ["Elemental Alacrity"] = { reason = "the model measures how often Lightning Bolt goes from your fights; the shorter cast time comes in the rotation ticket (WA-012a)" },
+    ["Call of Flame"] = { { key = "callFlame", val = 1, what = "fire totem and Flame Shock damage %" }, partial = "Fire Nova (several targets) and the longer Flame Shock" },
     ["Elemental Focus"] = { reason = MANA },
     ["Elemental Warding"] = { reason = SURVIVAL },
     ["Trial by Fire"] = { reason = MULTI },
     ["Eye of the Storm"] = { reason = PUSHBACK },
     Earthbound = { reason = UTILITY },
     ["Elemental Reach"] = { reason = UTILITY },
-    ["Call of Thunder"] = { { key = "callThunder", val = 1, what = "Lightning Bolt crit %" }, partial = "a Chain Lightning része (több célpont)" },
-    ["Lightning Overload"] = { { key = "overload", val = 1, what = "% esély egy második, fél sebzésű Lightning Boltra" }, partial = "a Chain Lightning része (több célpont)" },
-    ["Elemental Fury"] = { { key = "fury", val = 1, what = "spell crit-sebzés bónusz %" }, partial = "a Searing és a Magma Totem critje (a totemek sebzését a modell a harcaidból méri)" },
+    ["Call of Thunder"] = { { key = "callThunder", val = 1, what = "Lightning Bolt crit %" }, partial = "the Chain Lightning part (several targets)" },
+    ["Lightning Overload"] = { { key = "overload", val = 1, what = "% chance of a second Lightning Bolt at half damage" }, partial = "the Chain Lightning part (several targets)" },
+    ["Elemental Fury"] = { { key = "fury", val = 1, what = "spell crit damage bonus %" }, partial = "Searing and Magma Totem crit (the model measures totem damage from your fights)" },
     ["Lightning Mastery"] = { reason = COOLDOWN("WA-012a") },
     -- Restoration
     ["Improved Healing Wave"] = { reason = HEAL },
-    ["Tidal Focus"] = { { key = "tidalHit", val = 2, what = "hit %", stat = { "hit", "spellHit" } }, sheet = "a játék hit-módosítói (GetHitModifier, GetSpellHitModifier) már tartalmazzák", partial = "a gyógyítás mana-költsége" },
+    ["Tidal Focus"] = { { key = "tidalHit", val = 2, what = "hit %", stat = { "hit", "spellHit" } }, sheet = "the game's hit modifiers (GetHitModifier, GetSpellHitModifier) already include it", partial = "healing mana cost" },
     Mindfulness = { reason = MANA },
     ["Natural Grace"] = { reason = THREAT },
     ["Totemic Focus"] = { reason = MANA },
@@ -672,26 +672,26 @@ T.EFFECTS = {
     Riptide = { reason = HEAL },
     -- Enhancement
     ["Earth's Grasp"] = { reason = UTILITY },
-    ["Thundering Strikes"] = { { key = "thundering", val = 1, what = "crit %", stat = { "crit", "spellCrit" } }, sheet = "a játék közelharci és spell critje már tartalmazza" },
+    ["Thundering Strikes"] = { { key = "thundering", val = 1, what = "crit %", stat = { "crit", "spellCrit" } }, sheet = "the game's melee and spell crit already include it" },
     ["Ancestral Knowledge"] = { { key = "ancestral", val = 1, what = "intellect %" } },
     ["Guardian Totems"] = { reason = SURVIVAL },
-    ["Mental Dexterity"] = { { key = "mentalDex", val = 1, what = "intellect %-a attack powerként", stat = { "ap" }, scale = "int" }, sheet = "a játék attack powere már tartalmazza; a tárgyak intellectjét a modell attack powerként is számolja" },
-    ["Improved Lightning Shield"] = { reason = "a Lightning Shield sebzését a modell a harcaidból méri (egyéb források), külön nem számolja" },
+    ["Mental Dexterity"] = { { key = "mentalDex", val = 1, what = "% of intellect as attack power", stat = { "ap" }, scale = "int" }, sheet = "the game's attack power already includes it; the model also counts the items' intellect as attack power" },
+    ["Improved Lightning Shield"] = { reason = "the model measures Lightning Shield's damage from your fights (other sources), it does not count it separately" },
     ["Elemental Weapons"] = { { key = "elemRockbiter", val = 1, what = "Rockbiter AP %" },
-      { key = "elemWindfury", val = 2, what = "Windfury %" }, { key = "elemFlametongue", val = 3, what = "Flametongue/Frostbrand sebzés %" } },
+      { key = "elemWindfury", val = 2, what = "Windfury %" }, { key = "elemFlametongue", val = 3, what = "Flametongue/Frostbrand damage %" } },
     ["Shamanistic Focus"] = { reason = MANA },
     Anticipation = { reason = SURVIVAL },
     Toughness = { reason = SURVIVAL },
-    Flurry = { { key = "flurry", val = 1, what = "támadási sebesség % a crit utáni 3 ütésre" } },
-    Stormstrike = { { key = "stormstrike", val = "rank", what = "képesség" } },
+    Flurry = { { key = "flurry", val = 1, what = "attack speed % for the 3 swings after a crit" } },
+    Stormstrike = { { key = "stormstrike", val = "rank", what = "ability" } },
     ["Improved Ghost Wolf"] = { reason = UTILITY },
     ["Spirit Weapons"] = { reason = THREAT },
-    ["Mental Quickness"] = { { key = "mentalQuick", val = 1, what = "intellect %-a spell powerként" }, sheet = "a modell a játék spell powerét használja; a tárgyak intellectjét spell powerként is számolja" },
-    ["Improved Stormstrike"] = { reason = "a Stormstrike gyakoriságát a modell a harcaidból méri; a mana és a cooldown visszaállása a rotációs ticketben jön (WA-012b)" },
-    ["Maelstrom Weapon"] = { reason = ROTATION("Maelstrom Weapon (rövidebb Lightning Bolt)", "WA-012b") },
+    ["Mental Quickness"] = { { key = "mentalQuick", val = 1, what = "% of intellect as spell power" }, sheet = "the model uses the game's spell power; it also counts the items' intellect as spell power" },
+    ["Improved Stormstrike"] = { reason = "the model measures how often Stormstrike goes from your fights; mana and the cooldown reset come in the rotation ticket (WA-012b)" },
+    ["Maelstrom Weapon"] = { reason = ROTATION("Maelstrom Weapon (shorter Lightning Bolt)", "WA-012b") },
     ["Rage of the Farseer"] = { reason = COOLDOWN("WA-012b") },
     -- Classic only (Forever's trees do not have it): the two-hand gate in Shaman.lua
-    ["Two-Handed Axes and Maces"] = { { key = "twoHand", val = "rank", what = "kétkezes fejsze és buzogány" } },
+    ["Two-Handed Axes and Maces"] = { { key = "twoHand", val = "rank", what = "two-handed axes and maces" } },
   },
 }
 
@@ -717,21 +717,21 @@ function T.Effects(class, ranks)
       local list = eff[r.name]
       local st = { name = r.name, rank = r.rank, max = r.max }
       if data and not d then
-        st.reason = "nincs a Wowhead Forever adatában"
+        st.reason = "not in Wowhead Forever's data"
       elseif not list then
-        st.reason = ("a modell még nem számol vele (%s)"):format(T.TICKET[class or ""] or "WA-032")
+        st.reason = ("the model does not count it yet (%s)"):format(T.TICKET[class or ""] or "WA-032")
       elseif list.reason then
         st.reason = list.reason
       elseif not data then
-        st.reason = "a talentadat (TalentData.lua) hiányzik"
+        st.reason = "the talent data (TalentData.lua) is missing"
       elseif r.max and r.max > 0 and r.max ~= d.max then
-        st.reason = ("a játék %d, az adat %d rangot ismer"):format(r.max, d.max)
+        st.reason = ("the game knows %d ranks, the data %d"):format(r.max, d.max)
       else
         local vals = d.vals and d.vals[math.min(r.rank, d.max)] or {}
         local got = {}
         for _, x in ipairs(list) do
           local v = x.val == "rank" and r.rank or vals[x.val]
-          if v == nil then st.reason = "a rang szövegében nincs meg a szám" break end
+          if v == nil then st.reason = "the number is not in the rank's text" break end
           got[#got + 1] = { key = x.key, value = v, what = x.what }
         end
         if not st.reason then
@@ -869,7 +869,7 @@ function T.Values(class, input, build, unspent)
     local available = rank < d.max and (treePts[d.tree] or 0) >= (d.reqPoints or 0) and reqOk
     if rank > 0 or available then
       local row = { name = d.name, rank = rank, max = d.max, tree = d.tree, available = available,
-        counted = e ~= nil and not e.reason, reason = e and e.reason or (not e and ("a modell még nem számol vele (%s)"):format(T.TICKET[class] or "WA-032")) or nil }
+        counted = e ~= nil and not e.reason, reason = e and e.reason or (not e and ("the model does not count it yet (%s)"):format(T.TICKET[class] or "WA-032")) or nil }
       if row.counted then
         if rank > 0 then
           local without = build(T.Variant(class, input, { [d.name] = 0 }))
@@ -888,7 +888,7 @@ function T.Values(class, input, build, unspent)
         -- a sheet talent whose sheet part is not in an input field: the model cannot take it off
         local broken = false
         for _, x in ipairs(e) do if x.stat or x.gap then broken = true end end
-        if e.sheet and not broken then row.note = "a karakterlapon lévő részét a modell nem bontja ki, ezért az érték kisebb a valódinál" end
+        if e.sheet and not broken then row.note = "the model does not separate out the part already on the character sheet, so the value is lower than the real one" end
       end
       out.rows[#out.rows + 1] = row
       -- the best next point: only one that adds DPS (+0 says nothing)
@@ -988,17 +988,17 @@ T.TabPoints = TabPoints
 function T.PlanCheck(pt, ranks, total)
   local out = {}
   local spent = T.PlanSpent(pt, ranks)
-  if total and spent > total then out[#out + 1] = ("%d pont van a tervben, de csak %d pontod van"):format(spent, total) end
+  if total and spent > total then out[#out + 1] = ("the plan has %d points, but you only have %d"):format(spent, total) end
   for _, tab in ipairs(pt.tabs) do
     for _, x in ipairs(tab.talents) do
       local r = ranks[x.name] or 0
       if r > 0 then
-        if r > x.max then out[#out + 1] = ("%s: legfeljebb %d rang"):format(x.name, x.max) end
+        if r > x.max then out[#out + 1] = ("%s: at most %d ranks"):format(x.name, x.max) end
         if TabPoints(tab, ranks, x.tier) < x.reqPoints then
-          out[#out + 1] = ("%s: %d pont kell alatta a(z) %s fában"):format(x.name, x.reqPoints, tab.name)
+          out[#out + 1] = ("%s: needs %d points above it in the %s tree"):format(x.name, x.reqPoints, tab.name)
         end
         if x.req and (ranks[x.req] or 0) < (x.reqRank or 1) then
-          out[#out + 1] = ("%s: előtte %s %d rang kell"):format(x.name, x.req, x.reqRank or 1)
+          out[#out + 1] = ("%s: needs %s rank %d first"):format(x.name, x.req, x.reqRank or 1)
         end
       end
     end
@@ -1010,12 +1010,12 @@ end
 -- read from a client that differs from the data may break one already). -> new ranks, or nil and why.
 local function Change(pt, ranks, name, step, total)
   local x = pt.byName[name]
-  if not x then return nil, "nincs ilyen talent: " .. tostring(name) end
+  if not x then return nil, "no such talent: " .. tostring(name) end
   local new = {}
   for k, v in pairs(ranks) do new[k] = v end
   local r = (new[name] or 0) + step
-  if r < 0 then return nil, name .. ": nincs benne pont" end
-  if r > x.max then return nil, ("%s: már %d/%d"):format(name, x.max, x.max) end
+  if r < 0 then return nil, name .. ": no points in it" end
+  if r > x.max then return nil, ("%s: already %d/%d"):format(name, x.max, x.max) end
   new[name] = r > 0 and r or nil
   local before = {}
   for _, m in ipairs(T.PlanCheck(pt, ranks, total)) do before[m] = true end
@@ -1063,7 +1063,7 @@ function T.PlanValue(class, input, build, ranks, free)
       c.value = build(T.Variant(class, input, { [name] = to })).baseline - out.now
       c.source = d and ("Wowhead Forever: " .. (T.RankText(d, math.max(1, math.min(math.max(to, c.from), d.max))) or "")) or nil
     else
-      c.reason = e and e.reason or ("a modell még nem számol vele (%s)"):format(T.TICKET[class or ""] or "WA-032")
+      c.reason = e and e.reason or ("the model does not count it yet (%s)"):format(T.TICKET[class or ""] or "WA-032")
     end
     out.changes[#out.changes + 1] = c
   end
@@ -1091,15 +1091,15 @@ end
 -- A shared plan back: its ranks, or nil and why (another class, a tree too long, a broken rule).
 function T.PlanImport(class, pt, text, total)
   local cls, body = tostring(text or ""):match("^%s*Waystone:(%u+):([%d%-]*)%s*$")
-  if not cls then return nil, "ez nem Waystone-terv (Waystone:KASZT:számok)" end
-  if cls ~= class then return nil, ("ez egy %s terv, a karaktered %s"):format(cls, tostring(class)) end
+  if not cls then return nil, "this is not a Waystone plan (Waystone:CLASS:digits)" end
+  if cls ~= class then return nil, ("this is a %s plan, your character is %s"):format(cls, tostring(class)) end
   local ranks, i = {}, 0
   for part in (body .. "-"):gmatch("([%d]*)%-") do
     i = i + 1
     local tab = pt.tabs[i]
-    if not tab then if part ~= "" then return nil, "több fa van benne, mint a kasztodnak" end
+    if not tab then if part ~= "" then return nil, "it has more trees than your class" end
     else
-      if #part > #tab.talents then return nil, ("a(z) %s fában több talent van benne, mint a fában"):format(tab.name) end
+      if #part > #tab.talents then return nil, ("it has more talents in the %s tree than the tree has"):format(tab.name) end
       for j = 1, #part do
         local r = tonumber(part:sub(j, j))
         if r > 0 then ranks[tab.talents[j].name] = r end
@@ -1136,7 +1136,7 @@ function T.PlanDelete(i)
   if list[i] then table.remove(list, i) end
 end
 
-local function F2(n) return (("%.2f"):format(n):gsub("%.", ",")) end
+local function F2(n) return ("%.2f"):format(n) end
 local function Signed(n) return (n >= 0 and "+" or "−") .. F2(math.abs(n)) end
 T.F2, T.Signed = F2, Signed
 
@@ -1145,23 +1145,23 @@ local function Report()
   local tree = T.ReadTree()
   local data = T.Data(class)
   if #tree.tabs == 0 then
-    WA.Print("A játék nem adott talentfát (a kliens talent-API-ja nem elérhető).")
+    WA.Print("The game gave no talent tree (the client's talent API is not available).")
     return
   end
   local m = T.Match(tree, data)
-  WA.Print(("Talentek: %d elköltött pont%s, %d. szint."):format(tree.spent,
-    tree.unspent and (", " .. tree.unspent .. " szabad") or "", tree.level))
+  WA.Print(("Talents: %d points spent%s, level %d."):format(tree.spent,
+    tree.unspent and (", " .. tree.unspent .. " free") or "", tree.level))
   for tab, t in ipairs(tree.tabs) do
     local x = m.tabs[tab]
     local where = ""
     if data and x and x.count > 0 then
-      where = x.tree and (" · Wowhead Forever: %s fa, %d/%d talent egyezik"):format(x.tree.name, x.matched, x.count)
-        or (" · a Wowhead Forever adatában nincs meg (%d talent)"):format(x.count)
+      where = x.tree and (" · Wowhead Forever: %s tree, %d/%d talents match"):format(x.tree.name, x.matched, x.count)
+        or (" · not in Wowhead Forever's data (%d talents)"):format(x.count)
     end
-    WA.Print(("  %d. %s: %d pont%s"):format(tab, t.name, t.points, where))
+    WA.Print(("  %d. %s: %d points%s"):format(tab, t.name, t.points, where))
     if x then
-      for i = 1, math.min(5, #x.missing) do WA.Print("    nincs az adatban: " .. x.missing[i]) end
-      for i = 1, math.min(5, #x.differs) do WA.Print("    eltér: " .. x.differs[i]) end
+      for i = 1, math.min(5, #x.missing) do WA.Print("    not in the data: " .. x.missing[i]) end
+      for i = 1, math.min(5, #x.differs) do WA.Print("    differs: " .. x.differs[i]) end
     end
   end
   -- what the model does with them: the counted talents with their numbers, the rest with the reason
@@ -1179,24 +1179,24 @@ local function Report()
       values = v
       values.byName = {}
       for _, row in ipairs(values.rows) do values.byName[row.name] = row end
-      WA.Print(("A modell DPS-e a mostani gearrel és talentekkel: %s."):format(F2(values.baseline)))
+      WA.Print(("The model's DPS with your current gear and talents: %s."):format(F2(values.baseline)))
     else
-      WA.Print("A talentérték most nem számolható: " .. tostring(v))
+      WA.Print("Talent values cannot be computed now: " .. tostring(v))
     end
   end
   if #e.status > 0 then
-    WA.Print(("A modell számolt talentjei: %d, még nem számolt: %d."):format(e.counted, e.uncounted))
+    WA.Print(("Talents the model counts: %d, not counted yet: %d."):format(e.counted, e.uncounted))
     for _, st in ipairs(e.status) do
       if st.counted then
         local bits = {}
         for _, v in ipairs(st.values) do bits[#bits + 1] = ("%s %s"):format(v.what, tostring(v.value)) end
         local note = st.sheet and (" (" .. st.sheet .. ")") or ""
-        if st.partial then note = note .. "; nem számolt: " .. st.partial end
-        WA.Print(("    számolt: %s %d/%d · %s%s"):format(st.name, st.rank, st.max or st.rank, table.concat(bits, ", "), note))
+        if st.partial then note = note .. "; not counted: " .. st.partial end
+        WA.Print(("    counted: %s %d/%d · %s%s"):format(st.name, st.rank, st.max or st.rank, table.concat(bits, ", "), note))
         local row = values and values.byName[st.name]
         if row and row.now then
-          WA.Print(("      most %s DPS (%s%%)%s%s"):format(Signed(row.now), Signed(row.nowPct),
-            row.next and (", a következő pont %s DPS (%s%%)"):format(Signed(row.next), Signed(row.nextPct)) or ", teljes",
+          WA.Print(("      now %s DPS (%s%%)%s%s"):format(Signed(row.now), Signed(row.nowPct),
+            row.next and (", the next point %s DPS (%s%%)"):format(Signed(row.next), Signed(row.nextPct)) or ", maxed",
             row.note and (" · " .. row.note) or ""))
           for _, w in ipairs(row.weights or {}) do
             WA.Print(("      %s: %s → %s DPS / %d"):format(w.label, F2(w.without), F2(w.with), w.per))
@@ -1208,24 +1208,24 @@ local function Report()
     for _, st in ipairs(e.status) do
       if not st.counted and shown < 5 then
         shown = shown + 1
-        WA.Print(("    nem számolt: %s · %s"):format(st.name, st.reason))
+        WA.Print(("    not counted: %s · %s"):format(st.name, st.reason))
       end
     end
-    if e.uncounted > shown then WA.Print(("    … és még %d nem számolt talent"):format(e.uncounted - shown)) end
-    WA.Print("    (a nem számolt talentek érték nélkül, a hatásukkal szerepelnek: a tank- és gyógyítómodell még nincs kész)")
+    if e.uncounted > shown then WA.Print(("    … and %d more talents not counted"):format(e.uncounted - shown)) end
+    WA.Print("    (talents not counted are listed with their effect but no value: the tank and healer models are not done yet)")
   end
   if values and values.best then
     local b = values.best
-    WA.Print(("A legtöbbet érő következő pont most: %s %d/%d → %d/%d, %s DPS (%s%%)%s. Forrás: %s.")
+    WA.Print(("The most valuable next point now: %s %d/%d → %d/%d, %s DPS (%s%%)%s. Source: %s.")
       :format(b.name, b.rank, b.max, b.rank + 1, b.max, Signed(b.next), Signed(b.nextPct),
-        (values.unspent or 0) > 0 and "" or " (most nincs szabad pontod)", b.nextSource or "?"))
+        (values.unspent or 0) > 0 and "" or " (you have no free point now)", b.nextSource or "?"))
   end
   if not data then
-    WA.Print("A talentadat (TalentData.lua) hiányzik: node scripts/build-talents.mjs --install")
+    WA.Print("The talent data (TalentData.lua) is missing: node scripts/build-talents.mjs --install")
   else
-    WA.Print(("Adat: Wowhead Forever talent-kalkulátor, letöltve %s."):format(_G.WowAssistantTalents.fetched or "?"))
+    WA.Print(("Data: Wowhead Forever talent calculator, downloaded %s."):format(_G.WowAssistantTalents.fetched or "?"))
   end
 end
 T.Report = Report
 
-if WA.Command then WA.Command("talent", Report, "/wa talent – a talentfáid, a pontjaid, és hogy a Wowhead Forever adata egyezik-e a játékkal") end
+if WA.Command then WA.Command("talent", Report, "/wa talent – your talent trees, your points, and whether Wowhead Forever's data matches the game") end

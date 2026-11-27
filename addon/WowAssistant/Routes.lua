@@ -74,8 +74,8 @@ function Routes.Plan(input)
       local notes = {}
       for _, rank in ipairs(Routes.RANKS) do
         if rank.cap > cap and rank.cap - 75 < target then
-          notes[#notes + 1] = ("%s rang (%d-ig): %d-es skilltől tanulható, %sg a trainernél."):format(rank.name, rank.cap, rank.trainAt, Money2(rank.cost)) ..
-            ((rank.name == "Artisan" and (input.level or 0) < 35) and " Classic alapján 35-ös szint kell hozzá (nem ellenőrzött)." or "")
+          notes[#notes + 1] = ("%s rank (up to %d): learnable from skill %d, %sg at the trainer."):format(rank.name, rank.cap, rank.trainAt, Money2(rank.cost)) ..
+            ((rank.name == "Artisan" and (input.level or 0) < 35) and " Per Classic it needs level 35 (not verified)." or "")
         end
       end
 
@@ -108,8 +108,8 @@ function Routes.Plan(input)
       if #unpriced > 0 then
         local first = {}
         for i = 1, math.min(8, #unpriced) do first[i] = unpriced[i] end
-        notes[#notes + 1] = "Ár nélküli (ezért kihagyott) ismert receptek: " .. table.concat(first, ", ") ..
-          (#unpriced > 8 and (" és még " .. (#unpriced - 8)) or "") .. "."
+        notes[#notes + 1] = "Known recipes without a price (so skipped): " .. table.concat(first, ", ") ..
+          (#unpriced > 8 and (" plus " .. (#unpriced - 8)) or "") .. "."
       end
 
       -- Cheapest recipe for every skill point with the recipes available so far.

@@ -242,15 +242,15 @@ end
 -- Only log fights count: the live meter's fights record casts too, but their duration comes from
 -- the meter session and their cast times from the combat clock, which need not line up.
 C.COOLDOWNS = {
-  { name = "Shank", cd = 10, source = "Wowhead Forever spell=1329283 (10 mp; mellékkéz-fegyver kell)" },
-  { name = "Blade Flurry", cd = 120, source = "Wowhead Forever spell=13877 (2 perc)" },
-  { name = "Kidney Shot", cd = 20, source = "Wowhead Forever spell=408 (20 mp)" },
-  { name = "Arcane Shot", cd = 6, source = "Wowhead Forever spell=3044 (6 mp)" },
+  { name = "Shank", cd = 10, source = "Wowhead Forever spell=1329283 (10 s; needs an off-hand weapon)" },
+  { name = "Blade Flurry", cd = 120, source = "Wowhead Forever spell=13877 (2 min)" },
+  { name = "Kidney Shot", cd = 20, source = "Wowhead Forever spell=408 (20 s)" },
+  { name = "Arcane Shot", cd = 6, source = "Wowhead Forever spell=3044 (6 s)" },
   { name = "Shock", cd = 6, spells = { ["Earth Shock"] = true, ["Flame Shock"] = true, ["Frost Shock"] = true },
-    source = "Wowhead Forever spell=8042 (6 mp, a három shock közös cooldownja: WoWSims Forever d5144855 sim/shaman/shocks.go)" },
-  { name = "Stormstrike", cd = 8, source = "Wowhead Forever spell=17364 (8 mp)" },
+    source = "Wowhead Forever spell=8042 (6 s, the three shocks' shared cooldown: WoWSims Forever d5144855 sim/shaman/shocks.go)" },
+  { name = "Stormstrike", cd = 8, source = "Wowhead Forever spell=17364 (8 s)" },
 }
-C.CD_METHOD = "WoWAnalyzer CastEfficiency (19e94d2d), normál cooldownos ág"
+C.CD_METHOD = "WoWAnalyzer CastEfficiency (19e94d2d), normal cooldown branch"
 
 -- usage for one ability over fights (any order); each fight { start, dur, casts = {{t*10, name}, ...} }
 function C.CooldownUse(fights, spec)
@@ -315,23 +315,23 @@ C.SIM_SOURCE = "WoWSims Forever d5144855 sim/register_all.go"
 C.CLASS_MODELS = {
   DRUID = { name = "Druid", waystone = true, tabs = { { "Balance", "Alpha" }, { "Feral (Cat, Bear)", "Alpha" }, { "Restoration", "GearPlanner" } } },
   HUNTER = { name = "Hunter", waystone = true, tabs = { { "Beast Mastery", "Alpha" }, { "Marksmanship", "Alpha" }, { "Survival", "Alpha" } },
-    shared = "egy közös Hunter-modul" },
-  MAGE = { name = "Mage", waystone = true, tabs = { { "Arcane", "Alpha" }, { "Fire", "Alpha" }, { "Frost", "Alpha" } }, shared = "egy közös Mage-modul" },
+    shared = "one shared Hunter module" },
+  MAGE = { name = "Mage", waystone = true, tabs = { { "Arcane", "Alpha" }, { "Fire", "Alpha" }, { "Frost", "Alpha" } }, shared = "one shared Mage module" },
   PALADIN = { name = "Paladin", waystone = true, tabs = { { "Holy", "GearPlanner" }, { "Protection", "Alpha" }, { "Retribution", "Alpha" } },
-    note = "Retribution: a DPS-modell; Holy: gyógyító, Protection: tank súlyok az enchantnál" },
+    note = "Retribution: the DPS model; Holy: healer, Protection: tank weights for enchants" },
   PRIEST = { name = "Priest", waystone = true, tabs = { { "Discipline", "GearPlanner" }, { "Holy", "GearPlanner" }, { "Shadow", "Alpha" } },
-    note = "Discipline és Holy: a gyógyító (Healer) modell; Shadow: a DPS-modell" },
+    note = "Discipline and Holy: the healer model; Shadow: the DPS model" },
   ROGUE = { name = "Rogue", waystone = true, tabs = { { "Assassination", "Alpha" }, { "Combat", "Alpha" }, { "Subtlety", "Alpha" } },
-    shared = "egy közös Rogue-modul" },
+    shared = "one shared Rogue module" },
   SHAMAN = { name = "Shaman", waystone = true, tabs = { { "Elemental", "Alpha" }, { "Enhancement", "Alpha" }, { "Restoration", "GearPlanner" } } },
   WARLOCK = { name = "Warlock", waystone = true, tabs = { { "Affliction", "Alpha" }, { "Demonology", "Alpha" }, { "Destruction", "Alpha" } },
-    shared = "egy közös Warlock-modul" },
+    shared = "one shared Warlock module" },
   WARRIOR = { name = "Warrior", waystone = true, tabs = { { "Arms", "Alpha" }, { "Fury", "Alpha" }, { "Protection", "Alpha" } },
-    note = "Arms és Fury: a DPS-modell; Protection: a tank-modell" },
+    note = "Arms and Fury: the DPS model; Protection: the tank model" },
 }
 C.SIM_STATUS_TEXT = {
-  Alpha = "Alpha: közösségi modell, DPS-referencia számolható (60-as szinten)",
-  GearPlanner = "GearPlanner: csak felszereléstervezés; HPS- vagy rotációs pontszám ebből nem igazolható",
+  Alpha = "Alpha: community model, a DPS reference can be computed (at level 60)",
+  GearPlanner = "GearPlanner: gear planning only; no HPS or rotation score can be proven from it",
 }
 
 -- the engine's status for a class and talent tab (nil tab: the class as a whole)
@@ -347,7 +347,7 @@ end
 C.REF = {
   -- Sinister Strike: + AP / 14 x normalized speed (sim/rogue/sinister_strike.go, sim/core/attack.go,
   -- DefaultAttackPowerPerDPS = 14 in sim/core/constants.go); before damage modifiers
-  ssSource = "WoWSims Forever d5144855 sim/core/attack.go (CalculateNormalizedWeaponDamage, normalizált sebesség), sim/core/constants.go (DefaultAttackPowerPerDPS = 14)",
+  ssSource = "WoWSims Forever d5144855 sim/core/attack.go (CalculateNormalizedWeaponDamage, normalized speed), sim/core/constants.go (DefaultAttackPowerPerDPS = 14)",
   -- hunter pet: 10% of the higher of melee and ranged AP, kept from the summon (sim/hunter/pets.go)
   petSource = "WoWSims Forever d5144855 sim/hunter/pets.go (makeStatInheritance, keepSummonStats)",
   -- warlock demon: S = spell damage + max(shadow, fire); AP 0.17 S, spell damage 0.10 S (sim/warlock/pets.go)
@@ -378,66 +378,66 @@ end
 local SIM = "WoWSims Forever d5144855 "
 local WH = "Wowhead Forever spell="
 C.RULES = {
-  energyCap = { text = "teli energiánál a regenerálódó energia elvész", verified = true,
-    source = SIM .. "sim/core/energy.go:111 (új energia = min(jelenlegi + kapott, maximum))" },
-  evisCp = { text = "az Eviscerate sebzése combo pontonként nő (pontonként fix sebzés + 4% AP), az ára fix 35 energia", verified = true,
+  energyCap = { text = "at full energy the regenerated energy is lost", verified = true,
+    source = SIM .. "sim/core/energy.go:111 (new energy = min(current + gained, maximum))" },
+  evisCp = { text = "Eviscerate's damage grows with each combo point (fixed damage + 4% AP per point), its cost is a fixed 35 energy", verified = true,
     source = SIM .. "sim/rogue/eviscerate.go; " .. WH .. "2098" },
-  sndHaste = { text = "a Slice and Dice 20%-kal gyorsítja a közelharci támadást, combo pontonként 3 mp-cel tovább tart (10-től)", verified = true,
+  sndHaste = { text = "Slice and Dice speeds up melee attacks by 20% and lasts 3 s longer per combo point (from level 10)", verified = true,
     source = SIM .. "sim/rogue/slice_and_dice.go; " .. WH .. "5171" },
-  parryFront = { text = "parry és block csak akkor lehet, ha a célpont előtt állsz", verified = true,
-    source = SIM .. "sim/core/spell_outcome.go (InFrontOfTarget feltétel)" },
-  poison20 = { text = "az Instant Poison 20-as szinttől tehető a fegyverre", verified = true,
+  parryFront = { text = "parry and block can only happen when you stand in front of the target", verified = true,
+    source = SIM .. "sim/core/spell_outcome.go (InFrontOfTarget condition)" },
+  poison20 = { text = "Instant Poison can be put on a weapon from level 20", verified = true,
     source = WH .. "8679" },
-  glanceSkill = { text = "a glancing esélye azonos szintű célponton is 10%, és 2%-kal nő minden fegyverskill-pontért, ami a célpont szintje × 5-höz hiányzik", verified = true,
+  glanceSkill = { text = "the chance of a glancing blow is 10% even on a same-level target, and grows by 2% for every weapon skill point short of the target's level × 5", verified = true,
     source = SIM .. "sim/core/target.go:577" },
-  hitGear = { text = "minden 1% hit 1%-kal csökkenti a miss esélyét", verified = true,
+  hitGear = { text = "every 1% hit lowers the miss chance by 1%", verified = true,
     source = SIM .. "sim/core/spell_outcome.go:660" },
-  hunterPet = { text = "10-től (Tame Beast) a hunternek pet-je lehet, amely külön támad", verified = true,
+  hunterPet = { text = "from level 10 (Tame Beast) a hunter can have a pet, which attacks on its own", verified = true,
     source = WH .. "1515; " .. SIM .. "sim/hunter/pets.go" },
-  hunterRange = { text = "a hunter lövései 8 yardon belül nem használhatók (8–35 yd)", verified = true,
+  hunterRange = { text = "the hunter's shots cannot be used within 8 yards (8–35 yd)", verified = true,
     source = WH .. "3044" },
-  serpentSting = { text = "a Serpent Sting 15 mp alatt sebez (4-től)", verified = true,
+  serpentSting = { text = "Serpent Sting deals its damage over 15 s (from level 4)", verified = true,
     source = WH .. "1978; " .. SIM .. "sim/hunter/serpent_sting.go" },
-  arcaneShot = { text = "az Arcane Shot azonnali lövés 6 mp cooldownnal (6-tól)", verified = true,
+  arcaneShot = { text = "Arcane Shot is an instant shot with a 6 s cooldown (from level 6)", verified = true,
     source = WH .. "3044; " .. SIM .. "sim/hunter/arcane_shot.go" },
-  hawk = { text = "az Aspect of the Hawk ranged attack powert ad (10-től)", verified = true,
+  hawk = { text = "Aspect of the Hawk gives ranged attack power (from level 10)", verified = true,
     source = WH .. "13165" },
   -- a playstyle, not a game rule: it cannot be verified, only measured
-  shamanMelee = { text = "az enhancement shaman sebzésének nagyja a fegyver", verified = false,
-    source = "játékstílus, nem játékszabály: nem ellenőrizhető" },
-  earthShock = { text = "az Earth Shock azonnali sebzés; a három shock közös, 6 mp-es cooldownon van (4-től)", verified = true,
+  shamanMelee = { text = "most of an enhancement shaman's damage is the weapon", verified = false,
+    source = "a playstyle, not a game rule: cannot be verified" },
+  earthShock = { text = "Earth Shock is instant damage; the three shocks share a 6 s cooldown (from level 4)", verified = true,
     source = SIM .. "sim/shaman/shocks.go; " .. WH .. "8042" },
-  searingTotem = { text = "a Searing Totem 30 mp-ig támad egy 20 yardon belüli ellenfelet (10-től)", verified = true,
+  searingTotem = { text = "Searing Totem attacks an enemy within 20 yards for 30 s (from level 10)", verified = true,
     source = WH .. "3599" },
-  windfury = { text = "a Windfury Weapon (30-tól) minden találatnál 20% eséllyel 2 extra támadást ad, plusz attack powerrel", verified = true,
+  windfury = { text = "Windfury Weapon (from level 30) gives 2 extra attacks with extra attack power on 20% of hits", verified = true,
     source = WH .. "8232; " .. SIM .. "sim/shaman/weapon_imbues.go" },
-  biteCp = { text = "a Ferocious Bite sebzése combo pontonként nő (pontonként fix sebzés + AP), az ára 35 energia", verified = true,
+  biteCp = { text = "Ferocious Bite's damage grows with each combo point (fixed damage + AP per point), it costs 35 energy", verified = true,
     source = SIM .. "sim/druid/ferocious_bite.go; " .. WH .. "22568" },
-  rakeBleed = { text = "a Rake egy combo pontot ad, és 9 mp-ig vérzik (3 mp-enként egy tick)", verified = true,
+  rakeBleed = { text = "Rake gives a combo point and bleeds for 9 s (a tick every 3 s)", verified = true,
     source = SIM .. "sim/druid/rake.go; " .. WH .. "1822" },
   -- a playstyle, not a game rule
-  druidCat = { text = "a feral druid sebzésének nagyja Cat Formban jön", verified = false,
-    source = "játékstílus, nem játékszabály: nem ellenőrizhető" },
-  lifeTapCap = { text = "a Life Tap életerőből ad manát, és a maximum fölé adott mana elvész", verified = true,
-    source = SIM .. "sim/warlock/lifetap.go; sim/core/mana.go AddMana (új mana = min(jelenlegi + kapott, maximum))" },
-  dotTicks = { text = "a Corruption 12 mp-ig, a Bane of Agony 24 mp-ig sebez, tickenként 3, illetve 2 mp-enként", verified = true,
+  druidCat = { text = "most of a feral druid's damage comes in Cat Form", verified = false,
+    source = "a playstyle, not a game rule: cannot be verified" },
+  lifeTapCap = { text = "Life Tap turns health into mana, and mana given over the maximum is lost", verified = true,
+    source = SIM .. "sim/warlock/lifetap.go; sim/core/mana.go AddMana (new mana = min(current + gained, maximum))" },
+  dotTicks = { text = "Corruption deals damage for 12 s, Bane of Agony for 24 s, ticking every 3 and every 2 s", verified = true,
     source = WH .. "172; " .. WH .. "980; " .. SIM .. "sim/warlock/corruption.go, agony.go" },
-  demonInherit = { text = "a démon a te spell damage-edből örököl (AP 0,17 × S, spell damage 0,10 × S)", verified = true,
+  demonInherit = { text = "the demon inherits from your spell damage (AP 0.17 × S, spell damage 0.10 × S)", verified = true,
     source = SIM .. "sim/warlock/pets.go (petStatInheritance)" },
-  manaItemCap = { text = "a manaital és a mana gem manát ad, és a maximum fölé adott mana elvész", verified = true,
-    source = SIM .. "sim/core/mana.go AddMana (új mana = min(jelenlegi + kapott, maximum)); a harcnapló mana-eseménye kiírja a maximum fölötti részt" },
-  rageCap = { text = "a rage 100-nál megáll, a fölötte kapott rage elvész", verified = true,
-    source = SIM .. "sim/core/rage.go AddRage (új rage = min(jelenlegi + kapott, maximum)); a harcnapló rage-eseménye kiírja a maximum fölötti részt" },
-  hsDump = { text = "a Heroic Strike a következő ütéshez ad sebzést 15 rage-ért", verified = true,
+  manaItemCap = { text = "mana potions and mana gems give mana, and mana given over the maximum is lost", verified = true,
+    source = SIM .. "sim/core/mana.go AddMana (new mana = min(current + gained, maximum)); the combat log's mana event writes out the part over the maximum" },
+  rageCap = { text = "rage stops at 100, rage gained above it is lost", verified = true,
+    source = SIM .. "sim/core/rage.go AddRage (new rage = min(current + gained, maximum)); the combat log's rage event writes out the part over the maximum" },
+  hsDump = { text = "Heroic Strike adds damage to the next swing for 15 rage", verified = true,
     source = WH .. "78; " .. SIM .. "sim/warrior/heroic_strike_cleave.go" },
-  sealDamage = { text = "a Seal of Righteousness és a Seal of Fury minden ütésre, a Seal of Command esélyre ad holy sebzést; a Seal of the Crusader, Wisdom, Light és Justice ütésenként nem ad holy sebzést", verified = true,
+  sealDamage = { text = "Seal of Righteousness and Seal of Fury add holy damage to every hit, Seal of Command on a chance; Seal of the Crusader, Wisdom, Light and Justice add no holy damage per hit", verified = true,
     source = WH .. "20154; " .. WH .. "20419; " .. WH .. "20915; " .. WH .. "20424; " .. WH .. "20162; " .. WH .. "20166; " .. WH .. "20165; " .. WH .. "20164" },
-  wandFlat = { text = "a pálca sebzése nem nő a spell powerrel", verified = true,
+  wandFlat = { text = "wand damage does not grow with spell power", verified = true,
     source = SIM .. "sim/core/wand.go" },
-  lightningShield = { text = "a Lightning Shield megsebzi azt, aki megüt (8-tól)", verified = true,
+  lightningShield = { text = "Lightning Shield damages whoever hits you (from level 8)", verified = true,
     source = WH .. "324" },
 }
-C.FINDING = { fault = "hiba", observation = "megfigyelés", unproven = "nem megállapítható", data = "mért adat" }
+C.FINDING = { fault = "mistake", observation = "observation", unproven = "cannot be established", data = "measured data" }
 local GREY = "|cff9d9d9d"
 
 -- o = { title, fact, advice (what to try, conditionally), rule (a RULES key), missing (what the
@@ -451,15 +451,15 @@ function C.Finding(o)
   else status, level = C.FINDING.observation, "tip" end
   local why
   if status == C.FINDING.fault then
-    why = "Hiba, mert: " .. rule.text .. " (Foreverre ellenőrzött szabály), és a harcadat mutatja a döntés helyzetét."
+    why = "Mistake, because: " .. rule.text .. " (rule verified for Forever), and the combat data shows the situation of the decision."
   elseif status == C.FINDING.unproven then
     local bits = {}
-    if o.missing then bits[#bits + 1] = "a harcadatból nem látszik " .. o.missing end
-    if rule and not rule.verified then bits[#bits + 1] = "a szabály (" .. rule.text .. ") Foreverre nincs ellenőrizve" end
-    if rule and rule.verified then bits[#bits + 1] = "a szabály maga ellenőrzött (" .. rule.text .. ")" end
-    why = "Hibának nem megállapítható: " .. table.concat(bits, "; ") .. "."
+    if o.missing then bits[#bits + 1] = "the combat data does not show " .. o.missing end
+    if rule and not rule.verified then bits[#bits + 1] = "the rule (" .. rule.text .. ") is not verified for Forever" end
+    if rule and rule.verified then bits[#bits + 1] = "the rule itself is verified (" .. rule.text .. ")" end
+    why = "Cannot be established as a mistake: " .. table.concat(bits, "; ") .. "."
   elseif rule then
-    why = "Szabály: " .. rule.text .. (rule.verified and " (Foreverre ellenőrizve)." or " (Foreverre nincs ellenőrizve).")
+    why = "Rule: " .. rule.text .. (rule.verified and " (verified for Forever)." or " (not verified for Forever).")
   end
   local text = o.fact .. (o.advice and (" " .. o.advice) or "") .. (why and ("\n" .. GREY .. why .. "|r") or "")
   return { level = level, title = o.title, text = text, status = status, fact = o.fact, rule = o.rule, missing = o.missing,
@@ -497,21 +497,21 @@ end
 
 local function Clock(start, tenths)
   local s = (start or 0) + (tonumber(tenths) or 0) / 10
-  return date and date("%m.%d. %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
+  return date and date("%m/%d %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
 end
 
 function C.Advise(r, fights)
   local out = {}
   local function Push(o) out[#out + 1] = C.Finding(o) end
   if r.seconds < 300 or r.white.n < 150 then
-    Push({ info = true, title = "Kevés még az adat", fact = ("Eddig %d harc, %d másodperc és %d auto-attack van rögzítve. "):format(r.fights, math.floor(r.seconds + 0.5), r.white.n) ..
-      "Az arányok kb. 10 perc harc után kezdenek megbízhatóak lenni." })
+    Push({ info = true, title = "Not enough data yet", fact = ("So far %d fights, %d seconds and %d auto-attacks are recorded. "):format(r.fights, math.floor(r.seconds + 0.5), r.white.n) ..
+      "The ratios start to be reliable after about 10 minutes of combat." })
   end
   if r.energyCappedPct and r.energyCappedPct > 8 then
-    Push({ title = "Sokszor tele az energiád", fault = true, rule = "energyCap",
-      fact = ("A harcidő %s%%-ában tele energiával álltál (félmásodperces minták, illetve a harcnapló energiaértékei)."):format(F1(r.energyCappedPct)),
-      advice = "Ha közben ütni tudtál volna, harc elején azonnal üss, és ne tartogasd az energiát 80 fölött.",
-      missing = "hogy akkor volt-e használható képességed (távolság, stun, futó vagy elérhetetlen célpont)" })
+    Push({ title = "Your energy is often full", fault = true, rule = "energyCap",
+      fact = ("You sat at full energy for %s%% of combat time (half-second samples, or the combat log's energy values)."):format(F1(r.energyCappedPct)),
+      advice = "If you could have attacked meanwhile: attack at once when the fight starts, and do not hold energy above 80.",
+      missing = "whether you had a usable ability at that moment (range, stun, a fleeing or unreachable target)" })
   end
   local evis
   for _, f in ipairs(r.finishers) do if f.name == "Eviscerate" then evis = f end end
@@ -521,25 +521,25 @@ function C.Advise(r, fights)
     local lines = {}
     for i = 1, math.min(3, #ev.proven) do
       local p, e = ev.proven[i], ev.proven[i].e
-      lines[i] = ("%s, %s: %d pont, életereje előtte %d / %s, a sebzés %d%s, utána még %s%s mp-ig élt"):format(
-        Clock(p.start, e.t), e.target or "?", e.cp, e.hpBefore, e.maxHp and tostring(e.maxHp) or "?", e.dmg, e.crit and " (krit)" or "",
-        e.livedKnown and "" or "legalább ", F1(e.lived))
+      lines[i] = ("%s, %s: %d points, its health before %d / %s, the damage %d%s, it lived %s%s s more"):format(
+        Clock(p.start, e.t), e.target or "?", e.cp, e.hpBefore, e.maxHp and tostring(e.maxHp) or "?", e.dmg, e.crit and " (crit)" or "",
+        e.livedKnown and "" or "at least ", F1(e.lived))
     end
-    Push({ title = "Kevés combo pontos Eviscerate", fault = true, rule = "evisCp",
-      fact = ("%d Eviscerate ment 1–2 combo ponttal úgy, hogy a célpont nem halt meg tőle, több mint négyszer annyi életereje maradt, mint az ütés normál sebzése (a legnagyobb dobás krittel sem ölt volna), és utána még legalább %d mp-ig élt (harcnapló):\n- %s%s%s")
-        :format(#ev.proven, C.EVIS_ROOM, table.concat(lines, "\n- "), #ev.proven > 3 and ("\n- … és még " .. (#ev.proven - 3)) or "",
-          ev.unchecked > 0 and ("\nTovábbi " .. ev.unchecked .. " kevés pontosnál a célpont élete nem látszik.") or ""),
-      advice = "Ilyenkor építs még 1–2 pontot: az ára ugyanaz a 35 energia, a sebzése pontonként nő." })
+    Push({ title = "Low-combo-point Eviscerate", fault = true, rule = "evisCp",
+      fact = ("%d Eviscerates went out with 1–2 combo points while the target did not die from them, had more than four times the hit's normal damage left in health (even the biggest roll with a crit would not have killed it), and lived at least %d s more (combat log):\n- %s%s%s")
+        :format(#ev.proven, C.EVIS_ROOM, table.concat(lines, "\n- "), #ev.proven > 3 and ("\n- … plus " .. (#ev.proven - 3)) or "",
+          ev.unchecked > 0 and ("\nAnother " .. ev.unchecked .. " low-point ones: the target's health does not show.") or ""),
+      advice = "In that case build 1–2 more points: the cost is the same 35 energy, and the damage grows with every point." })
   elseif evis and evis.casts >= 5 and evis.avgCp < 4 and ev.unchecked == 0 and ev.justified > 0 then
-    Push({ title = "Kevés pontos Eviscerate, de indokolt", rule = "evisCp",
-      fact = ("Az Eviscerate-jeid átlagosan %s combo ponttal mentek. Mind a %d darab 1–2 pontos ellenőrizhető volt a harcnaplóban, és egyik sem volt hiba: ölt, kevés életerejű célpontra ment, vagy a célpont hamar meghalt.")
+    Push({ title = "Low-point Eviscerate, but justified", rule = "evisCp",
+      fact = ("Your Eviscerates went out with %s combo points on average. All %d of the 1–2 point ones could be checked in the combat log, and none was a mistake: they killed, went on a low-health target, or the target died soon.")
         :format(F1(evis.avgCp), ev.justified) })
   elseif evis and evis.casts >= 5 and evis.avgCp < 4 then
-    Push({ title = "Kevés combo pontos Eviscerate", fault = true, rule = "evisCp",
-      fact = ("Az Eviscerate-jeid átlagosan %s combo ponttal mentek (%d használat)."):format(F1(evis.avgCp), evis.casts) ..
-        (ev.justified > 0 and (" Az 1–2 pontosak közül %d a harcnapló szerint indokolt volt, %d nem ellenőrizhető."):format(ev.justified, ev.unchecked) or ""),
-      advice = "4–5 ponttal több sebzés jut egy energiára, kivéve ha a mob 1–2 ponttal is meghal.",
-      missing = "a célpont életereje a cast pillanatában (meghalt volna-e kevesebb ponttal is)" .. (ev.unchecked > 0 and (", " .. ev.unchecked .. " kevés pontos Eviscerate-nél") or "") })
+    Push({ title = "Low-combo-point Eviscerate", fault = true, rule = "evisCp",
+      fact = ("Your Eviscerates went out with %s combo points on average (%d uses)."):format(F1(evis.avgCp), evis.casts) ..
+        (ev.justified > 0 and (" Of the 1–2 point ones, %d were justified by the combat log, %d cannot be checked."):format(ev.justified, ev.unchecked) or ""),
+      advice = "With 4–5 points you get more damage per energy, unless the mob dies with 1–2 points too.",
+      missing = "the target's health at the moment of the cast (whether it would have died with fewer points)" .. (ev.unchecked > 0 and (", " .. ev.unchecked .. " low-point Eviscerates") or "") })
   end
   local avgFight = r.seconds / r.fights
   local snd
@@ -547,11 +547,11 @@ function C.Advise(r, fights)
   if avgFight >= 12 and (not snd or snd.uptimePct < 50) then
     local whiteShare = 0
     for _, a in ipairs(r.abilities) do if White(a.name) then whiteShare = whiteShare + a.share end end
-    Push({ title = "Ritkán van fent a Slice and Dice", fault = true, rule = "sndHaste",
-      fact = ("A Slice and Dice a harcidő %s%%-ában volt aktív, miközben a sebzésed %s%%-a auto-attack; az átlagos harcod %d mp.")
+    Push({ title = "Slice and Dice is rarely up", fault = true, rule = "sndHaste",
+      fact = ("Slice and Dice was active for %s%% of combat time, while %s%% of your damage is auto-attack; your average fight is %d s.")
         :format(snd and F1(snd.uptimePct) or "0", F1(whiteShare), math.floor(avgFight + 0.5)),
-      advice = "Hosszabb harcban az első 1–2 combo pont Slice and Dice-ra, utána Eviscerate.",
-      missing = "a harc várható hossza a döntés pillanatában, és hogy megtanultad-e a Slice and Dice-t" })
+      advice = "In longer fights put the first 1–2 combo points into Slice and Dice, then Eviscerate.",
+      missing = "the fight's expected length at the moment of the decision, and whether you had learned Slice and Dice" })
   end
   local parried, swings = 0, 0
   for _, a in ipairs(r.abilities) do
@@ -560,30 +560,30 @@ function C.Advise(r, fights)
   end
   local parry = Pct(parried, swings)
   if parry > 2 then
-    Push({ title = "Az ütéseid egy részét hárítják", fault = true, rule = "parryFront",
-      fact = ("Az ütéseid %s%%-át parryzták."):format(F1(parry)),
-      advice = "Csapatban (dungeonben) a célpont mögül ez elkerülhető; szólóban a mob feléd fordul.",
-      missing = "hol álltál a célponthoz képest (a pozíció nincs igazolt skálán), és hogy a mob kit nézett" })
+    Push({ title = "Some of your hits are parried", fault = true, rule = "parryFront",
+      fact = ("%s%% of your hits were parried."):format(F1(parry)),
+      advice = "In a group (dungeon) you can avoid this from behind the target; solo the mob turns to face you.",
+      missing = "where you stood relative to the target (the position is not on a proven scale), and whom the mob was facing" })
   end
   if r.white.n >= 150 then
-    Push({ info = true, title = "Mért találati arányok",
-      fact = ("Auto-attack: %s%% miss, %s%% dodge, %s%% glancing, %s%% crit. Képességek: %s%% miss, %s%% crit.")
+    Push({ info = true, title = "Measured hit table",
+      fact = ("Auto-attack: %s%% miss, %s%% dodge, %s%% glancing, %s%% crit. Abilities: %s%% miss, %s%% crit.")
         :format(F1(r.white.miss), F1(r.white.dodge), F1(r.white.glance), F1(r.white.crit), F1(r.yellow.miss), F1(r.yellow.crit)) ..
-        (r.white.miss > 15 and " A +hit tárgyak itt sokat érhetnek." or "") })
+        (r.white.miss > 15 and " +hit items can be worth a lot here." or "") })
   end
   if r.white.glance > 20 then
-    Push({ title = "Sok a glancing ütés", rule = "glanceSkill",
-      fact = ("Az auto-attackjeid %s%%-a glancing."):format(F1(r.white.glance)),
-      advice = "Ha nemrég váltottál fegyvertípust, a fegyverskill felhúzása segít." })
+    Push({ title = "Many glancing blows", rule = "glanceSkill",
+      fact = ("%s%% of your auto-attacks are glancing."):format(F1(r.white.glance)),
+      advice = "If you recently switched weapon type, raising the weapon skill helps." })
   end
   local hasPoison = false
   for _, a in ipairs(r.abilities) do if a.name:lower():find("poison", 1, true) then hasPoison = true end end
   local level = fights[1] and fights[1].level or 0
   if not hasPoison and level >= 20 and r.seconds >= 120 then
-    Push({ title = "Nincs méreg-sebzés", fault = true, rule = "poison20",
-      fact = "A rögzített harcokban egyetlen méreg-sebzés sincs.",
-      advice = "Ha már van mérged, mindkét fegyverre tedd fel; a gyors balkezes fegyveren ér a legtöbbet.",
-      missing = "hogy megtanultad-e a mérgeket és volt-e nálad (a varázskönyv és a táska nem mutatja)" })
+    Push({ title = "No poison damage", fault = true, rule = "poison20",
+      fact = "There is no poison damage at all in the recorded fights.",
+      advice = "If you already have poison, put it on both weapons; it is worth the most on the fast off-hand weapon.",
+      missing = "whether you had learned poisons and had them on you (the spellbook and the bags do not show it)" })
   end
   local ss, melee
   for _, a in ipairs(r.abilities) do
@@ -591,7 +591,7 @@ function C.Advise(r, fights)
     if a.name == "Melee" and not melee then melee = a end
   end
   if ss and melee then
-    Push({ info = true, title = "Sebzésmegoszlás", fact = ("Sinister Strike %s%% (átlag %d), auto-attack %s%% (átlag %d).")
+    Push({ info = true, title = "Damage breakdown", fact = ("Sinister Strike %s%% (average %d), auto-attack %s%% (average %d).")
       :format(F1(ss.share), math.floor(ss.avg + 0.5), F1(melee.share), math.floor(melee.avg + 0.5)) })
   end
   return out
@@ -608,12 +608,12 @@ function C.Score(f, baseline)
   local dps = dur > 0 and (f.dmg or 0) / dur or 0
   if baseline and baseline > 0 then
     local ratio = dps / baseline
-    Part("dps", "DPS a várthoz képest", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS, a felszerelésedtől várt %d %d%%-a"):format(
+    Part("dps", "DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS against the %d your gear should give: %d%%"):format(
       math.floor(dps + 0.5), math.floor(baseline + 0.5), math.floor(ratio * 100 + 0.5)))
   end
   if (f.samples or 0) > 0 then
     local pct = (f.capped or 0) / f.samples * 100
-    Part("energy", "Energia nem megy kárba", (1 - math.min(pct / 20, 1)) * 20, 20, ("az idő %s%%-ában volt tele az energiád"):format(F1(pct)))
+    Part("energy", "No wasted energy", (1 - math.min(pct / 20, 1)) * 20, 20, ("your energy was full %s%% of the time"):format(F1(pct)))
   end
   local fin, cps, evis, evisCp = 0, 0, 0, 0
   local casts = f.casts or {}
@@ -625,20 +625,20 @@ function C.Score(f, baseline)
   end
   if evis > 0 then
     local avg = evisCp / evis
-    Part("finisher", "Eviscerate elég combo ponttal", math.max(0, math.min((avg - 2) / 3, 1)) * 20, 20,
-      ("%d Eviscerate, átlag %s combo ponttal"):format(evis, F1(avg)))
+    Part("finisher", "Eviscerate with enough combo points", math.max(0, math.min((avg - 2) / 3, 1)) * 20, 20,
+      ("%d Eviscerates, average %s combo points"):format(evis, F1(avg)))
   elseif fin > 0 then
-    Part("finisher", "Finisherek", 15, 20, ("%d finisher, átlag %s combo ponttal"):format(fin, F1(cps / fin)))
+    Part("finisher", "Finishers", 15, 20, ("%d finishers, average %s combo points"):format(fin, F1(cps / fin)))
   end
   if dur >= 15 then
     local snd = 0
     for _, a in ipairs(f.auras or {}) do if a[1] == "Slice and Dice" then snd = a[2] end end
     local pct = math.min(100, snd / dur * 100)
-    Part("snd", "Slice and Dice fent", math.min(pct / 60, 1) * 10, 10, ("a harc %d%%-ában"):format(math.floor(pct + 0.5)))
+    Part("snd", "Slice and Dice up", math.min(pct / 60, 1) * 10, 10, ("%d%% of the fight"):format(math.floor(pct + 0.5)))
   end
   if dur >= 6 and #casts > 0 then
     local perMin = #casts / dur * 60
-    Part("active", "Folyamatos ütés", math.min(perMin / 12, 1) * 10, 10, ("%s képesség percenként"):format(F1(perMin)))
+    Part("active", "Continuous attacking", math.min(perMin / 12, 1) * 10, 10, ("%s abilities per minute"):format(F1(perMin)))
   end
   local got, max = 0, 0
   for _, p in ipairs(parts) do got, max = got + p.points, max + p.max end
@@ -658,10 +658,10 @@ end
 --   "becsült"           worked out from something less direct (the clock, the target's hits);
 --   "szimulált"         computed from given inputs by a model (Waystone's own damage model);
 --   "nem értékelhető"   cannot be worked out from what there is: shown as "–", never as 0.
-C.STATUS = { measured = "mért", estimated = "becsült", simulated = "szimulált", none = "nem értékelhető" }
-local RANK = { ["mért"] = 1, ["becsült"] = 2, ["szimulált"] = 3, ["nem értékelhető"] = 4 }
+C.STATUS = { measured = "measured", estimated = "estimated", simulated = "simulated", none = "not assessable" }
+local RANK = { ["measured"] = 1, ["estimated"] = 2, ["simulated"] = 3, ["not assessable"] = 4 }
 local function Worst(...)
-  local w = "mért"
+  local w = "measured"
   for _, s in ipairs({ ... }) do if RANK[s] > RANK[w] then w = s end end
   return w
 end
@@ -676,14 +676,14 @@ end
 -- Whether the model of your current character can be held against this fight: the same level,
 -- and (where the fight recorded it) the same gear. Returns ok, reason.
 function C.Comparable(f, ctx)
-  if not ctx or not ctx.baseline or ctx.baseline <= 0 then return false, "nincs modell ehhez a kaszthoz" end
-  if not f.level or f.level == 0 then return false, "a harc szintje ismeretlen" end
-  if f.level ~= ctx.level then return false, ("a harc %d. szinten volt, a modell a mostani %d. szintedet számolja"):format(f.level, ctx.level) end
+  if not ctx or not ctx.baseline or ctx.baseline <= 0 then return false, "no model for this class" end
+  if not f.level or f.level == 0 then return false, "the fight's level is unknown" end
+  if f.level ~= ctx.level then return false, ("the fight was at level %d, the model counts with your current level %d"):format(f.level, ctx.level) end
   if f.gear and WA.Meter and WA.Meter.GearAtPull then
     local now = WA.Meter.GearAtPull()
-    if now and now ~= f.gear then return false, "azóta más a felszerelésed" end
+    if now and now ~= f.gear then return false, "your gear has changed since" end
   end
-  return true, f.gear and "azonos szint és felszerelés" or "azonos szint; a felszerelést ez a harc nem rögzítette"
+  return true, f.gear and "same level and gear" or "same level; this fight did not record the gear"
 end
 
 -- Rows { key, label, status, value, text, from } for one fight. ctx: the class model (or nil).
@@ -699,93 +699,93 @@ function C.Provenance(f, ctx)
   -- damage
   local dmgStatus, dmgFrom
   if b.dmg == "effective" then
-    dmgStatus, dmgFrom = "mért", "a harcnapló saját sebző eseményei, effektív sebzés (a túlsebzés nélkül)" ..
-      ((f.overkill or 0) > 0 and (", " .. f.overkill .. " túlsebzés levonva") or "")
+    dmgStatus, dmgFrom = "measured", "the combat log's own damage events, effective damage (without overkill)" ..
+      ((f.overkill or 0) > 0 and (", " .. f.overkill .. " overkill subtracted") or "")
   elseif b.dmg == "meter-own" then
-    dmgStatus, dmgFrom = "mért", "a játék damage meterének saját sora (isLocalPlayer), a harc után kiolvasva"
+    dmgStatus, dmgFrom = "measured", "the game's damage meter's own row (isLocalPlayer), read after the fight"
   elseif b.dmg == "target-hits" then
-    dmgStatus, dmgFrom = "becsült", "a célpontot ért ütések összege (UNIT_COMBAT), egyedül játszva; a damage meter nem volt olvasható"
+    dmgStatus, dmgFrom = "estimated", "the sum of hits on the target (UNIT_COMBAT), playing solo; the damage meter was not readable"
   elseif log then
-    dmgStatus, dmgFrom = "mért", "a harcnapló saját sebző eseményei (régebbi feltöltés: a túlsebzés benne lehet)"
+    dmgStatus, dmgFrom = "measured", "the combat log's own damage events (older upload: overkill may be included)"
   else
-    dmgStatus, dmgFrom = "becsült", "régebbi rögzítés: nem tudni, a damage meterből vagy a célpont ütéseiből jött"
+    dmgStatus, dmgFrom = "estimated", "older recording: unknown whether it came from the damage meter or the target's hits"
   end
-  if not total then dmgStatus = "nem értékelhető" end
+  if not total then dmgStatus = "not assessable" end
   local own = total and (total - pet) or nil
-  Row("own", "Saját sebzés (pet nélkül)", dmgStatus, own, own and tostring(math.floor(own + 0.5)) or "–", dmgFrom)
+  Row("own", "Own damage (without pet)", dmgStatus, own, own and tostring(math.floor(own + 0.5)) or "–", dmgFrom)
 
   -- the pet
-  local petStatus, petFrom = "mért", nil
+  local petStatus, petFrom = "measured", nil
   local partial = false
   if b.pet == "owner-flags" or (log and not b.pet) then
-    petFrom = "a harcnapló jelzői szerint a te peted vagy totemed (affiliation: mine, pet/guardian); név alapján nem párosít"
+    petFrom = "your pet or totem by the combat log's flags (affiliation: mine, pet/guardian); never matched by name"
   elseif b.pet == "meter-guid" then
-    petFrom = "a damage meter pet-sora, a harc végén kint lévő pet GUID-ja szerint; ha közben újrahívtad, a korábbi pet része hiányozhat"
+    petFrom = "the damage meter's pet row, by the GUID of the pet out at the end of the fight; if you resummoned meanwhile, the earlier pet's part may be missing"
     partial = true
   elseif b.pet == "meter-merged" then
-    petFrom = "a damage meter a te sorodban adta a pet képességeit; egyszer számolva"
+    petFrom = "the damage meter gave the pet's abilities in your row; counted once"
   elseif b.pet == "guess" then
-    petStatus, petFrom, partial = "becsült", "fizikai ütések a célponton, miközben te nem ütöttél: nem igazolt, hogy a peted volt", true
+    petStatus, petFrom, partial = "estimated", "physical hits on the target while you were not hitting: not proven to be your pet", true
   else
-    petFrom = "nem volt pet-sebzés"
+    petFrom = "there was no pet damage"
   end
   if pet > 0 or (b.pet and b.pet ~= "none") then
-    Row("pet", "Pet sebzése", petStatus, pet, tostring(math.floor(pet + 0.5)), petFrom)
+    Row("pet", "Pet damage", petStatus, pet, tostring(math.floor(pet + 0.5)), petFrom)
   end
 
   -- duration
   local durStatus, durFrom
   if b.dur == "own-events" or (log and not b.dur) then
-    durStatus, durFrom = "mért", "az első és az utolsó saját (vagy pet) sebző esemény között; 8 mp szünet új harcot kezd"
+    durStatus, durFrom = "measured", "between the first and the last own (or pet) damage event; an 8 s pause starts a new fight"
   elseif b.dur == "meter-session" then
-    durStatus, durFrom = "mért", "a damage meter sessionjének hossza (durationSeconds)"
+    durStatus, durFrom = "measured", "the length of the damage meter's session (durationSeconds)"
   elseif b.dur == "regen-clock" then
-    durStatus, durFrom = "becsült", "harcba lépés és kilépés között, óra szerint (a meter nem adott hosszt)"
+    durStatus, durFrom = "estimated", "between entering and leaving combat, by the clock (the meter gave no length)"
   else
-    durStatus, durFrom = "becsült", "régebbi rögzítés: a meter hossza vagy a harcba lépés óta eltelt idő"
+    durStatus, durFrom = "estimated", "older recording: the meter's length or the time since entering combat"
   end
-  if not dur or dur <= 0 then durStatus = "nem értékelhető" end
-  Row("dur", "Időtartam", durStatus, dur and dur > 0 and dur or nil, dur and dur > 0 and (F1(dur) .. " mp") or "–", durFrom)
+  if not dur or dur <= 0 then durStatus = "not assessable" end
+  Row("dur", "Duration", durStatus, dur and dur > 0 and dur or nil, dur and dur > 0 and (F1(dur) .. " s") or "–", durFrom)
 
   -- DPS
   local okDps = total and dur and dur > 0
   local dps = okDps and total / dur or nil
-  local dpsStatus = okDps and Worst(dmgStatus, durStatus, pet > 0 and petStatus or "mért") or "nem értékelhető"
-  Row("dps", "DPS (saját + pet)", dpsStatus, dps, dps and (F1(dps) .. (partial and pet > 0 and " (részleges)" or "")) or "–",
-    okDps and ("(%d saját + %d pet) / %s mp%s"):format(math.floor(own + 0.5), math.floor(pet + 0.5), F1(dur),
-      partial and pet > 0 and "; a pet-rész nem teljesen igazolt" or "") or "nincs pozitív időtartam vagy sebzés")
+  local dpsStatus = okDps and Worst(dmgStatus, durStatus, pet > 0 and petStatus or "measured") or "not assessable"
+  Row("dps", "DPS (own + pet)", dpsStatus, dps, dps and (F1(dps) .. (partial and pet > 0 and " (partial)" or "")) or "–",
+    okDps and ("(%d own + %d pet) / %s s%s"):format(math.floor(own + 0.5), math.floor(pet + 0.5), F1(dur),
+      partial and pet > 0 and "; the pet part is not fully proven" or "") or "no positive duration or damage")
   if pet > 0 then
     local ownDps = okDps and own / dur or nil
-    Row("ownDps", "Saját DPS (pet nélkül)", okDps and Worst(dmgStatus, durStatus) or "nem értékelhető", ownDps, ownDps and F1(ownDps) or "–",
-      okDps and ("%d / %s mp"):format(math.floor(own + 0.5), F1(dur)) or "nincs pozitív időtartam")
+    Row("ownDps", "Own DPS (without pet)", okDps and Worst(dmgStatus, durStatus) or "not assessable", ownDps, ownDps and F1(ownDps) or "–",
+      okDps and ("%d / %s s"):format(math.floor(own + 0.5), F1(dur)) or "no positive duration")
   end
 
   -- the model, and the ratio only for a matching situation
   local okCmp, why = C.Comparable(f, ctx)
   if ctx and ctx.baseline and ctx.baseline > 0 then
     local fights = ctx.combat and ctx.combat.fights or 0
-    Row("model", "Várt DPS (Waystone-modell)", okCmp and "szimulált" or "nem értékelhető", okCmp and ctx.baseline or nil,
+    Row("model", "Expected DPS (Waystone model)", okCmp and "simulated" or "not assessable", okCmp and ctx.baseline or nil,
       okCmp and F1(ctx.baseline) or "–",
-      ("a Waystone szintezési modellje a mostani statjaidból és felszerelésedből%s; nem WoWSims-szimuláció%s")
-        :format(fights > 0 and (", " .. fights .. " rögzített harccal kalibrálva") or ", tankönyvi értékekkel",
+      ("Waystone's leveling model from your current stats and gear%s; not a WoWSims simulation%s")
+        :format(fights > 0 and (", " .. fights .. " calibrated with recorded fights") or ", with textbook values",
           okCmp and "" or (" · " .. why)))
     if okCmp and dps then
-      Row("ratio", "Mért / várt", "szimulált", dps / ctx.baseline * 100, ("%d%%"):format(math.floor(dps / ctx.baseline * 100 + 0.5)),
-        "100 × mért DPS / várt DPS; " .. why .. ". Az eltérés önmagában nem rotációs hiba: a mozgás, a több célpont vagy a harc vége is benne van.")
+      Row("ratio", "Measured / expected", "simulated", dps / ctx.baseline * 100, ("%d%%"):format(math.floor(dps / ctx.baseline * 100 + 0.5)),
+        "100 × measured DPS / expected DPS; " .. why .. ". The gap alone is not a rotation mistake: moving, several targets or the end of the fight are in it too.")
     end
   end
   local sm = ctx and ctx.sim or C.SimModel(WA.Game and WA.Game.Class and WA.Game.Class(), WA.Game and WA.Game.MainTalentTab and WA.Game.MainTalentTab())
   local simWhat = sm and (sm.class .. (sm.spec and (" " .. sm.spec) or "") .. (sm.status and (": " .. C.SIM_STATUS_TEXT[sm.status]) or "")) or nil
-  Row("sim", "Referencia-szimuláció (WoWSims Forever)", "nem értékelhető", nil, "–",
-    (((f.level or 0) > 0 and f.level < 60) and "a Forever motor csak 60-as karaktert épít: ehhez a szinthez nincs szintazonos referencia"
-      or (sm and sm.status == "GearPlanner") and "ehhez a spechez a motor csak felszerelést tervez: HPS- vagy rotációs referencia nincs"
-      or "nincs bekötve az addonba: külső futtatás és import kellene hozzá") ..
+  Row("sim", "Reference simulation (WoWSims Forever)", "not assessable", nil, "–",
+    (((f.level or 0) > 0 and f.level < 60) and "the Forever engine only builds level 60 characters: there is no same-level reference for this level"
+      or (sm and sm.status == "GearPlanner") and "for this spec the engine only plans gear: there is no HPS or rotation reference"
+      or "not wired into the addon: it would need an external run and an import") ..
     (simWhat and (" · " .. simWhat .. " (" .. C.SIM_SOURCE .. ")") or ""))
 
   -- where it all came from
-  local srcText = log and "harcnapló (WoWCombatLog, a feltöltő dolgozta fel)"
-    or ((b.dmg == "meter-own") and "játékban: a játék damage metere" or "játékban: a célpont ütései")
-  Row("source", "Adatforrás", "mért", nil, log and "harcnapló" or "játékban", srcText ..
+  local srcText = log and "combat log (WoWCombatLog, processed by the uploader)"
+    or ((b.dmg == "meter-own") and "in game: the game's damage meter" or "in game: the target's hits")
+  Row("source", "Data source", "measured", nil, log and "combat log" or "in game", srcText ..
     (f.sessionID and (", session #" .. f.sessionID) or ""))
   return rows
 end
