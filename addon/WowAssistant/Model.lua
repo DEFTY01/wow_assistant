@@ -8,7 +8,11 @@
 --   level, agi, str (effective), ap, crit (%), hit (%)
 --   equipped[SLOT] = { id, name, stats }      Blizzard slot names (MAIN_HAND, FINGER_1, ...)
 --   slotOrder = { SLOT, ... }                 order the equipped items are listed in (display)
---   talents = Talent.lua's T.Effects: malice = crit %, efficient = energy, coup = Eviscerate % (Wowhead Forever data)
+--   talents = Talent.lua's T.Effects (the numbers of the rank's Wowhead Forever text): malice / precision
+--             (already on the character sheet), efficient, flawless (energy), coup, aggression (damage %),
+--             lethality (crit bonus %), dualWield (off-hand %), expertise (dodge/parry −%), hackSlash (extra
+--             attack % with an axe or sword), ruthlessness, sealFate (combo point %), relentless,
+--             relentlessEnergy
 --   combat = report from Combat.lua or nil    calibration from recorded fights
 --   buffs = { [id] = true }                   selected party buffs and consumables
 --   skills = { ["Daggers"] = { rank, max } }  weapon skills, nil when unknown
@@ -91,6 +95,25 @@ end
 ---------------------------------------------------------------------------
 -- the model
 ---------------------------------------------------------------------------
+-- The Sinister Strike / Eviscerate cycle from combo points and energy (Wowhead Forever talents):
+-- Sinister Strikes per Eviscerate = (5 − Ruthlessness's chance) / (1 + a landed Sinister Strike's
+-- crit chance × Seal Fate's chance); energy per cycle = that × the Sinister Strike cost + the
+-- Eviscerate cost − Relentless Strikes' refund (5 points × its chance a point × its energy);
+-- 10 energy a second. Returns Sinister Strikes and Eviscerates a second.
+function M.RogueCycle(p, crit, landed)
+  local c = p.cycle
+  local perStrike = 1 + math.min(math.max(crit, 0), 100) / 100 * landed * c.sealFate
+  local strikes = math.max(1, (5 - c.ruthless) / perStrike)
+  local energy = strikes * c.ssCost + c.evisCost - c.refund
+  local cycles = 10 / math.max(1, energy)
+  return strikes * cycles, cycles
+end
+
+-- Hack and Slash: an axe (0) or a sword (7) gives its hand's landed attacks an extra attack.
+local AXE_SWORD = { [0] = true, [7] = true }
+local function ExtraAttack(w, p) return (w and AXE_SWORD[w.sub] and (p.hackSlash or 0) / 100) or 0 end
+M.RogueExtraAttack = ExtraAttack
+
 -- Simplified sustained single-target DPS for a Sinister Strike / Eviscerate rogue.
 function M.Dps(sh, p)
   local crit = math.min(sh.crit, 100) / 100
@@ -100,14 +123,35 @@ function M.Dps(sh, p)
   local yellowMiss = math.max(0, p.yellowMissBase - sh.hit) / 100
   local plain = math.max(0, 1 - whiteMiss - avoid - glance - crit)
   local whiteFactor = plain + glance * 0.7 + crit * 2
-  local yellowFactor = math.max(0, 1 - yellowMiss - avoid) * (1 + crit)
+  local landed = math.max(0, 1 - yellowMiss - avoid)
+  local yellowFactor = landed * (1 + crit)
+  -- Lethality raises the Sinister Strike's crit bonus (100%) by its %
+  local ssFactor = landed * (1 + crit * (1 + (p.lethality or 0) / 100))
+  local whiteLanded = math.max(0, 1 - whiteMiss - avoid)
+  local ohMult = 0.5 * (1 + (p.dualWield or 0) / 100)
   local function avg(w) return (w.min + w.max) / 2 + (sh.ap / 14) * w.speed end
+  -- the cycle's rates move with crit only through Seal Fate (else the ratio is 1)
+  local ssRate, evisRate = p.ssPerSec, p.evisPerSec
+  if p.cycle and p.cycle.ref then
+    local s1, e1 = M.RogueCycle(p, sh.crit, landed)
+    ssRate, evisRate = ssRate * s1 / p.cycle.ref[1], evisRate * e1 / p.cycle.ref[2]
+  end
   local total = p.otherDps
-  if sh.mh then total = total + p.swingRate * (avg(sh.mh) / sh.mh.speed) * whiteFactor end
-  if sh.oh then total = total + p.swingRate * ((avg(sh.oh) * 0.5) / sh.oh.speed) * whiteFactor end
   if sh.mh then
-    total = total + p.ssPerSec * (M.InstantWeaponDamage(sh.mh, sh.ap) + p.ssBonus) * yellowFactor
-    total = total + p.evisPerSec * p.evisDamage * yellowFactor
+    local swings = p.swingRate / sh.mh.speed
+    total = total + swings * avg(sh.mh) * whiteFactor
+    local extra = ExtraAttack(sh.mh, p)
+    if extra > 0 then total = total + (swings * whiteLanded + ssRate * landed) * extra * avg(sh.mh) * whiteFactor end
+  end
+  if sh.oh then
+    local swings = p.swingRate / sh.oh.speed
+    total = total + swings * avg(sh.oh) * ohMult * whiteFactor
+    local extra = ExtraAttack(sh.oh, p)
+    if extra > 0 then total = total + swings * whiteLanded * extra * avg(sh.oh) * ohMult * whiteFactor end
+  end
+  if sh.mh then
+    total = total + ssRate * (M.InstantWeaponDamage(sh.mh, sh.ap) + p.ssBonus) * (p.ssMult or 1) * ssFactor
+    total = total + evisRate * p.evisDamage * yellowFactor
   end
   return total
 end
@@ -354,8 +398,11 @@ function M.RogueContext(input)
   if not (agiPerCrit > 3 and agiPerCrit < 60) then agiPerCrit = 2.2 + (26.8 * (level - 1)) / 59 end
   notes[#notes + 1] = ("1%% crit ≈ %s agility (a saját statjaidból visszaszámolva)."):format(F1(agiPerCrit))
 
+  -- talents (Talent.lua, the numbers of the rank's Wowhead Forever text): energy costs, damage %
+  -- (Coup de Grace and Aggression add up on Eviscerate), crit bonus, off-hand, dodge/parry, combo points
   local ssCost = 45 - (tal.efficient or 0)
-  local evisBonus = 1 + (tal.coup or 0) / 100
+  local evisCost = 35 - (tal.flawless or 0)
+  local evisBonus = 1 + ((tal.coup or 0) + (tal.aggression or 0)) / 100
   local function eq(slot) return equipped[slot] and equipped[slot].stats or M.ZERO end
   local sheet = {
     ap = input.ap or 0, crit = critNow, hit = input.hit or 0,
@@ -363,18 +410,22 @@ function M.RogueContext(input)
   }
   for slot, key in pairs({ MAIN_HAND = "mh", OFF_HAND = "oh" }) do
     local w = sheet[key]
-    if w and equipped[slot] then w.norm = M.NormalizedSpeed(equipped[slot].sub) end
+    if w and equipped[slot] then w.norm, w.sub = M.NormalizedSpeed(equipped[slot].sub), tonumber(equipped[slot].sub) end
   end
 
-  local cycleSeconds = (5 * ssCost + 35) / 10
   local params = {
     level = level, agiPerCrit = agiPerCrit,
     whiteMissBase = sheet.oh and 24 or 5, yellowMissBase = 5,
-    dodge = 5, parry = 0, glance = 0, swingRate = 1,
-    ssPerSec = 5 / cycleSeconds, evisPerSec = 1 / cycleSeconds,
+    dodge = math.max(0, 5 - (tal.expertise or 0)), parry = 0, glance = 0, swingRate = 1,
     ssBonus = Round(level / 2), evisDamage = Round(12 * level * evisBonus),
+    ssMult = 1 + (tal.aggression or 0) / 100, lethality = tal.lethality or 0,
+    dualWield = tal.dualWield or 0, hackSlash = tal.hackSlash or 0,
+    cycle = { ssCost = ssCost, evisCost = evisCost, ruthless = (tal.ruthlessness or 0) / 100,
+      sealFate = (tal.sealFate or 0) / 100, refund = 5 * (tal.relentless or 0) / 100 * (tal.relentlessEnergy or 0) },
     otherDps = 0, statMult = 1, notes = notes,
   }
+  local function Landed() return math.max(0, 1 - math.max(0, params.yellowMissBase - sheet.hit) / 100 - (params.dodge + params.parry) / 100) end
+  params.ssPerSec, params.evisPerSec = M.RogueCycle(params, sheet.crit, Landed())
 
   -- Pull every default towards what the recorded fights show.
   local combat = input.combat
@@ -390,19 +441,24 @@ function M.RogueContext(input)
     params.parry = mix(params.parry, combat.white.parry, wn, 100)
     params.glance = mix(params.glance, combat.white.glance, wn, 100)
     params.yellowMissBase = mix(params.yellowMissBase, combat.yellow.miss + sheet.hit, combat.yellow.n, 100)
-    if sheet.mh then
-      local expected = 1 / sheet.mh.speed + (sheet.oh and 1 / sheet.oh.speed or 0)
-      params.swingRate = mix(1, wn / secs / expected, secs, 120)
-    end
     local ss, evis
     for _, a in ipairs(combat.abilities) do
       if a.name == "Sinister Strike" and not ss then ss = a end
       if a.name == "Eviscerate" and not evis then evis = a end
     end
+    if sheet.mh then
+      -- Hack and Slash's extra attacks are white swings in the log too: expected with them
+      local whiteLanded = math.max(0, 1 - (combat.white.miss + params.dodge + params.parry) / 100)
+      local expected = (1 / sheet.mh.speed) * (1 + ExtraAttack(sheet.mh, params) * whiteLanded)
+        + (sheet.oh and (1 / sheet.oh.speed) * (1 + ExtraAttack(sheet.oh, params) * whiteLanded) or 0)
+        + (ss and (ss.hit + ss.crit) / secs or 0) * ExtraAttack(sheet.mh, params)
+      params.swingRate = mix(1, wn / secs / expected, secs, 120)
+    end
     params.ssPerSec = mix(params.ssPerSec, (ss and ss.n or 0) / secs, secs, 120)
     params.evisPerSec = mix(params.evisPerSec, (evis and evis.n or 0) / secs, secs, 120)
     if ss and sheet.mh and ss.hit + ss.crit > 0 then
-      local normal = ss.dmg / (ss.hit + 2 * ss.crit)
+      -- the logged damage already has Aggression and Lethality in it
+      local normal = ss.dmg / (ss.hit + (2 + params.lethality / 100) * ss.crit) / params.ssMult
       local weapon = M.InstantWeaponDamage(sheet.mh, sheet.ap)
       params.ssBonus = mix(params.ssBonus, math.max(0, normal - weapon), ss.hit + ss.crit, 20)
     end
@@ -425,6 +481,8 @@ function M.RogueContext(input)
       "5 Sinister Strike után Eviscerate. Kapcsold be a harcnaplót (/wa log) a kalibráláshoz."
   end
 
+  -- the rates above are at the character's own crit; Seal Fate moves them with crit from here
+  params.cycle.ref = { M.RogueCycle(params, sheet.crit, Landed()) }
   local unbuffed = M.Dps(sheet, params)
   local buffs = M.ResolveBuffs(level, input.buffs, input.data)
   local bAgi, bStr, bAp, bCrit, pct = 0, 0, 0, 0, 0
@@ -456,7 +514,7 @@ function M.RogueContext(input)
 
   -- Best slot for an item and the DPS it adds there; nil when it is not an upgrade.
   function ctx.score(add, slots, twoHand, sub)
-    if add.weapon then add.weapon.norm = M.NormalizedSpeed(sub, twoHand) end
+    if add.weapon then add.weapon.norm, add.weapon.sub = M.NormalizedSpeed(sub, twoHand), tonumber(sub) end
     local best
     for _, slot in ipairs(slots) do
       local sh = Apply(sheet, eq(slot), add, params)

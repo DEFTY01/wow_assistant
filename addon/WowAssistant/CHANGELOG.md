@@ -1,3 +1,16 @@
+## 2.20.0
+
+Rogue: mindhárom talentfa a modellben.
+
+- A rogue mind az 54 talentje besorolva. Amelyik a sebzést, az energiát, a combo pontot vagy a találatot változtatja, azzal a modell most számol, a rangod Wowhead Forever számaival:
+  - Efficient Strikes, Flawless Execution, Relentless Strikes: kevesebb energia egy Sinister Strike + Eviscerate körre;
+  - Ruthlessness, Seal Fate: kevesebb Sinister Strike egy Eviscerate-hez. Seal Fate mellett a crit többet ér, ezt a felszerelési javaslat is figyelembe veszi;
+  - Coup de Grace, Aggression, Lethality, Dual Wield Specialization: több sebzés;
+  - Weapon Expertise: kevesebb dodge és parry; Hack and Slash: fejszével vagy karddal extra támadás, így a felszerelési javaslatban egy kard többet érhet, mint ugyanolyan buzogány;
+  - a Malice és a Precision a karakterlapodon már benne van.
+- Amelyikkel nem számol, annál a /wa talent megmondja, miért: túlélés (a tankmodellbe kerül), mozgás vagy lopakodás, vagy olyan képesség, ami még nincs a modellben (Backstab, Mutilate, Slice and Dice, Rupture…; ezek a rotációs javaslatokkal jönnek).
+- Talentek nélkül a számok nem változtak.
+
 ## 2.19.0
 
 Talentek: a talentek hatása egy közös kereten át jut a modellekbe, a Forever számaival.

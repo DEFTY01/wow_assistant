@@ -127,11 +127,79 @@ end
 -- A talent not listed here is "nem számolt": the class ticket says when it gets counted.
 T.TICKET = { ROGUE = "WA-032a", WARRIOR = "WA-032b", MAGE = "WA-032c", WARLOCK = "WA-032d", HUNTER = "WA-032e",
   SHAMAN = "WA-032f", DRUID = "WA-032g", PRIEST = "WA-032h", PALADIN = "WA-032i" }
+-- Reasons for talents the model does not count, in plain words.
+local SURVIVAL = "túlélés (dodge, parry, kevesebb sebzés): a tankmodellbe kerül (WA-023), a sebzést nem változtatja"
+local UTILITY = "nem sebzés: mozgás, lopakodás, irányítás vagy védekező cooldown"
+local POISON = "a mérgek sebzését a modell a harcaidból méri (egyéb források), külön nem számolja"
+local function ROTATION(what, ticket)
+  return ("a modell még Sinister Strike + Eviscerate rotációval számol; a(z) %s a rotációs ticketben jön (%s)"):format(what, ticket)
+end
+local function COOLDOWN(ticket)
+  return ("aktív képesség cooldownnal: a cooldown ideje nincs a talentadatban, a rotációs ticketben jön (%s)"):format(ticket)
+end
 T.EFFECTS = {
+  -- Rogue (WA-032a): the model is Sinister Strike + Eviscerate with white swings (Model.lua); every
+  -- talent of the three trees is either counted in it or has its reason.
   ROGUE = {
-    Malice = { { key = "malice", val = 1, what = "crit %" } },
+    -- Combat
+    ["Coup de Grace"] = { { key = "coup", val = 1, what = "Eviscerate sebzés %" }, partial = "a Death Mark része nincs a modellben" },
     ["Efficient Strikes"] = { { key = "efficient", val = 1, what = "Sinister Strike energiaköltség −" } },
-    ["Coup de Grace"] = { { key = "coup", val = 1, what = "Eviscerate sebzés %" } },
+    ["Lightning Reflexes"] = { reason = SURVIVAL },
+    ["Puncturing Wounds"] = { reason = ROTATION("Backstab és a Mutilate", "WA-007a, WA-007c") },
+    Deflection = { reason = SURVIVAL },
+    Precision = { { key = "precision", val = 1, what = "hit %" }, sheet = "a játék karakterlapja (GetHitModifier) már tartalmazza" },
+    ["Improved Sprint"] = { reason = UTILITY },
+    Endurance = { reason = UTILITY },
+    Riposte = { reason = ROTATION("Riposte (parry után)", "WA-007b") },
+    Composure = { reason = ROTATION("Poised", "WA-007b") },
+    ["Improved Kick"] = { reason = UTILITY },
+    ["Flawless Execution"] = { { key = "flawless", val = 1, what = "Eviscerate energiaköltség −" } },
+    ["Weapon Expertise"] = { { key = "expertise", val = 1, what = "dodge és parry esély −%" } },
+    Aggression = { { key = "aggression", val = 1, what = "Sinister Strike és Eviscerate sebzés %" } },
+    ["Dual Wield Specialization"] = { { key = "dualWield", val = 1, what = "off-hand sebzés %" } },
+    ["Blade Flurry"] = { reason = COOLDOWN("WA-007b") },
+    ["Hack and Slash"] = { { key = "hackSlash", val = 1, what = "extra támadás esély % (fejsze, kard)" },
+      partial = "a dagger/ököl crit része és a buzogány páncéltörése nincs a modellben" },
+    ["Flash of Steel"] = { reason = ROTATION("Shank", "WA-007b") },
+    ["Adrenaline Rush"] = { reason = COOLDOWN("WA-007b") },
+    -- Assassination
+    ["Improved Gouge"] = { reason = UTILITY },
+    ["Remorseless Attacks"] = { reason = "ölés utáni hatás: hogy hány ellenfelet öltél, az a harcadatból még nem jön" },
+    Malice = { { key = "malice", val = 1, what = "crit %" }, sheet = "a játék karakterlapja (GetCritChance) már tartalmazza" },
+    Ruthlessness = { { key = "ruthlessness", val = 1, what = "finisher utáni combo pont esély %" } },
+    ["Improved Expose Armor"] = { reason = ROTATION("Expose Armor", "WA-007a") },
+    ["Improved Slice and Dice"] = { reason = ROTATION("Slice and Dice", "WA-007a, WA-007b") },
+    Vigor = { reason = "csak a maximális energiát emeli; a tartós sebzést ebben a modellben nem változtatja" },
+    ["Blood Splatter"] = { reason = ROTATION("Rupture és a Garrote", "WA-007a") },
+    Lethality = { { key = "lethality", val = 1, what = "Sinister Strike crit-sebzés bónusz %" } },
+    ["Vile Poisons"] = { reason = POISON },
+    ["Cold Blood"] = { reason = COOLDOWN("WA-007a") },
+    ["Improved Poisons"] = { reason = POISON },
+    ["Relentless Strikes"] = { { key = "relentless", val = 1, what = "finisher combo pontonként esély %" },
+      { key = "relentlessEnergy", val = 2, what = "visszakapott energia" } },
+    Venom = { reason = ROTATION("Shank", "WA-007a") },
+    ["Improved Kidney Shot"] = { reason = ROTATION("Kidney Shot", "WA-007a") },
+    ["Seal Fate"] = { { key = "sealFate", val = 1, what = "crit utáni extra combo pont esély %" } },
+    Mutilate = { reason = ROTATION("Mutilate", "WA-007a") },
+    -- Subtlety
+    Setup = { reason = SURVIVAL },
+    ["Master of Deception"] = { reason = UTILITY },
+    Opportunity = { reason = ROTATION("Backstab, a Garrote, az Ambush és a Mutilate", "WA-007c") },
+    ["Dirty Deeds"] = { reason = ROTATION("nyitás (Cheap Shot, Garrote)", "WA-007c") },
+    Camouflage = { reason = UTILITY },
+    ["Improved Ambush"] = { reason = ROTATION("Ambush", "WA-007c") },
+    ["Dirty Tricks"] = { reason = UTILITY },
+    Initiative = { reason = ROTATION("nyitás (Ambush, Garrote, Cheap Shot)", "WA-007c") },
+    Premeditation = { reason = ROTATION("nyitás", "WA-007c") },
+    ["Serrated Blades"] = { reason = "páncéltörés és Rupture: a modell nem számol a célpont páncéljával, és Rupture sincs benne (WA-007c)" },
+    Elusiveness = { reason = UTILITY },
+    ["Ghostly Strike"] = { reason = ROTATION("Ghostly Strike", "WA-007c") },
+    ["Quick Getaway"] = { reason = UTILITY },
+    ["Heightened Senses"] = { reason = SURVIVAL },
+    Preparation = { reason = COOLDOWN("WA-007c") },
+    Hemorrhage = { reason = ROTATION("Hemorrhage", "WA-007c") },
+    ["Boot Knife"] = { reason = ROTATION("Shank", "WA-007c") },
+    ["Death Mark"] = { reason = ROTATION("Death Mark", "WA-007c") },
   },
   HUNTER = {
     ["Lethal Attacks"] = { { key = "lethal", val = 1, what = "crit %" } },
@@ -173,6 +241,8 @@ function T.Effects(class, ranks)
         st.reason = "nincs a Wowhead Forever adatában"
       elseif not list then
         st.reason = ("a modell még nem számol vele (%s)"):format(T.TICKET[class or ""] or "WA-032")
+      elseif list.reason then
+        st.reason = list.reason
       elseif not data then
         st.reason = "a talentadat (TalentData.lua) hiányzik"
       elseif r.max and r.max > 0 and r.max ~= d.max then
@@ -187,7 +257,7 @@ function T.Effects(class, ranks)
         end
         if not st.reason then
           for _, g in ipairs(got) do out[g.key] = g.value end
-          st.counted, st.values = true, got
+          st.counted, st.values, st.sheet, st.partial = true, got, list.sheet, list.partial
           st.source = "Wowhead Forever: " .. (T.RankText(d, math.min(r.rank, d.max)) or "")
         end
       end
@@ -198,15 +268,17 @@ function T.Effects(class, ranks)
   return out
 end
 
--- How many of a class's talents the model counts: { counted, total }.
+-- How many of a class's talents the model counts, how many have a reason not to, of all:
+-- counted, explained, total.
 function T.Coverage(class)
   local data = T.Data(class)
-  local total, counted = 0, 0
+  local total, counted, explained = 0, 0, 0
   for _, d in ipairs(data and data.talents or {}) do
     total = total + 1
-    if (T.EFFECTS[class] or {})[d.name] then counted = counted + 1 end
+    local e = (T.EFFECTS[class] or {})[d.name]
+    if e and e.reason then explained = explained + 1 elseif e then counted = counted + 1 end
   end
-  return counted, total
+  return counted, explained, total
 end
 
 local function Report()
@@ -245,7 +317,9 @@ local function Report()
       if st.counted then
         local bits = {}
         for _, v in ipairs(st.values) do bits[#bits + 1] = ("%s %s"):format(v.what, tostring(v.value)) end
-        WA.Print(("    számolt: %s %d/%d · %s"):format(st.name, st.rank, st.max or st.rank, table.concat(bits, ", ")))
+        local note = st.sheet and (" (" .. st.sheet .. ")") or ""
+        if st.partial then note = note .. "; nem számolt: " .. st.partial end
+        WA.Print(("    számolt: %s %d/%d · %s%s"):format(st.name, st.rank, st.max or st.rank, table.concat(bits, ", "), note))
       end
     end
     local shown = 0
