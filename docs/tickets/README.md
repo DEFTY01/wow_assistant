@@ -27,7 +27,7 @@ Méret: **S** néhány óra, **M** egy-két munkamenet, **L** több munkamenet.
 
 | Ticket | Cím | Méret | Prioritás | Előfeltétel |
 |---|---|---|---|---|
-| [WA-004](WA-004-szintfuggo-kalibracio.md) | Szintfüggő kalibráció | M | magas | – |
+| [WA-004](WA-004-szintfuggo-kalibracio.md) | Szintfüggő kalibráció (kész, 2.32.0; a rangonkénti rész nyitott) | M | magas | – |
 | [WA-005](WA-005-aura-idovonal.md) | Aura-idővonal a harcnaplóból | M | magas | – |
 
 ### 2. Talentek és spec

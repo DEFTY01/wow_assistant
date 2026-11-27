@@ -252,15 +252,21 @@ function G.Fights()
 end
 
 -- Only fights with hit counts calibrate the model (the damage meter may report totals only).
-function G.CombatReport(forModel)
+-- forModel: the fights the model calibrates from; level: weighted by how far each fight is from
+-- it (WA-004), and the report carries where the numbers come from (r.calibration).
+function G.CombatReport(forModel, level)
   local list = G.Fights()
+  local info
   if forModel then
     local detailed = {}
     -- log fights always; in-game fights only with hit counts (the damage meter alone has none)
     for _, f in ipairs(list) do if (f.source ~= "meter" and f.source ~= "live") or f.detailed then detailed[#detailed + 1] = f end end
     list = detailed
+    if level then list, info = M.WeighFights(list, level) end
   end
-  return WA.Combat.Report(list)
+  local r = WA.Combat.Report(list)
+  if r then r.calibration = info end
+  return r
 end
 
 -- "Adds 4.5 damage per second" on an ammo tooltip.
@@ -300,7 +306,7 @@ function G.ModelInput()
     class = G.Class(),
     level = UnitLevel("player"), agi = agi or 0, str = str or 0, ap = (base or 0) + (pos or 0) + (neg or 0),
     crit = GetCritChance and GetCritChance() or 0, hit = GetHitModifier and (GetHitModifier() or 0) or 0,
-    equipped = equipped, slotOrder = order, talents = G.Talents(), combat = G.CombatReport(true),
+    equipped = equipped, slotOrder = order, talents = G.Talents(), combat = G.CombatReport(true, UnitLevel("player")),
     buffs = WA.charDB and WA.charDB.buffs or {}, skills = WA.char and WA.char.skills,
   }
   if input.class == "HUNTER" then
@@ -436,6 +442,9 @@ function G.Context()
   ctx.ammoId = input.ammoId
   local note = TalentNote(input, ctx)
   if note and ctx.params and ctx.params.notes then ctx.params.notes[#ctx.params.notes + 1] = note end
+  -- WA-004: where the calibration comes from (which levels, how much of it counts)
+  local cal = input.combat and M.CalibrationNote(input.combat.calibration)
+  if cal and ctx.params and ctx.params.notes then ctx.params.notes[#ctx.params.notes + 1] = cal end
   -- WA-030: which spec the model counts for, first among the notes
   local sp = input.spec
   if sp and ctx.params and ctx.params.notes then

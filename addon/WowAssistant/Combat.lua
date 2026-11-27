@@ -24,10 +24,12 @@ local OFFHAND_MISS = "Melee (off hand miss)"
 local function White(name) return name == "Melee" end
 local function Dot(name) return name:sub(-6) == " (dot)" end
 local function Empty() local t = {} for _, k in ipairs(FIELDS) do t[k] = 0 end return t end
-local function Add(into, a)
+-- w: the fight's weight (WA-004, the model's calibration by level); 1 for the combat page
+local function Add(into, a, w)
+  w = w or 1
   for _, k in ipairs(FIELDS) do
     if k == "max" then into.max = math.max(into.max, tonumber(a.max) or 0)
-    else into[k] = into[k] + (tonumber(a[k]) or 0) end
+    else into[k] = into[k] + (tonumber(a[k]) or 0) * w end
   end
 end
 local function Pct(part, whole) return whole > 0 and part / whole * 100 or 0 end
@@ -50,20 +52,22 @@ function C.Report(fights, limit, advise)
   local ev = {}
   for name in pairs(PROVABLE) do ev[name] = { seen = 0, proven = {}, justified = 0, unchecked = 0 } end
   for _, f in ipairs(list) do
-    seconds = seconds + f.dur
-    damage = damage + f.dmg
-    capped = capped + (f.capped or 0)
-    samples = samples + (f.samples or 0)
+    -- fight.weight (WA-004): a fight far from your level counts less in the model's calibration
+    local w = tonumber(f.weight) or 1
+    seconds = seconds + f.dur * w
+    damage = damage + f.dmg * w
+    capped = capped + (f.capped or 0) * w
+    samples = samples + (f.samples or 0) * w
     local fn, fmiss = 0, 0
     for _, a in ipairs(f.ab or {}) do
       local name = a.name
       if name == OFFHAND_MISS then
-        offhandMiss = offhandMiss + (tonumber(a.n) or 0)
+        offhandMiss = offhandMiss + (tonumber(a.n) or 0) * w
       else
         local into = abilities[name]
         if not into then into = Empty() abilities[name] = into order[#order + 1] = name end
-        Add(into, a)
-        if White(name) then Add(white, a) elseif not Dot(name) then Add(yellow, a) end
+        Add(into, a, w)
+        if White(name) then Add(white, a, w) elseif not Dot(name) then Add(yellow, a, w) end
         if White(name) then fn = fn + (a.n or 0) fmiss = fmiss + (a.miss or 0) end
       end
     end
@@ -72,8 +76,8 @@ function C.Report(fights, limit, advise)
       if FINISHERS[name] then
         local e = cp[name]
         if not e then e = { casts = 0, cp = 0 } cp[name] = e cpOrder[#cpOrder + 1] = name end
-        e.casts = e.casts + 1
-        e.cp = e.cp + (tonumber(c[4]) or 0)
+        e.casts = e.casts + w
+        e.cp = e.cp + (tonumber(c[4]) or 0) * w
       end
     end
     -- fight.evis holds every Eviscerate and (from 2.11.0) Ferocious Bite; no e.spell = Eviscerate
@@ -101,7 +105,7 @@ function C.Report(fights, limit, advise)
     end
     for _, a in ipairs(f.auras or {}) do
       if auraSecs[a[1]] == nil then auraOrder[#auraOrder + 1] = a[1] end
-      auraSecs[a[1]] = (auraSecs[a[1]] or 0) + a[2]
+      auraSecs[a[1]] = (auraSecs[a[1]] or 0) + a[2] * w
     end
     if f.targetLevel and f.level and f.targetLevel > 0 then
       local diff = f.targetLevel - f.level
@@ -150,7 +154,11 @@ function C.Report(fights, limit, advise)
     local f = list[i]
     r.recent[i] = { start = f.start, dur = f.dur, dps = f.dmg / f.dur, target = f.target or "?", targetLevel = f.targetLevel, source = f.source }
   end
-  r.advice = (advise or C.Advise)(r, list)
+  -- the advice is for the combat page (whole fights); the model's weighted report (WA-004) has none
+  local weighted = false
+  for _, f in ipairs(list) do if f.weight and f.weight ~= 1 then weighted = true end end
+  r.weighted = weighted or nil
+  r.advice = weighted and {} or (advise or C.Advise)(r, list)
   return r
 end
 

@@ -381,6 +381,65 @@ function M.Context(input)
 end
 
 ---------------------------------------------------------------------------
+-- WA-004: calibration by level. Every class pulls its defaults towards the recorded fights with
+-- mix(prior, measured, n, half), n a count (swings, casts) or seconds. A fight far from your level
+-- shows another rotation and other spell ranks, so it counts less: its weight halves every
+-- M.LEVEL_HALF levels. The counts and seconds are weighted (Combat.lua, fight.weight), the rates
+-- and the damage per hit are not changed by it; only how far the model trusts them.
+---------------------------------------------------------------------------
+M.LEVEL_HALF = 5
+
+-- A fight's weight at a level: 1 at your level, 0.5 five levels away, 0.25 ten away. A fight
+-- without a level counts in full (nothing tells how far it is).
+function M.LevelWeight(fightLevel, level)
+  fightLevel, level = tonumber(fightLevel), tonumber(level)
+  if not (fightLevel and level and fightLevel > 0 and level > 0) then return 1 end
+  return 0.5 ^ (math.abs(fightLevel - level) / M.LEVEL_HALF)
+end
+
+-- The fights with their weight (copies; the saved fights are not changed), and where the
+-- numbers come from: { level, fights, seconds, counted (weighted seconds), min, max, noLevel }.
+function M.WeighFights(fights, level)
+  local out = {}
+  local info = { level = level, fights = 0, seconds = 0, counted = 0, noLevel = 0 }
+  for _, f in ipairs(fights or {}) do
+    local w = M.LevelWeight(f.level, level)
+    out[#out + 1] = setmetatable({ weight = w }, { __index = f })
+    local dur = tonumber(f.dur) or 0
+    info.fights = info.fights + 1
+    info.seconds = info.seconds + dur
+    info.counted = info.counted + dur * w
+    local lv = tonumber(f.level)
+    if lv and lv > 0 then
+      info.min = math.min(info.min or lv, lv)
+      info.max = math.max(info.max or lv, lv)
+    else
+      info.noLevel = info.noLevel + 1
+    end
+  end
+  return out, info
+end
+
+-- "Honnan a számok": one line for the notes.
+function M.CalibrationNote(info)
+  if not info or info.fights == 0 then return nil end
+  local from
+  if not info.min then from = "szint nélküli harcokból"
+  elseif info.min == info.max then from = ("a(z) %d. szintről"):format(info.min)
+  else from = ("a(z) %d–%d. szintről"):format(info.min, info.max) end
+  local same = info.min and info.min == info.max and info.min == info.level
+  local tail
+  if same or info.seconds <= 0 then
+    tail = "mind a mostani szinteden, teljes súllyal"
+  else
+    tail = ("a mostani (%d.) szintedtől távolabbiak kevesebbet számítanak (5 szintenként fele súly): %s mp harcidőből %s mp számít (%d%%)")
+      :format(info.level or 0, Round(info.seconds), Round(info.counted), Round(info.counted / info.seconds * 100))
+  end
+  return ("Honnan a számok: %d harc %s%s; %s."):format(info.fights, from,
+    info.noLevel > 0 and info.min and (" (%d szint nélkül)"):format(info.noLevel) or "", tail)
+end
+
+---------------------------------------------------------------------------
 -- WA-030: the spec. The talent tree with the most points; on a tie the one with the deeper
 -- talent, then the first. The tree's deep talents (row 5 and below) are named as the proof
 -- (e.g. Mortal Strike, Adrenaline Rush). A spec chosen by hand on the Harc page wins.
@@ -557,7 +616,7 @@ function M.RogueContext(input)
     params.otherDps = mix(0, other / secs, secs, 120)
     local weight = Round((wn / (wn + 100)) * 100)
     notes[#notes + 1] = ("Kalibrálva %d rögzített harcból (%d mp, %d auto-attack): a mért értékek súlya most kb. %d%%, és a mintával együtt nő.")
-      :format(combat.fights, Round(secs), wn, weight)
+      :format(combat.fights, Round(secs), Round(wn), weight)
     notes[#notes + 1] = ("Auto-attack: %s%% alap miss, %s%% dodge, %s%% parry, %s%% glancing. Sinister Strike %s/perc (+%d bónusz), Eviscerate %s/perc (%d sebzés), egyéb források %s DPS.")
       :format(F1(params.whiteMissBase), F1(params.dodge), F1(params.parry), F1(params.glance), F1(params.ssPerSec * 60),
         Round(params.ssBonus), F1(params.evisPerSec * 60), Round(params.evisDamage), F1(params.otherDps))

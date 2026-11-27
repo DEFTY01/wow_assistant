@@ -1,3 +1,11 @@
+## 2.32.0
+
+Szintfüggő kalibráció: a harcaid annyira számítanak, amennyire közel vannak a mostani szintedhez.
+
+- A modell eddig minden rögzített harcodat egyformán vette figyelembe. Most egy harc súlya 5 szintenként a felére esik: ami 15 szinttel lejjebb volt (más rotáció, más rangok), az csak 1/8 súllyal számít, és a modell ennyivel jobban támaszkodik a Wowhead-alapértékekre.
+- A Felszerelés oldalon a modell megjegyzései között egy új sor mondja meg, honnan jönnek a számok: hány harc, melyik szintekről, és a harcidőből mennyi számít.
+- A Harc oldal statisztikái és tanácsai nem változtak: azok továbbra is az egész harcokat mutatják.
+
 ## 2.31.0
 
 Specfelismerés: a modell tudja, melyik specben vagy, és kiírja, miből tudja.
