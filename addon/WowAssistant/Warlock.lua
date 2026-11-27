@@ -28,6 +28,7 @@
 -- any fight: Shadow Bolt and a Corruption-like DoT, the model's own priors).
 
 local _, WA = ...
+local L = WA.L
 WA = WA or {}
 local M = WA.Model
 local W = {}
@@ -109,7 +110,7 @@ function W.Context(input)
   local wand = eq("RANGED").weapon
   local sheet = { sp = input.sp or 0, spellCrit = input.spellCrit or 0, spellHit = input.spellHit or 0, wand = wand,
     ap = input.ap or 0, crit = input.crit or 0, hit = input.hit or 0, mh = eq("MAIN_HAND").weapon }
-  notes[#notes + 1] = ("Shadow Bolt 1.7 s, with 48.6%% of spell power (Wowhead Forever); 1%% spell crit ≈ %s intellect. The wand is %s DPS, which does not grow with spell power.")
+  notes[#notes + 1] = (L"Shadow Bolt 1.7 s, with 48.6%% of spell power (Wowhead Forever); 1%% spell crit ≈ %s intellect. The wand is %s DPS, which does not grow with spell power.")
     :format(F1(intPerCrit), F1(WandDps(wand)))
 
   -- priors: a Shadow Bolt-sized cast every 4 s (DoTs, Life Tap, moving between), the DoTs a
@@ -186,13 +187,13 @@ function W.Context(input)
     params.petDps = mix(params.petDps, pet / secs, secs, 120)
     if wand then params.wandUptime = mix(params.wandUptime, math.min(1, wandN / secs * wand.speed), secs, 120) end
     params.otherDps = mix(0, other / secs, secs, 120)
-    notes[#notes + 1] = ("Calibrated from %d recorded fights (%d s): %s direct spells per minute (%d damage without spell power), DoTs and drains %s DPS, demon %s DPS, wand %d%% of the time, other %s DPS.")
+    notes[#notes + 1] = (L"Calibrated from %d recorded fights (%d s): %s direct spells per minute (%d damage without spell power), DoTs and drains %s DPS, demon %s DPS, wand %d%% of the time, other %s DPS.")
       :format(combat.fights, Round(secs), F1(params.nukePerSec * 60), Round(params.nukeDamage), F1(params.dotDps), F1(params.petDps),
         Round(params.wandUptime * 100), F1(params.otherDps))
   else
-    notes[#notes + 1] = "No recorded fights, so it uses textbook values. Turn on the combat log (/wa log) to calibrate."
+    notes[#notes + 1] = L"No recorded fights, so it uses textbook values. Turn on the combat log (/wa log) to calibrate."
   end
-  notes[#notes + 1] = "The model does not count mana (Life Tap refills it): intellect is only worth something for spell crit, spirit and stamina nothing."
+  notes[#notes + 1] = L"The model does not count mana (Life Tap refills it): intellect is only worth something for spell crit, spirit and stamina nothing."
 
   local unbuffed = W.Dps(sheet, params)
   local buffs = M.ResolveBuffs(level, input.buffs, input.data)
@@ -321,7 +322,7 @@ function W.Score(f, ctx)
   local baseline = ctx and WA.Combat.Comparable(f, ctx) and ctx.baseline or nil
   if baseline and baseline > 0 then
     local ratio = dps / baseline
-    Part("dps", "DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS against the %d your gear should give: %d%%"):format(
+    Part("dps", L"DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, (L"%d DPS against the %d your gear should give: %d%%"):format(
       Round(dps), Round(baseline), Round(ratio * 100)))
   end
   local ab = f.ab or {}
@@ -335,23 +336,23 @@ function W.Score(f, ctx)
     local wand = ctx and ctx.sheet and ctx.sheet.wand
     if shoot and wand then busy = busy + shoot.n * wand.speed end
     local up = math.min(1, busy / dur)
-    Part("active", "You cast continuously", math.min(up / 0.8, 1) * 20, 20, ("you were casting or wanding about %d%% of the time (from the casts and the shots)"):format(Round(up * 100)))
+    Part("active", L"You cast continuously", math.min(up / 0.8, 1) * 20, 20, (L"you were casting or wanding about %d%% of the time (from the casts and the shots)"):format(Round(up * 100)))
   end
   if dur >= 15 then
     local up = W.DotUptime(ab, "Corruption", dur)
     if up or Find(ab, "Immolate (dot)") or Find(ab, "Bane of Agony (dot)") then
       local best = math.max(up or 0, W.DotUptime(ab, "Bane of Agony", dur) or 0, W.DotUptime(ab, "Immolate", dur) or 0)
-      Part("dot", "DoT in longer fights", math.min(best / 70, 1) * 15, 15, ("the longest-running DoT ticked about %d%% of the fight (from the ticks%s)")
-        :format(Round(best), Wracked(f.casts) and "; leans high with Wrack" or ""))
+      Part("dot", L"DoT in longer fights", math.min(best / 70, 1) * 15, 15, (L"the longest-running DoT ticked about %d%% of the fight (from the ticks%s)")
+        :format(Round(best), Wracked(f.casts) and (L"; leans high with Wrack") or ""))
     else
-      Part("dot", "DoT in longer fights", 0, 15, "no DoT ticked in this fight longer than 15 s")
+      Part("dot", L"DoT in longer fights", 0, 15, L"no DoT ticked in this fight longer than 15 s")
     end
   end
   if type(f.taps) == "table" and #f.taps > 0 then
     local gain, over = 0, 0
     for _, t in ipairs(f.taps) do gain, over = gain + (t.gain or 0), over + (t.over or 0) end
     local kept = gain > 0 and 1 - over / gain or 1
-    Part("tap", "No Life Tap wasted", kept * 15, 15, ("%d Life Taps: %d mana, of which %d was lost over the maximum"):format(#f.taps, Round(gain), Round(over)))
+    Part("tap", L"No Life Tap wasted", kept * 15, 15, (L"%d Life Taps: %d mana, of which %d was lost over the maximum"):format(#f.taps, Round(gain), Round(over)))
   end
   local got, max = 0, 0
   for _, p in ipairs(parts) do got, max = got + p.points, max + p.max end
@@ -383,7 +384,7 @@ end
 
 local function Clock(start, tenths)
   local s = (start or 0) + (tonumber(tenths) or 0) / 10
-  return date and date("%m/%d %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
+  return date and date(L"%m/%d %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
 end
 
 function W.Advise(r, fights)
@@ -391,7 +392,7 @@ function W.Advise(r, fights)
   local out = {}
   local function Push(o) out[#out + 1] = C.Finding(o) end
   if r.seconds < 300 then
-    Push({ info = true, title = "Not enough data yet", fact = ("So far %d fights and %d seconds are recorded. The ratios are reliable after about 10 minutes of combat.")
+    Push({ info = true, title = L"Not enough data yet", fact = (L"So far %d fights and %d seconds are recorded. The ratios are reliable after about 10 minutes of combat.")
       :format(r.fights, Round(r.seconds)) })
   end
   local _, share = W.Sources(r.abilities, r.damage)
@@ -401,33 +402,33 @@ function W.Advise(r, fights)
     local lines = {}
     for i = 1, math.min(3, #taps.wasteful) do
       local x = taps.wasteful[i]
-      lines[i] = ("%s: gave %d mana, %d of it lost"):format(Clock(x.start, x.t.t), x.t.gain, x.t.over)
+      lines[i] = (L"%s: gave %d mana, %d of it lost"):format(Clock(x.start, x.t.t), x.t.gain, x.t.over)
     end
-    Push({ title = "Life Tap at full mana", fault = true, rule = "lifeTapCap",
-      fact = ("%d Life Taps put most of their mana over the maximum, and it was lost (combat log: the mana event itself says how much went over the maximum):\n- %s%s\nIn total %d Life Taps, %d mana, %d of it lost.")
-        :format(#taps.wasteful, table.concat(lines, "\n- "), #taps.wasteful > 3 and ("\n- … plus " .. (#taps.wasteful - 3)) or "",
+    Push({ title = L"Life Tap at full mana", fault = true, rule = "lifeTapCap",
+      fact = (L"%d Life Taps put most of their mana over the maximum, and it was lost (combat log: the mana event itself says how much went over the maximum):\n- %s%s\nIn total %d Life Taps, %d mana, %d of it lost.")
+        :format(#taps.wasteful, table.concat(lines, "\n- "), #taps.wasteful > 3 and (L"\n- … plus " .. (#taps.wasteful - 3)) or "",
           taps.n, Round(taps.gain), Round(taps.over)),
-      advice = "Use Life Tap when there is room for the mana: you pay the health either way." })
+      advice = L"Use Life Tap when there is room for the mana: you pay the health either way." })
   elseif taps.n > 0 then
-    Push({ info = true, title = "Life Tap", fact = ("%d Life Taps in the fights: %d mana, %d of it went over the maximum."):format(taps.n, Round(taps.gain), Round(taps.over)) })
+    Push({ info = true, title = "Life Tap", fact = (L"%d Life Taps in the fights: %d mana, %d of it went over the maximum."):format(taps.n, Round(taps.gain), Round(taps.over)) })
   end
   local avgFight = r.fights > 0 and r.seconds / r.fights or 0
   local corr = W.DotUptime(r.abilities, "Corruption", r.seconds)
   local agony = W.DotUptime(r.abilities, "Bane of Agony", r.seconds)
   if avgFight >= 15 and r.seconds >= 300 and math.max(corr or 0, agony or 0) < 30 then
-    Push({ title = "Your DoTs rarely tick", fault = true, rule = "dotTicks",
-      fact = ("Corruption ticked about %d%% of combat time, Bane of Agony about %d%% (from the ticks); your average fight is %d s.")
+    Push({ title = L"Your DoTs rarely tick", fault = true, rule = "dotTicks",
+      fact = (L"Corruption ticked about %d%% of combat time, Bane of Agony about %d%% (from the ticks); your average fight is %d s.")
         :format(Round(corr or 0), Round(agony or 0), Round(avgFight)),
-      advice = "In fights longer than 15 s Corruption and Bane of Agony are the cheapest damage per mana.",
-      missing = "your mana, and whether the target lived long enough for the DoT" })
+      advice = L"In fights longer than 15 s Corruption and Bane of Agony are the cheapest damage per mana.",
+      missing = L"your mana, and whether the target lived long enough for the DoT" })
   end
   if r.seconds >= 300 and share.pet < 5 then
-    Push({ title = "Your demon barely does damage", rule = "demonInherit",
-      fact = ("%s%% of your damage is the demon's."):format(F1(share.pet)),
-      advice = "While leveling the Voidwalker tanks and the Imp deals damage: the demon's damage is yours too." })
+    Push({ title = L"Your demon barely does damage", rule = "demonInherit",
+      fact = (L"%s%% of your damage is the demon's."):format(F1(share.pet)),
+      advice = L"While leveling the Voidwalker tanks and the Imp deals damage: the demon's damage is yours too." })
   end
   if r.seconds >= 120 then
-    Push({ info = true, title = "Measured ratios", fact = ("Damage: direct spells %d%%, DoTs %d%%, drains and Wrack %d%%, demon %d%%, wand %d%%, other %d%%.")
+    Push({ info = true, title = L"Measured ratios", fact = (L"Damage: direct spells %d%%, DoTs %d%%, drains and Wrack %d%%, demon %d%%, wand %d%%, other %d%%.")
       :format(Round(share.nuke), Round(share.dot), Round(share.drain), Round(share.pet), Round(share.wand), Round(share.other + share.melee)) })
   end
   return out

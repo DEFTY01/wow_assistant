@@ -26,6 +26,7 @@
 -- elemWindfury / elemFlametongue, stormstrike, twoHand (ranks), read, absent.
 
 local _, WA = ...
+local L = WA.L
 WA = WA or {}
 local M = WA.Model
 local S = {}
@@ -141,7 +142,7 @@ function S.Context(input)
   local agiPerCrit = agi / math.max(0.1, crit - (tal.thundering or 0) - 1.7)
   if not (agiPerCrit > 0.8 and agiPerCrit < 40) then agiPerCrit = 1 + (19 * (level - 1)) / 59 end
   local intPerCrit = 6 + (53.5 * (level - 1)) / 59
-  notes[#notes + 1] = ("1%% melee crit ≈ %s agility, 1%% spell crit ≈ %s intellect; 1 strength = 2 AP."):format(F1(agiPerCrit), F1(intPerCrit))
+  notes[#notes + 1] = (L"1%% melee crit ≈ %s agility, 1%% spell crit ≈ %s intellect; 1 strength = 2 AP."):format(F1(agiPerCrit), F1(intPerCrit))
 
   local mh = eq("MAIN_HAND").weapon
   local sheet = {
@@ -248,17 +249,17 @@ function S.Context(input)
       params.imbueMult = mix(params.imbueMult, 1 + imbue / melee.dmg, secs, 120)
     end
     params.otherDps = mix(0, other / secs, secs, 120)
-    notes[#notes + 1] = ("Calibrated from %d recorded fights (%d s). Melee %d%% of the time, %s%% dodge; the imbue adds %d%% to white damage.")
+    notes[#notes + 1] = (L"Calibrated from %d recorded fights (%d s). Melee %d%% of the time, %s%% dodge; the imbue adds %d%% to white damage.")
       :format(combat.fights, Round(secs), Round(params.meleeUptime * 100), F1(params.dodge), Round((params.imbueMult - 1) * 100))
-    notes[#notes + 1] = ("Per minute: shocks %s (%d damage), Lightning Bolt %s (%d), Stormstrike %s. Totem %s DPS, other (DoT, Lightning Shield) %s DPS.")
+    notes[#notes + 1] = (L"Per minute: shocks %s (%d damage), Lightning Bolt %s (%d), Stormstrike %s. Totem %s DPS, other (DoT, Lightning Shield) %s DPS.")
       :format(F1(params.shockPerSec * 60), Round(params.shockDamage), F1(params.boltPerSec * 60), Round(params.boltDamage),
         F1(params.stormPerSec * 60), F1(params.totemDps), F1(params.otherDps))
   else
-    notes[#notes + 1] = ("No recorded fights, so it uses textbook values: melee %d%% of the time, %s shocks and %s Lightning Bolts a minute, imbue +%d%%. Turn on the combat log (/wa log) to calibrate.")
+    notes[#notes + 1] = (L"No recorded fights, so it uses textbook values: melee %d%% of the time, %s shocks and %s Lightning Bolts a minute, imbue +%d%%. Turn on the combat log (/wa log) to calibrate.")
       :format(Round(params.meleeUptime * 100), F1(params.shockPerSec * 60), F1(params.boltPerSec * 60), Round((params.imbueMult - 1) * 100))
   end
-  if not mh then notes[#notes + 1] = "You have no weapon in your main hand: a two-handed staff, mace or axe is the biggest upgrade." end
-  notes[#notes + 1] = "The model does not count mana: intellect is only worth something for spell crit, in reality more for extra shocks and healing."
+  if not mh then notes[#notes + 1] = L"You have no weapon in your main hand: a two-handed staff, mace or axe is the biggest upgrade." end
+  notes[#notes + 1] = L"The model does not count mana: intellect is only worth something for spell crit, in reality more for extra shocks and healing."
 
   local unbuffed = S.Dps(sheet, params)
   local buffs = M.ResolveBuffs(level, input.buffs, input.data)
@@ -355,12 +356,12 @@ function S.Context(input)
   function ctx.weaponWarning(itemClass, sub)
     if itemClass ~= 2 then return nil end
     if (sub == 1 or sub == 5) and (tal.twoHand or 0) == 0 and not noTalent then
-      return "needs the Two-Handed Axes and Maces talent (Enhancement)"
+      return (L"needs the Two-Handed Axes and Maces talent (Enhancement)")
     end
     if not skills or not next(skills) then return nil end
     local line = M.WEAPON_SKILLS[sub]
     local s = line and skills[line]
-    if not s then return ("%s is not trained (weapon master)"):format(tostring(line)) end
+    if not s then return (L"%s is not trained (weapon master)"):format(tostring(line)) end
     if s.rank < s.max - 15 then return ("%s skill %d/%d"):format(line, s.rank, s.max) end
     return nil
   end
@@ -370,21 +371,21 @@ function S.Context(input)
   local function Push(o) advice[#advice + 1] = WA.Combat.Finding(o) end
   if combat and combat.seconds >= 120 then
     if mh and params.meleeUptime < 0.6 and level >= 10 then
-      Push({ title = "Little melee", rule = "shamanMelee",
-        fact = ("In your fights you were swinging about %d%% of the time."):format(Round(params.meleeUptime * 100)),
-        advice = "When leveling Enhancement, pull with Lightning Bolt, then melee; as Elemental this is fine." })
+      Push({ title = L"Little melee", rule = "shamanMelee",
+        fact = (L"In your fights you were swinging about %d%% of the time."):format(Round(params.meleeUptime * 100)),
+        advice = L"When leveling Enhancement, pull with Lightning Bolt, then melee; as Elemental this is fine." })
     end
     if earth and params.shockPerSec * 60 < 2 then
-      Push({ title = "You rarely shock", fault = true, rule = "earthShock",
-        fact = ("About %s shocks per minute."):format(F1(params.shockPerSec * 60)),
-        advice = "If you have mana, Earth Shock can go every 6 s.",
-        missing = "your mana in the fights" })
+      Push({ title = L"You rarely shock", fault = true, rule = "earthShock",
+        fact = (L"About %s shocks per minute."):format(F1(params.shockPerSec * 60)),
+        advice = L"If you have mana, Earth Shock can go every 6 s.",
+        missing = L"your mana in the fights" })
     end
     if level >= 10 and params.totemDps < 0.03 * level then
-      Push({ title = "Your totems barely deal damage", fault = true, rule = "searingTotem",
-        fact = ("Your totems gave about %s DPS."):format(F1(params.totemDps)),
-        advice = "In a longer fight or with several mobs Searing Totem is cheap damage.",
-        missing = "whether you had learned it, and the length of the fights" })
+      Push({ title = L"Your totems barely deal damage", fault = true, rule = "searingTotem",
+        fact = (L"Your totems gave about %s DPS."):format(F1(params.totemDps)),
+        advice = L"In a longer fight or with several mobs Searing Totem is cheap damage.",
+        missing = L"whether you had learned it, and the length of the fights" })
     end
   end
   ctx.advice = advice
@@ -452,7 +453,7 @@ function S.Score(f, ctx)
   local baseline = ctx and WA.Combat.Comparable(f, ctx) and ctx.baseline or nil
   if baseline and baseline > 0 then
     local ratio = dps / baseline
-    Part("dps", "DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS against the %d your gear should give: %d%%"):format(
+    Part("dps", L"DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, (L"%d DPS against the %d your gear should give: %d%%"):format(
       Round(dps), Round(baseline), Round(ratio * 100)))
   end
   local ab = f.ab or {}
@@ -460,24 +461,24 @@ function S.Score(f, ctx)
   local melee = Find(ab, "Melee")
   if mh and dur >= 6 then
     local up = S.SwingUptime(melee and melee.n or 0, dur, mh) or 0
-    Part("melee", "You swing continuously", math.min(up / 0.85, 1) * 20, 20, ("%d swings, %d%% of the possible"):format(melee and melee.n or 0, Round(up * 100)))
+    Part("melee", L"You swing continuously", math.min(up / 0.85, 1) * 20, 20, (L"%d swings, %d%% of the possible"):format(melee and melee.n or 0, Round(up * 100)))
   end
   if dur >= 12 and level >= 4 then
     local perMin = ShockCount(ab) / dur * 60
-    Part("shock", "Shocks in the fight", math.min(perMin / 3, 1) * 15, 15, ("%s shocks per minute (good: over 3)"):format(F1(perMin)))
+    Part("shock", L"Shocks in the fight", math.min(perMin / 3, 1) * 15, 15, (L"%s shocks per minute (good: over 3)"):format(F1(perMin)))
   end
   if dur >= 25 and level >= 10 then
     local used = false
     for _, a in ipairs(ab) do if IsTotem(a.name) then used = true end end
     for _, c in ipairs(f.casts or {}) do if (c[2] or ""):find("Totem") then used = true end end
-    Part("totem", "Totem in long fights", used and 10 or 0, 10, used and "totem was down" or "you dropped no totem (fights longer than 25 s)")
+    Part("totem", L"Totem in long fights", used and 10 or 0, 10, used and (L"totem was down") or (L"you dropped no totem (fights longer than 25 s)"))
   end
   local storm = ctx and ctx.params and ctx.params.stormPerSec or 0
   if dur >= 12 and level >= 40 and (storm > 0 or Find(ab, "Stormstrike")) then
     local ss = Find(ab, "Stormstrike")
     local perMin = (ss and ss.n or 0) / dur * 60
     -- full points at 6 a minute: 80% of the 7.5 an 8 s cooldown allows (Wowhead Forever spell=17364)
-    Part("storm", "Stormstrike on cooldown", math.min(perMin / 6, 1) * 10, 10, ("%s Stormstrikes per minute (8 s cooldown, at most 7.5)"):format(F1(perMin)))
+    Part("storm", L"Stormstrike on cooldown", math.min(perMin / 6, 1) * 10, 10, (L"%s Stormstrikes per minute (8 s cooldown, at most 7.5)"):format(F1(perMin)))
   end
   local got, max = 0, 0
   for _, p in ipairs(parts) do got, max = got + p.points, max + p.max end
@@ -522,55 +523,55 @@ function S.Advise(r, fights)
   local melee = Find(r.abilities, "Melee")
   local level = fights[1] and fights[1].level or 0
   if r.seconds < 300 or not melee or melee.n < 100 then
-    Push({ info = true, title = "Not enough data yet", fact = ("So far %d fights, %d seconds and %d swings are recorded. The ratios are reliable after about 10 minutes of combat.")
+    Push({ info = true, title = L"Not enough data yet", fact = (L"So far %d fights, %d seconds and %d swings are recorded. The ratios are reliable after about 10 minutes of combat.")
       :format(r.fights, Round(r.seconds), melee and melee.n or 0) })
   end
   local _, share = S.Sources(r.abilities, r.damage)
   if level >= 10 and r.seconds >= 120 and share.spell > 50 and share.melee < 35 then
-    Push({ title = "Most of your damage is spells", rule = "shamanMelee",
-      fact = ("%d%% of your damage is spells, %d%% melee."):format(Round(share.spell), Round(share.melee)),
-      advice = "When leveling Enhancement, Lightning Bolt is better for pulling, and mana for shocks and healing; as Elemental this is fine." })
+    Push({ title = L"Most of your damage is spells", rule = "shamanMelee",
+      fact = (L"%d%% of your damage is spells, %d%% melee."):format(Round(share.spell), Round(share.melee)),
+      advice = L"When leveling Enhancement, Lightning Bolt is better for pulling, and mana for shocks and healing; as Elemental this is fine." })
   end
   if melee and melee.n >= 50 then
     local miss = ((melee.miss or 0) + (melee.dodge or 0) + (melee.parry or 0)) / melee.n * 100
     if miss > 12 then
-      Push({ title = "Many swings miss", rule = "hitGear",
-        fact = ("%s%% of your swings are a miss, dodge or parry."):format(F1(miss)),
-        advice = "+hit items help; parries only come from the front." })
+      Push({ title = L"Many swings miss", rule = "hitGear",
+        fact = (L"%s%% of your swings are a miss, dodge or parry."):format(F1(miss)),
+        advice = L"+hit items help; parries only come from the front." })
     end
   end
   local perMin = r.seconds > 0 and ShockCount(r.abilities) / r.seconds * 60 or 0
   if level >= 4 and r.seconds >= 120 and perMin < 1.5 then
-    Push({ title = "You rarely shock", fault = true, rule = "earthShock",
-      fact = ("%s shocks per minute."):format(F1(perMin)),
-      advice = "If you have mana, Earth Shock is instant damage and an interrupt; Flame Shock in a longer fight.",
-      missing = "your mana in the fights (mana kept for healing does not show)" })
+    Push({ title = L"You rarely shock", fault = true, rule = "earthShock",
+      fact = (L"%s shocks per minute."):format(F1(perMin)),
+      advice = L"If you have mana, Earth Shock is instant damage and an interrupt; Flame Shock in a longer fight.",
+      missing = L"your mana in the fights (mana kept for healing does not show)" })
   end
   if level >= 10 and r.seconds >= 300 and share.totem < 2 then
-    Push({ title = "Your totems barely deal damage", fault = true, rule = "searingTotem",
-      fact = ("%s%% of your damage is the totem's."):format(F1(share.totem)),
-      advice = "Searing Totem (from level 10) is cheap damage in a longer fight; Magma Totem (from level 26) for several mobs.",
-      missing = "whether you had learned Searing Totem, and the fights' length at the moment you dropped it" })
+    Push({ title = L"Your totems barely deal damage", fault = true, rule = "searingTotem",
+      fact = (L"%s%% of your damage is the totem's."):format(F1(share.totem)),
+      advice = L"Searing Totem (from level 10) is cheap damage in a longer fight; Magma Totem (from level 26) for several mobs.",
+      missing = L"whether you had learned Searing Totem, and the fights' length at the moment you dropped it" })
   end
   local imbueSeen = false
   for name in pairs(S.IMBUE) do if Find(r.abilities, name) then imbueSeen = true end end
   if level >= 30 and r.seconds >= 300 and not imbueSeen then
-    Push({ title = "No Windfury or Flametongue damage", fault = true, rule = "windfury",
-      fact = "There is no Windfury Attack or Flametongue Attack in the fights.",
-      advice = "From level 30 Windfury Weapon (on a slow two-hander) is the strongest imbue.",
-      missing = "which imbue was on your weapon (Rockbiter does not show in the combat log)" })
+    Push({ title = L"No Windfury or Flametongue damage", fault = true, rule = "windfury",
+      fact = L"There is no Windfury Attack or Flametongue Attack in the fights.",
+      advice = L"From level 30 Windfury Weapon (on a slow two-hander) is the strongest imbue.",
+      missing = L"which imbue was on your weapon (Rockbiter does not show in the combat log)" })
   end
   local shield
   for _, a in ipairs(r.auras or {}) do if a.name == "Lightning Shield" then shield = a.uptimePct end end
   if level >= 8 and r.seconds >= 120 and (shield or 0) < 30 then
-    Push({ title = "Lightning Shield is rarely up", fault = true, rule = "lightningShield",
-      fact = ("Lightning Shield was up %d%% of combat time."):format(Round(shield or 0)),
-      advice = "If the mob keeps hitting you, this is free damage.",
-      missing = "your mana, and whether you had learned it" })
+    Push({ title = L"Lightning Shield is rarely up", fault = true, rule = "lightningShield",
+      fact = (L"Lightning Shield was up %d%% of combat time."):format(Round(shield or 0)),
+      advice = L"If the mob keeps hitting you, this is free damage.",
+      missing = L"your mana, and whether you had learned it" })
   end
   if melee and melee.n >= 100 then
     local landed = melee.hit + melee.crit
-    Push({ info = true, title = "Measured ratios", fact = ("Melee: %s%% miss, %s%% dodge, %s%% crit. Damage: melee %d%%, imbue %d%%, spells %d%%, totem %d%%, DoT %d%%.")
+    Push({ info = true, title = L"Measured ratios", fact = (L"Melee: %s%% miss, %s%% dodge, %s%% crit. Damage: melee %d%%, imbue %d%%, spells %d%%, totem %d%%, DoT %d%%.")
       :format(F1((melee.miss or 0) / melee.n * 100), F1((melee.dodge or 0) / melee.n * 100), F1(landed > 0 and melee.crit / landed * 100 or 0),
         Round(share.melee), Round(share.imbue), Round(share.spell), Round(share.totem), Round(share.dot)) })
   end

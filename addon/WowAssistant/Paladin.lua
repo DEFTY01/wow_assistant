@@ -33,6 +33,7 @@
 -- Talent.lua's T.Effects.
 
 local _, WA = ...
+local L = WA.L
 WA = WA or {}
 local M = WA.Model
 local PA = {}
@@ -156,9 +157,9 @@ function PA.Context(input)
     -- the enchant section adds a holy spell damage enchant to the spell power
     school = "holy",
   }
-  notes[#notes + 1] = ("1%% crit ≈ %s agility (from your own stats); 1 strength = 2 AP. %s. Seal of Righteousness: %d–%d per hit + 8–12%% of spell power (level %d rank, Wowhead Forever).")
-    :format(F1(agiPerCrit), hs and ("Holy Strike: %d%% of weapon damage + %d–%d holy + 43%% of spell power (level %d rank, Wowhead Forever)")
-      :format(Round(hs[2] * 100), hs[3], hs[4], hs[1]) or "Holy Strike from level 6", Round(sor[2] / 87), Round(sor[2] / 25), sor[1])
+  notes[#notes + 1] = (L"1%% crit ≈ %s agility (from your own stats); 1 strength = 2 AP. %s. Seal of Righteousness: %d–%d per hit + 8–12%% of spell power (level %d rank, Wowhead Forever).")
+    :format(F1(agiPerCrit), hs and (L"Holy Strike: %d%% of weapon damage + %d–%d holy + 43%% of spell power (level %d rank, Wowhead Forever)")
+      :format(Round(hs[2] * 100), hs[3], hs[4], hs[1]) or (L"Holy Strike from level 6"), Round(sor[2] / 87), Round(sor[2] / 25), sor[1])
 
   local function mix(prior, measured, n, half)
     local w = n / (n + half)
@@ -200,13 +201,13 @@ function PA.Context(input)
       end
     end
     params.otherDps = mix(0, other / secs / th, secs, 120)
-    notes[#notes + 1] = ("Calibrated from %d recorded fights (%d s): swinging %d%% of the time, Holy Strike %s per minute, Seal of Command %d%% of the weapon hit per swing, Seal of Righteousness on %d%% of swings (%d), everything else (Judgement, Consecration, Seal of Fury...) %s DPS.")
+    notes[#notes + 1] = (L"Calibrated from %d recorded fights (%d s): swinging %d%% of the time, Holy Strike %s per minute, Seal of Command %d%% of the weapon hit per swing, Seal of Righteousness on %d%% of swings (%d), everything else (Judgement, Consecration, Seal of Fury...) %s DPS.")
       :format(combat.fights, Round(secs), Round(params.meleeUptime * 100), F1(params.hsPerSec * 60), Round(params.socK * 100), Round(params.sorRate * 100),
         Round(params.sorPerHit), F1(params.otherDps))
   else
-    notes[#notes + 1] = "No recorded fights, so it uses textbook values. Turn on the combat log (/wa log) to calibrate."
+    notes[#notes + 1] = L"No recorded fights, so it uses textbook values. Turn on the combat log (/wa log) to calibrate."
   end
-  notes[#notes + 1] = "The model does not count mana or healing."
+  notes[#notes + 1] = L"The model does not count mana or healing."
 
   local unbuffed = PA.Dps(sheet, params)
   local buffs = M.ResolveBuffs(level, input.buffs, input.data)
@@ -289,7 +290,7 @@ function PA.Context(input)
     local line = M.WEAPON_SKILLS[sub]
     local s = line and skills[line]
     if not line then return nil end
-    if not s then return ("%s is not trained"):format(line) end
+    if not s then return (L"%s is not trained"):format(line) end
     if s.rank < s.max - 15 then return ("%s skill %d/%d"):format(line, s.rank, s.max) end
     return nil
   end
@@ -366,7 +367,7 @@ function PA.Score(f, ctx)
   local baseline = ctx and WA.Combat.Comparable(f, ctx) and ctx.baseline or nil
   if baseline and baseline > 0 then
     local ratio = dps / baseline
-    Part("dps", "DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS against the %d your gear should give: %d%%"):format(
+    Part("dps", L"DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, (L"%d DPS against the %d your gear should give: %d%%"):format(
       Round(dps), Round(baseline), Round(ratio * 100)))
   end
   local ab = f.ab or {}
@@ -375,7 +376,7 @@ function PA.Score(f, ctx)
     local melee = Find(ab, "Melee")
     local swings = melee and melee.n or 0
     local up = math.min(1, swings * mh.speed / dur)
-    Part("melee", "You swing continuously", math.min(up / 0.9, 1) * 20, 20, ("you were swinging about %d%% of the fight (%d swings, %s s weapon)"):format(
+    Part("melee", L"You swing continuously", math.min(up / 0.9, 1) * 20, 20, (L"you were swinging about %d%% of the fight (%d swings, %s s weapon)"):format(
       Round(up * 100), swings, F1(mh.speed)))
   end
   local lv = (f.level or 0) > 0 and f.level or (ctx and ctx.level) or 0
@@ -384,13 +385,13 @@ function PA.Score(f, ctx)
     local n = hs and hs.n or 0
     -- 10 s cooldown: the most that fits is one at the pull and one every 10 s after
     local most = 1 + math.floor(dur / PA.HS_CD)
-    Part("hs", "Holy Strike on cooldown", math.min(n / most / 0.8, 1) * 15, 15, ("%d Holy Strikes, a %s s fight fits at most %d (10 s cooldown, Wowhead Forever)"):format(n, F1(dur), most))
+    Part("hs", L"Holy Strike on cooldown", math.min(n / most / 0.8, 1) * 15, 15, (L"%d Holy Strikes, a %s s fight fits at most %d (10 s cooldown, Wowhead Forever)"):format(n, F1(dur), most))
   end
   if type(f.gems) == "table" and #f.gems > 0 then
     local gain, over = 0, 0
     for _, t in ipairs(f.gems) do gain, over = gain + (t.gain or 0), over + (t.over or 0) end
     local kept = gain > 0 and 1 - over / gain or 1
-    Part("mana", "No mana potion wasted", kept * 15, 15, ("%d mana potions: %d mana, of which %d was lost over the maximum"):format(#f.gems, Round(gain), Round(over)))
+    Part("mana", L"No mana potion wasted", kept * 15, 15, (L"%d mana potions: %d mana, of which %d was lost over the maximum"):format(#f.gems, Round(gain), Round(over)))
   end
   local got, max = 0, 0
   for _, x in ipairs(parts) do got, max = got + x.points, max + x.max end
@@ -425,7 +426,7 @@ end
 
 local function Clock(start, tenths)
   local s = (start or 0) + (tonumber(tenths) or 0) / 10
-  return date and date("%m/%d %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
+  return date and date(L"%m/%d %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
 end
 
 function PA.Advise(r, fights)
@@ -433,7 +434,7 @@ function PA.Advise(r, fights)
   local out = {}
   local function Push(o) out[#out + 1] = C.Finding(o) end
   if r.seconds < 300 then
-    Push({ info = true, title = "Not enough data yet", fact = ("So far %d fights and %d seconds are recorded. The ratios are reliable after about 10 minutes of combat.")
+    Push({ info = true, title = L"Not enough data yet", fact = (L"So far %d fights and %d seconds are recorded. The ratios are reliable after about 10 minutes of combat.")
       :format(r.fights, Round(r.seconds)) })
   end
   local _, share = PA.Sources(r.abilities, r.damage)
@@ -442,47 +443,47 @@ function PA.Advise(r, fights)
     local lines = {}
     for i = 1, math.min(3, #items.wasteful) do
       local x = items.wasteful[i]
-      lines[i] = ("%s: gave %d mana, %d of it lost"):format(Clock(x.start, x.t.t), x.t.gain, x.t.over)
+      lines[i] = (L"%s: gave %d mana, %d of it lost"):format(Clock(x.start, x.t.t), x.t.gain, x.t.over)
     end
-    Push({ title = "Mana potion at full mana", fault = true, rule = "manaItemCap",
-      fact = ("%d mana potions put most of their mana over the maximum, and it was lost (combat log: the mana event itself says how much went over the maximum):\n- %s%s\nIn total %d, %d mana, %d of it lost.")
-        :format(#items.wasteful, table.concat(lines, "\n- "), #items.wasteful > 3 and ("\n- … plus " .. (#items.wasteful - 3)) or "",
+    Push({ title = L"Mana potion at full mana", fault = true, rule = "manaItemCap",
+      fact = (L"%d mana potions put most of their mana over the maximum, and it was lost (combat log: the mana event itself says how much went over the maximum):\n- %s%s\nIn total %d, %d mana, %d of it lost.")
+        :format(#items.wasteful, table.concat(lines, "\n- "), #items.wasteful > 3 and (L"\n- … plus " .. (#items.wasteful - 3)) or "",
           items.n, Round(items.gain), Round(items.over)),
-      advice = "Drink mana potions when you are missing at least as much mana as they give." })
+      advice = L"Drink mana potions when you are missing at least as much mana as they give." })
   end
   local melee = Find(r.abilities, "Melee")
   local su = PA.SealUptime(fights)
   if r.seconds >= 300 and melee and melee.n >= 100 and share.seal < 1 then
-    local fact = ("Your fights have %d white hits, but the damaging seals (Righteousness, Command, Fury) are %s%% of your total damage.")
+    local fact = (L"Your fights have %d white hits, but the damaging seals (Righteousness, Command, Fury) are %s%% of your total damage.")
       :format(melee.n, F1(share.seal))
-    local advice = "Holy damage per hit comes from Seal of Righteousness, Seal of Fury and (with the Retribution talent) Seal of Command."
+    local advice = L"Holy damage per hit comes from Seal of Righteousness, Seal of Fury and (with the Retribution talent) Seal of Command."
     if su.seconds >= 60 then
       local seen = SealList(su, 1)
       if seen ~= "" then
-        fact = fact .. (" By the combat log's aura events (%d s of logged combat) you had a seal on for this long: %s; a damaging seal %d%% of the time.")
+        fact = fact .. (L" By the combat log's aura events (%d s of logged combat) you had a seal on for this long: %s; a damaging seal %d%% of the time.")
           :format(Round(su.seconds), seen, Round(su.damagingPct))
-        advice = advice .. " Seal of the Crusader gives attack power and faster swings, Wisdom mana, Light healing, Justice a stun: no holy damage per hit. Whether their effect was worth it cannot be measured from the combat data."
+        advice = advice .. L" Seal of the Crusader gives attack power and faster swings, Wisdom mana, Light healing, Justice a stun: no holy damage per hit. Whether their effect was worth it cannot be measured from the combat data."
       else
-        fact = fact .. (" In your logged fights (%d s) you had no seal aura on (one put on before logging started does not show)."):format(Round(su.seconds))
+        fact = fact .. (L" In your logged fights (%d s) you had no seal aura on (one put on before logging started does not show)."):format(Round(su.seconds))
       end
     else
-      fact = fact .. " Which seal you had on only shows in the combat log (/wa log); these fights have no log data."
+      fact = fact .. L" Which seal you had on only shows in the combat log (/wa log); these fights have no log data."
     end
-    Push({ title = "No damaging seal", rule = "sealDamage", fact = fact, advice = advice })
+    Push({ title = L"No damaging seal", rule = "sealDamage", fact = fact, advice = advice })
   end
   if r.seconds >= 120 and su.seconds >= 60 and #su.list > 0 then
-    Push({ info = true, title = "Seals in your fights", rule = "sealDamage",
-      fact = ("By the combat log's aura events (%d s of logged combat): %s. A damaging seal (Righteousness, Command, Fury) %d%% of the time.")
+    Push({ info = true, title = L"Seals in your fights", rule = "sealDamage",
+      fact = (L"By the combat log's aura events (%d s of logged combat): %s. A damaging seal (Righteousness, Command, Fury) %d%% of the time.")
         :format(Round(su.seconds), SealList(su, 0), Round(su.damagingPct)) })
   end
   local hs = Find(r.abilities, "Holy Strike")
   if r.seconds >= 300 then
-    Push({ info = true, title = "Holy Strike against its cooldown",
-      fact = ("%s Holy Strikes per minute; with a 10 s cooldown it can be at most 6 (Wowhead Forever spell=679). Short fights do not even fit that many.")
+    Push({ info = true, title = L"Holy Strike against its cooldown",
+      fact = (L"%s Holy Strikes per minute; with a 10 s cooldown it can be at most 6 (Wowhead Forever spell=679). Short fights do not even fit that many.")
         :format(F1(hs and hs.n / r.seconds * 60 or 0)) })
   end
   if r.seconds >= 120 then
-    Push({ info = true, title = "Measured ratios", fact = ("Damage: white hits %d%%, Holy Strike %d%%, seal %d%%, Judgement %d%%, other (Consecration, Exorcism, aura...) %d%%.")
+    Push({ info = true, title = L"Measured ratios", fact = (L"Damage: white hits %d%%, Holy Strike %d%%, seal %d%%, Judgement %d%%, other (Consecration, Exorcism, aura...) %d%%.")
       :format(Round(share.melee), Round(share.hs), Round(share.seal), Round(share.judgement), Round(share.other)) })
   end
   return out

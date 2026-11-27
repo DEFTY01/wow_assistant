@@ -11,6 +11,7 @@
 --          pet, basis = { dmg, dur, pet }, gear, sessionID }   (the last ones from 2.8.0 on)
 
 local _, WA = ...
+local L = WA.L
 WA = WA or {}
 local C = {}
 WA.Combat = C
@@ -241,16 +242,16 @@ end
 -- recharge time does not say what could have been used.
 -- Only log fights count: the live meter's fights record casts too, but their duration comes from
 -- the meter session and their cast times from the combat clock, which need not line up.
-C.COOLDOWNS = {
-  { name = "Shank", cd = 10, source = "Wowhead Forever spell=1329283 (10 s; needs an off-hand weapon)" },
-  { name = "Blade Flurry", cd = 120, source = "Wowhead Forever spell=13877 (2 min)" },
-  { name = "Kidney Shot", cd = 20, source = "Wowhead Forever spell=408 (20 s)" },
-  { name = "Arcane Shot", cd = 6, source = "Wowhead Forever spell=3044 (6 s)" },
+C.COOLDOWNS = WA.LR {
+  { name = "Shank", cd = 10, source = L"Wowhead Forever spell=1329283 (10 s; needs an off-hand weapon)" },
+  { name = "Blade Flurry", cd = 120, source = L"Wowhead Forever spell=13877 (2 min)" },
+  { name = "Kidney Shot", cd = 20, source = L"Wowhead Forever spell=408 (20 s)" },
+  { name = "Arcane Shot", cd = 6, source = L"Wowhead Forever spell=3044 (6 s)" },
   { name = "Shock", cd = 6, spells = { ["Earth Shock"] = true, ["Flame Shock"] = true, ["Frost Shock"] = true },
-    source = "Wowhead Forever spell=8042 (6 s, the three shocks' shared cooldown: WoWSims Forever d5144855 sim/shaman/shocks.go)" },
-  { name = "Stormstrike", cd = 8, source = "Wowhead Forever spell=17364 (8 s)" },
+    source = L"Wowhead Forever spell=8042 (6 s, the three shocks' shared cooldown: WoWSims Forever d5144855 sim/shaman/shocks.go)" },
+  { name = "Stormstrike", cd = 8, source = L"Wowhead Forever spell=17364 (8 s)" },
 }
-C.CD_METHOD = "WoWAnalyzer CastEfficiency (19e94d2d), normal cooldown branch"
+C.CD_METHOD = L"WoWAnalyzer CastEfficiency (19e94d2d), normal cooldown branch"
 
 -- usage for one ability over fights (any order); each fight { start, dur, casts = {{t*10, name}, ...} }
 function C.CooldownUse(fights, spec)
@@ -312,26 +313,26 @@ end
 -- Warlock.lua, Mage.lua, Warrior.lua, Priest.lua, Paladin.lua).
 -- tabs: the talent tabs in the game's order, each with the engine's spec for it.
 C.SIM_SOURCE = "WoWSims Forever d5144855 sim/register_all.go"
-C.CLASS_MODELS = {
+C.CLASS_MODELS = WA.LR {
   DRUID = { name = "Druid", waystone = true, tabs = { { "Balance", "Alpha" }, { "Feral (Cat, Bear)", "Alpha" }, { "Restoration", "GearPlanner" } } },
   HUNTER = { name = "Hunter", waystone = true, tabs = { { "Beast Mastery", "Alpha" }, { "Marksmanship", "Alpha" }, { "Survival", "Alpha" } },
-    shared = "one shared Hunter module" },
-  MAGE = { name = "Mage", waystone = true, tabs = { { "Arcane", "Alpha" }, { "Fire", "Alpha" }, { "Frost", "Alpha" } }, shared = "one shared Mage module" },
+    shared = L"one shared Hunter module" },
+  MAGE = { name = "Mage", waystone = true, tabs = { { "Arcane", "Alpha" }, { "Fire", "Alpha" }, { "Frost", "Alpha" } }, shared = L"one shared Mage module" },
   PALADIN = { name = "Paladin", waystone = true, tabs = { { "Holy", "GearPlanner" }, { "Protection", "Alpha" }, { "Retribution", "Alpha" } },
-    note = "Retribution: the DPS model; Holy: healer, Protection: tank weights for enchants" },
+    note = L"Retribution: the DPS model; Holy: healer, Protection: tank weights for enchants" },
   PRIEST = { name = "Priest", waystone = true, tabs = { { "Discipline", "GearPlanner" }, { "Holy", "GearPlanner" }, { "Shadow", "Alpha" } },
-    note = "Discipline and Holy: the healer model; Shadow: the DPS model" },
+    note = L"Discipline and Holy: the healer model; Shadow: the DPS model" },
   ROGUE = { name = "Rogue", waystone = true, tabs = { { "Assassination", "Alpha" }, { "Combat", "Alpha" }, { "Subtlety", "Alpha" } },
-    shared = "one shared Rogue module" },
+    shared = L"one shared Rogue module" },
   SHAMAN = { name = "Shaman", waystone = true, tabs = { { "Elemental", "Alpha" }, { "Enhancement", "Alpha" }, { "Restoration", "GearPlanner" } } },
   WARLOCK = { name = "Warlock", waystone = true, tabs = { { "Affliction", "Alpha" }, { "Demonology", "Alpha" }, { "Destruction", "Alpha" } },
-    shared = "one shared Warlock module" },
+    shared = L"one shared Warlock module" },
   WARRIOR = { name = "Warrior", waystone = true, tabs = { { "Arms", "Alpha" }, { "Fury", "Alpha" }, { "Protection", "Alpha" } },
-    note = "Arms and Fury: the DPS model; Protection: the tank model" },
+    note = L"Arms and Fury: the DPS model; Protection: the tank model" },
 }
-C.SIM_STATUS_TEXT = {
-  Alpha = "Alpha: community model, a DPS reference can be computed (at level 60)",
-  GearPlanner = "GearPlanner: gear planning only; no HPS or rotation score can be proven from it",
+C.SIM_STATUS_TEXT = WA.LR {
+  Alpha = L"Alpha: community model, a DPS reference can be computed (at level 60)",
+  GearPlanner = L"GearPlanner: gear planning only; no HPS or rotation score can be proven from it",
 }
 
 -- the engine's status for a class and talent tab (nil tab: the class as a whole)
@@ -344,10 +345,10 @@ end
 
 -- Three reference functions of the engine (spec §6), to check the inputs. The addon's own model
 -- uses the first; the others show what the engine's pet gets from you.
-C.REF = {
+C.REF = WA.LR {
   -- Sinister Strike: + AP / 14 x normalized speed (sim/rogue/sinister_strike.go, sim/core/attack.go,
   -- DefaultAttackPowerPerDPS = 14 in sim/core/constants.go); before damage modifiers
-  ssSource = "WoWSims Forever d5144855 sim/core/attack.go (CalculateNormalizedWeaponDamage, normalized speed), sim/core/constants.go (DefaultAttackPowerPerDPS = 14)",
+  ssSource = L"WoWSims Forever d5144855 sim/core/attack.go (CalculateNormalizedWeaponDamage, normalized speed), sim/core/constants.go (DefaultAttackPowerPerDPS = 14)",
   -- hunter pet: 10% of the higher of melee and ranged AP, kept from the summon (sim/hunter/pets.go)
   petSource = "WoWSims Forever d5144855 sim/hunter/pets.go (makeStatInheritance, keepSummonStats)",
   -- warlock demon: S = spell damage + max(shadow, fire); AP 0.17 S, spell damage 0.10 S (sim/warlock/pets.go)
@@ -377,67 +378,67 @@ end
 -- Wowhead's Forever spell data (costs, cooldowns, levels, effects). `source` says where.
 local SIM = "WoWSims Forever d5144855 "
 local WH = "Wowhead Forever spell="
-C.RULES = {
-  energyCap = { text = "at full energy the regenerated energy is lost", verified = true,
-    source = SIM .. "sim/core/energy.go:111 (new energy = min(current + gained, maximum))" },
-  evisCp = { text = "Eviscerate's damage grows with each combo point (fixed damage + 4% AP per point), its cost is a fixed 35 energy", verified = true,
+C.RULES = WA.LR {
+  energyCap = { text = L"at full energy the regenerated energy is lost", verified = true,
+    source = SIM .. L"sim/core/energy.go:111 (new energy = min(current + gained, maximum))" },
+  evisCp = { text = L"Eviscerate's damage grows with each combo point (fixed damage + 4% AP per point), its cost is a fixed 35 energy", verified = true,
     source = SIM .. "sim/rogue/eviscerate.go; " .. WH .. "2098" },
-  sndHaste = { text = "Slice and Dice speeds up melee attacks by 20% and lasts 3 s longer per combo point (from level 10)", verified = true,
+  sndHaste = { text = L"Slice and Dice speeds up melee attacks by 20% and lasts 3 s longer per combo point (from level 10)", verified = true,
     source = SIM .. "sim/rogue/slice_and_dice.go; " .. WH .. "5171" },
-  parryFront = { text = "parry and block can only happen when you stand in front of the target", verified = true,
-    source = SIM .. "sim/core/spell_outcome.go (InFrontOfTarget condition)" },
-  poison20 = { text = "Instant Poison can be put on a weapon from level 20", verified = true,
+  parryFront = { text = L"parry and block can only happen when you stand in front of the target", verified = true,
+    source = SIM .. L"sim/core/spell_outcome.go (InFrontOfTarget condition)" },
+  poison20 = { text = L"Instant Poison can be put on a weapon from level 20", verified = true,
     source = WH .. "8679" },
-  glanceSkill = { text = "the chance of a glancing blow is 10% even on a same-level target, and grows by 2% for every weapon skill point short of the target's level × 5", verified = true,
+  glanceSkill = { text = L"the chance of a glancing blow is 10% even on a same-level target, and grows by 2% for every weapon skill point short of the target's level × 5", verified = true,
     source = SIM .. "sim/core/target.go:577" },
-  hitGear = { text = "every 1% hit lowers the miss chance by 1%", verified = true,
+  hitGear = { text = L"every 1% hit lowers the miss chance by 1%", verified = true,
     source = SIM .. "sim/core/spell_outcome.go:660" },
-  hunterPet = { text = "from level 10 (Tame Beast) a hunter can have a pet, which attacks on its own", verified = true,
+  hunterPet = { text = L"from level 10 (Tame Beast) a hunter can have a pet, which attacks on its own", verified = true,
     source = WH .. "1515; " .. SIM .. "sim/hunter/pets.go" },
-  hunterRange = { text = "the hunter's shots cannot be used within 8 yards (8–35 yd)", verified = true,
+  hunterRange = { text = L"the hunter's shots cannot be used within 8 yards (8–35 yd)", verified = true,
     source = WH .. "3044" },
-  serpentSting = { text = "Serpent Sting deals its damage over 15 s (from level 4)", verified = true,
+  serpentSting = { text = L"Serpent Sting deals its damage over 15 s (from level 4)", verified = true,
     source = WH .. "1978; " .. SIM .. "sim/hunter/serpent_sting.go" },
-  arcaneShot = { text = "Arcane Shot is an instant shot with a 6 s cooldown (from level 6)", verified = true,
+  arcaneShot = { text = L"Arcane Shot is an instant shot with a 6 s cooldown (from level 6)", verified = true,
     source = WH .. "3044; " .. SIM .. "sim/hunter/arcane_shot.go" },
-  hawk = { text = "Aspect of the Hawk gives ranged attack power (from level 10)", verified = true,
+  hawk = { text = L"Aspect of the Hawk gives ranged attack power (from level 10)", verified = true,
     source = WH .. "13165" },
   -- a playstyle, not a game rule: it cannot be verified, only measured
-  shamanMelee = { text = "most of an enhancement shaman's damage is the weapon", verified = false,
-    source = "a playstyle, not a game rule: cannot be verified" },
-  earthShock = { text = "Earth Shock is instant damage; the three shocks share a 6 s cooldown (from level 4)", verified = true,
+  shamanMelee = { text = L"most of an enhancement shaman's damage is the weapon", verified = false,
+    source = L"a playstyle, not a game rule: cannot be verified" },
+  earthShock = { text = L"Earth Shock is instant damage; the three shocks share a 6 s cooldown (from level 4)", verified = true,
     source = SIM .. "sim/shaman/shocks.go; " .. WH .. "8042" },
-  searingTotem = { text = "Searing Totem attacks an enemy within 20 yards for 30 s (from level 10)", verified = true,
+  searingTotem = { text = L"Searing Totem attacks an enemy within 20 yards for 30 s (from level 10)", verified = true,
     source = WH .. "3599" },
-  windfury = { text = "Windfury Weapon (from level 30) gives 2 extra attacks with extra attack power on 20% of hits", verified = true,
+  windfury = { text = L"Windfury Weapon (from level 30) gives 2 extra attacks with extra attack power on 20% of hits", verified = true,
     source = WH .. "8232; " .. SIM .. "sim/shaman/weapon_imbues.go" },
-  biteCp = { text = "Ferocious Bite's damage grows with each combo point (fixed damage + AP per point), it costs 35 energy", verified = true,
+  biteCp = { text = L"Ferocious Bite's damage grows with each combo point (fixed damage + AP per point), it costs 35 energy", verified = true,
     source = SIM .. "sim/druid/ferocious_bite.go; " .. WH .. "22568" },
-  rakeBleed = { text = "Rake gives a combo point and bleeds for 9 s (a tick every 3 s)", verified = true,
+  rakeBleed = { text = L"Rake gives a combo point and bleeds for 9 s (a tick every 3 s)", verified = true,
     source = SIM .. "sim/druid/rake.go; " .. WH .. "1822" },
   -- a playstyle, not a game rule
-  druidCat = { text = "most of a feral druid's damage comes in Cat Form", verified = false,
-    source = "a playstyle, not a game rule: cannot be verified" },
-  lifeTapCap = { text = "Life Tap turns health into mana, and mana given over the maximum is lost", verified = true,
-    source = SIM .. "sim/warlock/lifetap.go; sim/core/mana.go AddMana (new mana = min(current + gained, maximum))" },
-  dotTicks = { text = "Corruption deals damage for 12 s, Bane of Agony for 24 s, ticking every 3 and every 2 s", verified = true,
+  druidCat = { text = L"most of a feral druid's damage comes in Cat Form", verified = false,
+    source = L"a playstyle, not a game rule: cannot be verified" },
+  lifeTapCap = { text = L"Life Tap turns health into mana, and mana given over the maximum is lost", verified = true,
+    source = SIM .. L"sim/warlock/lifetap.go; sim/core/mana.go AddMana (new mana = min(current + gained, maximum))" },
+  dotTicks = { text = L"Corruption deals damage for 12 s, Bane of Agony for 24 s, ticking every 3 and every 2 s", verified = true,
     source = WH .. "172; " .. WH .. "980; " .. SIM .. "sim/warlock/corruption.go, agony.go" },
-  demonInherit = { text = "the demon inherits from your spell damage (AP 0.17 × S, spell damage 0.10 × S)", verified = true,
+  demonInherit = { text = L"the demon inherits from your spell damage (AP 0.17 × S, spell damage 0.10 × S)", verified = true,
     source = SIM .. "sim/warlock/pets.go (petStatInheritance)" },
-  manaItemCap = { text = "mana potions and mana gems give mana, and mana given over the maximum is lost", verified = true,
-    source = SIM .. "sim/core/mana.go AddMana (new mana = min(current + gained, maximum)); the combat log's mana event writes out the part over the maximum" },
-  rageCap = { text = "rage stops at 100, rage gained above it is lost", verified = true,
-    source = SIM .. "sim/core/rage.go AddRage (new rage = min(current + gained, maximum)); the combat log's rage event writes out the part over the maximum" },
-  hsDump = { text = "Heroic Strike adds damage to the next swing for 15 rage", verified = true,
+  manaItemCap = { text = L"mana potions and mana gems give mana, and mana given over the maximum is lost", verified = true,
+    source = SIM .. L"sim/core/mana.go AddMana (new mana = min(current + gained, maximum)); the combat log's mana event writes out the part over the maximum" },
+  rageCap = { text = L"rage stops at 100, rage gained above it is lost", verified = true,
+    source = SIM .. L"sim/core/rage.go AddRage (new rage = min(current + gained, maximum)); the combat log's rage event writes out the part over the maximum" },
+  hsDump = { text = L"Heroic Strike adds damage to the next swing for 15 rage", verified = true,
     source = WH .. "78; " .. SIM .. "sim/warrior/heroic_strike_cleave.go" },
-  sealDamage = { text = "Seal of Righteousness and Seal of Fury add holy damage to every hit, Seal of Command on a chance; Seal of the Crusader, Wisdom, Light and Justice add no holy damage per hit", verified = true,
+  sealDamage = { text = L"Seal of Righteousness and Seal of Fury add holy damage to every hit, Seal of Command on a chance; Seal of the Crusader, Wisdom, Light and Justice add no holy damage per hit", verified = true,
     source = WH .. "20154; " .. WH .. "20419; " .. WH .. "20915; " .. WH .. "20424; " .. WH .. "20162; " .. WH .. "20166; " .. WH .. "20165; " .. WH .. "20164" },
-  wandFlat = { text = "wand damage does not grow with spell power", verified = true,
+  wandFlat = { text = L"wand damage does not grow with spell power", verified = true,
     source = SIM .. "sim/core/wand.go" },
-  lightningShield = { text = "Lightning Shield damages whoever hits you (from level 8)", verified = true,
+  lightningShield = { text = L"Lightning Shield damages whoever hits you (from level 8)", verified = true,
     source = WH .. "324" },
 }
-C.FINDING = { fault = "mistake", observation = "observation", unproven = "cannot be established", data = "measured data" }
+C.FINDING = WA.LR { fault = L"mistake", observation = L"observation", unproven = L"cannot be established", data = L"measured data" }
 local GREY = "|cff9d9d9d"
 
 -- o = { title, fact, advice (what to try, conditionally), rule (a RULES key), missing (what the
@@ -451,15 +452,15 @@ function C.Finding(o)
   else status, level = C.FINDING.observation, "tip" end
   local why
   if status == C.FINDING.fault then
-    why = "Mistake, because: " .. rule.text .. " (rule verified for Forever), and the combat data shows the situation of the decision."
+    why = L"Mistake, because: " .. rule.text .. L" (rule verified for Forever), and the combat data shows the situation of the decision."
   elseif status == C.FINDING.unproven then
     local bits = {}
-    if o.missing then bits[#bits + 1] = "the combat data does not show " .. o.missing end
-    if rule and not rule.verified then bits[#bits + 1] = "the rule (" .. rule.text .. ") is not verified for Forever" end
-    if rule and rule.verified then bits[#bits + 1] = "the rule itself is verified (" .. rule.text .. ")" end
-    why = "Cannot be established as a mistake: " .. table.concat(bits, "; ") .. "."
+    if o.missing then bits[#bits + 1] = L"the combat data does not show " .. o.missing end
+    if rule and not rule.verified then bits[#bits + 1] = L"the rule (" .. rule.text .. L") is not verified for Forever" end
+    if rule and rule.verified then bits[#bits + 1] = L"the rule itself is verified (" .. rule.text .. ")" end
+    why = L"Cannot be established as a mistake: " .. table.concat(bits, "; ") .. "."
   elseif rule then
-    why = "Rule: " .. rule.text .. (rule.verified and " (verified for Forever)." or " (not verified for Forever).")
+    why = L"Rule: " .. rule.text .. (rule.verified and (L" (verified for Forever).") or (L" (not verified for Forever)."))
   end
   local text = o.fact .. (o.advice and (" " .. o.advice) or "") .. (why and ("\n" .. GREY .. why .. "|r") or "")
   return { level = level, title = o.title, text = text, status = status, fact = o.fact, rule = o.rule, missing = o.missing,
@@ -497,21 +498,21 @@ end
 
 local function Clock(start, tenths)
   local s = (start or 0) + (tonumber(tenths) or 0) / 10
-  return date and date("%m/%d %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
+  return date and date(L"%m/%d %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
 end
 
 function C.Advise(r, fights)
   local out = {}
   local function Push(o) out[#out + 1] = C.Finding(o) end
   if r.seconds < 300 or r.white.n < 150 then
-    Push({ info = true, title = "Not enough data yet", fact = ("So far %d fights, %d seconds and %d auto-attacks are recorded. "):format(r.fights, math.floor(r.seconds + 0.5), r.white.n) ..
-      "The ratios start to be reliable after about 10 minutes of combat." })
+    Push({ info = true, title = L"Not enough data yet", fact = (L"So far %d fights, %d seconds and %d auto-attacks are recorded. "):format(r.fights, math.floor(r.seconds + 0.5), r.white.n) ..
+      L"The ratios start to be reliable after about 10 minutes of combat." })
   end
   if r.energyCappedPct and r.energyCappedPct > 8 then
-    Push({ title = "Your energy is often full", fault = true, rule = "energyCap",
-      fact = ("You sat at full energy for %s%% of combat time (half-second samples, or the combat log's energy values)."):format(F1(r.energyCappedPct)),
-      advice = "If you could have attacked meanwhile: attack at once when the fight starts, and do not hold energy above 80.",
-      missing = "whether you had a usable ability at that moment (range, stun, a fleeing or unreachable target)" })
+    Push({ title = L"Your energy is often full", fault = true, rule = "energyCap",
+      fact = (L"You sat at full energy for %s%% of combat time (half-second samples, or the combat log's energy values)."):format(F1(r.energyCappedPct)),
+      advice = L"If you could have attacked meanwhile: attack at once when the fight starts, and do not hold energy above 80.",
+      missing = L"whether you had a usable ability at that moment (range, stun, a fleeing or unreachable target)" })
   end
   local evis
   for _, f in ipairs(r.finishers) do if f.name == "Eviscerate" then evis = f end end
@@ -521,25 +522,25 @@ function C.Advise(r, fights)
     local lines = {}
     for i = 1, math.min(3, #ev.proven) do
       local p, e = ev.proven[i], ev.proven[i].e
-      lines[i] = ("%s, %s: %d points, its health before %d / %s, the damage %d%s, it lived %s%s s more"):format(
-        Clock(p.start, e.t), e.target or "?", e.cp, e.hpBefore, e.maxHp and tostring(e.maxHp) or "?", e.dmg, e.crit and " (crit)" or "",
-        e.livedKnown and "" or "at least ", F1(e.lived))
+      lines[i] = (L"%s, %s: %d points, its health before %d / %s, the damage %d%s, it lived %s%s s more"):format(
+        Clock(p.start, e.t), e.target or "?", e.cp, e.hpBefore, e.maxHp and tostring(e.maxHp) or "?", e.dmg, e.crit and (L" (crit)") or "",
+        e.livedKnown and "" or (L"at least "), F1(e.lived))
     end
-    Push({ title = "Low-combo-point Eviscerate", fault = true, rule = "evisCp",
-      fact = ("%d Eviscerates went out with 1–2 combo points while the target did not die from them, had more than four times the hit's normal damage left in health (even the biggest roll with a crit would not have killed it), and lived at least %d s more (combat log):\n- %s%s%s")
-        :format(#ev.proven, C.EVIS_ROOM, table.concat(lines, "\n- "), #ev.proven > 3 and ("\n- … plus " .. (#ev.proven - 3)) or "",
-          ev.unchecked > 0 and ("\nAnother " .. ev.unchecked .. " low-point ones: the target's health does not show.") or ""),
-      advice = "In that case build 1–2 more points: the cost is the same 35 energy, and the damage grows with every point." })
+    Push({ title = L"Low-combo-point Eviscerate", fault = true, rule = "evisCp",
+      fact = (L"%d Eviscerates went out with 1–2 combo points while the target did not die from them, had more than four times the hit's normal damage left in health (even the biggest roll with a crit would not have killed it), and lived at least %d s more (combat log):\n- %s%s%s")
+        :format(#ev.proven, C.EVIS_ROOM, table.concat(lines, "\n- "), #ev.proven > 3 and (L"\n- … plus " .. (#ev.proven - 3)) or "",
+          ev.unchecked > 0 and (L"\nAnother " .. ev.unchecked .. L" low-point ones: the target's health does not show.") or ""),
+      advice = L"In that case build 1–2 more points: the cost is the same 35 energy, and the damage grows with every point." })
   elseif evis and evis.casts >= 5 and evis.avgCp < 4 and ev.unchecked == 0 and ev.justified > 0 then
-    Push({ title = "Low-point Eviscerate, but justified", rule = "evisCp",
-      fact = ("Your Eviscerates went out with %s combo points on average. All %d of the 1–2 point ones could be checked in the combat log, and none was a mistake: they killed, went on a low-health target, or the target died soon.")
+    Push({ title = L"Low-point Eviscerate, but justified", rule = "evisCp",
+      fact = (L"Your Eviscerates went out with %s combo points on average. All %d of the 1–2 point ones could be checked in the combat log, and none was a mistake: they killed, went on a low-health target, or the target died soon.")
         :format(F1(evis.avgCp), ev.justified) })
   elseif evis and evis.casts >= 5 and evis.avgCp < 4 then
-    Push({ title = "Low-combo-point Eviscerate", fault = true, rule = "evisCp",
-      fact = ("Your Eviscerates went out with %s combo points on average (%d uses)."):format(F1(evis.avgCp), evis.casts) ..
-        (ev.justified > 0 and (" Of the 1–2 point ones, %d were justified by the combat log, %d cannot be checked."):format(ev.justified, ev.unchecked) or ""),
-      advice = "With 4–5 points you get more damage per energy, unless the mob dies with 1–2 points too.",
-      missing = "the target's health at the moment of the cast (whether it would have died with fewer points)" .. (ev.unchecked > 0 and (", " .. ev.unchecked .. " low-point Eviscerates") or "") })
+    Push({ title = L"Low-combo-point Eviscerate", fault = true, rule = "evisCp",
+      fact = (L"Your Eviscerates went out with %s combo points on average (%d uses)."):format(F1(evis.avgCp), evis.casts) ..
+        (ev.justified > 0 and (L" Of the 1–2 point ones, %d were justified by the combat log, %d cannot be checked."):format(ev.justified, ev.unchecked) or ""),
+      advice = L"With 4–5 points you get more damage per energy, unless the mob dies with 1–2 points too.",
+      missing = L"the target's health at the moment of the cast (whether it would have died with fewer points)" .. (ev.unchecked > 0 and (", " .. ev.unchecked .. L" low-point Eviscerates") or "") })
   end
   local avgFight = r.seconds / r.fights
   local snd
@@ -547,11 +548,11 @@ function C.Advise(r, fights)
   if avgFight >= 12 and (not snd or snd.uptimePct < 50) then
     local whiteShare = 0
     for _, a in ipairs(r.abilities) do if White(a.name) then whiteShare = whiteShare + a.share end end
-    Push({ title = "Slice and Dice is rarely up", fault = true, rule = "sndHaste",
-      fact = ("Slice and Dice was active for %s%% of combat time, while %s%% of your damage is auto-attack; your average fight is %d s.")
+    Push({ title = L"Slice and Dice is rarely up", fault = true, rule = "sndHaste",
+      fact = (L"Slice and Dice was active for %s%% of combat time, while %s%% of your damage is auto-attack; your average fight is %d s.")
         :format(snd and F1(snd.uptimePct) or "0", F1(whiteShare), math.floor(avgFight + 0.5)),
-      advice = "In longer fights put the first 1–2 combo points into Slice and Dice, then Eviscerate.",
-      missing = "the fight's expected length at the moment of the decision, and whether you had learned Slice and Dice" })
+      advice = L"In longer fights put the first 1–2 combo points into Slice and Dice, then Eviscerate.",
+      missing = L"the fight's expected length at the moment of the decision, and whether you had learned Slice and Dice" })
   end
   local parried, swings = 0, 0
   for _, a in ipairs(r.abilities) do
@@ -560,30 +561,30 @@ function C.Advise(r, fights)
   end
   local parry = Pct(parried, swings)
   if parry > 2 then
-    Push({ title = "Some of your hits are parried", fault = true, rule = "parryFront",
-      fact = ("%s%% of your hits were parried."):format(F1(parry)),
-      advice = "In a group (dungeon) you can avoid this from behind the target; solo the mob turns to face you.",
-      missing = "where you stood relative to the target (the position is not on a proven scale), and whom the mob was facing" })
+    Push({ title = L"Some of your hits are parried", fault = true, rule = "parryFront",
+      fact = (L"%s%% of your hits were parried."):format(F1(parry)),
+      advice = L"In a group (dungeon) you can avoid this from behind the target; solo the mob turns to face you.",
+      missing = L"where you stood relative to the target (the position is not on a proven scale), and whom the mob was facing" })
   end
   if r.white.n >= 150 then
-    Push({ info = true, title = "Measured hit table",
-      fact = ("Auto-attack: %s%% miss, %s%% dodge, %s%% glancing, %s%% crit. Abilities: %s%% miss, %s%% crit.")
+    Push({ info = true, title = L"Measured hit table",
+      fact = (L"Auto-attack: %s%% miss, %s%% dodge, %s%% glancing, %s%% crit. Abilities: %s%% miss, %s%% crit.")
         :format(F1(r.white.miss), F1(r.white.dodge), F1(r.white.glance), F1(r.white.crit), F1(r.yellow.miss), F1(r.yellow.crit)) ..
-        (r.white.miss > 15 and " +hit items can be worth a lot here." or "") })
+        (r.white.miss > 15 and (L" +hit items can be worth a lot here.") or "") })
   end
   if r.white.glance > 20 then
-    Push({ title = "Many glancing blows", rule = "glanceSkill",
-      fact = ("%s%% of your auto-attacks are glancing."):format(F1(r.white.glance)),
-      advice = "If you recently switched weapon type, raising the weapon skill helps." })
+    Push({ title = L"Many glancing blows", rule = "glanceSkill",
+      fact = (L"%s%% of your auto-attacks are glancing."):format(F1(r.white.glance)),
+      advice = L"If you recently switched weapon type, raising the weapon skill helps." })
   end
   local hasPoison = false
   for _, a in ipairs(r.abilities) do if a.name:lower():find("poison", 1, true) then hasPoison = true end end
   local level = fights[1] and fights[1].level or 0
   if not hasPoison and level >= 20 and r.seconds >= 120 then
-    Push({ title = "No poison damage", fault = true, rule = "poison20",
-      fact = "There is no poison damage at all in the recorded fights.",
-      advice = "If you already have poison, put it on both weapons; it is worth the most on the fast off-hand weapon.",
-      missing = "whether you had learned poisons and had them on you (the spellbook and the bags do not show it)" })
+    Push({ title = L"No poison damage", fault = true, rule = "poison20",
+      fact = L"There is no poison damage at all in the recorded fights.",
+      advice = L"If you already have poison, put it on both weapons; it is worth the most on the fast off-hand weapon.",
+      missing = L"whether you had learned poisons and had them on you (the spellbook and the bags do not show it)" })
   end
   local ss, melee
   for _, a in ipairs(r.abilities) do
@@ -591,7 +592,7 @@ function C.Advise(r, fights)
     if a.name == "Melee" and not melee then melee = a end
   end
   if ss and melee then
-    Push({ info = true, title = "Damage breakdown", fact = ("Sinister Strike %s%% (average %d), auto-attack %s%% (average %d).")
+    Push({ info = true, title = L"Damage breakdown", fact = (L"Sinister Strike %s%% (average %d), auto-attack %s%% (average %d).")
       :format(F1(ss.share), math.floor(ss.avg + 0.5), F1(melee.share), math.floor(melee.avg + 0.5)) })
   end
   return out
@@ -608,12 +609,12 @@ function C.Score(f, baseline)
   local dps = dur > 0 and (f.dmg or 0) / dur or 0
   if baseline and baseline > 0 then
     local ratio = dps / baseline
-    Part("dps", "DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS against the %d your gear should give: %d%%"):format(
+    Part("dps", L"DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, (L"%d DPS against the %d your gear should give: %d%%"):format(
       math.floor(dps + 0.5), math.floor(baseline + 0.5), math.floor(ratio * 100 + 0.5)))
   end
   if (f.samples or 0) > 0 then
     local pct = (f.capped or 0) / f.samples * 100
-    Part("energy", "No wasted energy", (1 - math.min(pct / 20, 1)) * 20, 20, ("your energy was full %s%% of the time"):format(F1(pct)))
+    Part("energy", L"No wasted energy", (1 - math.min(pct / 20, 1)) * 20, 20, (L"your energy was full %s%% of the time"):format(F1(pct)))
   end
   local fin, cps, evis, evisCp = 0, 0, 0, 0
   local casts = f.casts or {}
@@ -625,20 +626,20 @@ function C.Score(f, baseline)
   end
   if evis > 0 then
     local avg = evisCp / evis
-    Part("finisher", "Eviscerate with enough combo points", math.max(0, math.min((avg - 2) / 3, 1)) * 20, 20,
-      ("%d Eviscerates, average %s combo points"):format(evis, F1(avg)))
+    Part("finisher", L"Eviscerate with enough combo points", math.max(0, math.min((avg - 2) / 3, 1)) * 20, 20,
+      (L"%d Eviscerates, average %s combo points"):format(evis, F1(avg)))
   elseif fin > 0 then
-    Part("finisher", "Finishers", 15, 20, ("%d finishers, average %s combo points"):format(fin, F1(cps / fin)))
+    Part("finisher", L"Finishers", 15, 20, (L"%d finishers, average %s combo points"):format(fin, F1(cps / fin)))
   end
   if dur >= 15 then
     local snd = 0
     for _, a in ipairs(f.auras or {}) do if a[1] == "Slice and Dice" then snd = a[2] end end
     local pct = math.min(100, snd / dur * 100)
-    Part("snd", "Slice and Dice up", math.min(pct / 60, 1) * 10, 10, ("%d%% of the fight"):format(math.floor(pct + 0.5)))
+    Part("snd", L"Slice and Dice up", math.min(pct / 60, 1) * 10, 10, (L"%d%% of the fight"):format(math.floor(pct + 0.5)))
   end
   if dur >= 6 and #casts > 0 then
     local perMin = #casts / dur * 60
-    Part("active", "Continuous attacking", math.min(perMin / 12, 1) * 10, 10, ("%s abilities per minute"):format(F1(perMin)))
+    Part("active", L"Continuous attacking", math.min(perMin / 12, 1) * 10, 10, (L"%s abilities per minute"):format(F1(perMin)))
   end
   local got, max = 0, 0
   for _, p in ipairs(parts) do got, max = got + p.points, max + p.max end
@@ -658,10 +659,10 @@ end
 --   "becsült"           worked out from something less direct (the clock, the target's hits);
 --   "szimulált"         computed from given inputs by a model (Waystone's own damage model);
 --   "nem értékelhető"   cannot be worked out from what there is: shown as "–", never as 0.
-C.STATUS = { measured = "measured", estimated = "estimated", simulated = "simulated", none = "not assessable" }
-local RANK = { ["measured"] = 1, ["estimated"] = 2, ["simulated"] = 3, ["not assessable"] = 4 }
+C.STATUS = WA.LR { measured = L"measured", estimated = L"estimated", simulated = L"simulated", none = L"not assessable" }
+local RANK = WA.LRK { [L"measured"] = 1, [L"estimated"] = 2, [L"simulated"] = 3, [L"not assessable"] = 4 }
 local function Worst(...)
-  local w = "measured"
+  local w = L"measured"
   for _, s in ipairs({ ... }) do if RANK[s] > RANK[w] then w = s end end
   return w
 end
@@ -676,14 +677,14 @@ end
 -- Whether the model of your current character can be held against this fight: the same level,
 -- and (where the fight recorded it) the same gear. Returns ok, reason.
 function C.Comparable(f, ctx)
-  if not ctx or not ctx.baseline or ctx.baseline <= 0 then return false, "no model for this class" end
-  if not f.level or f.level == 0 then return false, "the fight's level is unknown" end
-  if f.level ~= ctx.level then return false, ("the fight was at level %d, the model counts with your current level %d"):format(f.level, ctx.level) end
+  if not ctx or not ctx.baseline or ctx.baseline <= 0 then return false, L"no model for this class" end
+  if not f.level or f.level == 0 then return false, L"the fight's level is unknown" end
+  if f.level ~= ctx.level then return false, (L"the fight was at level %d, the model counts with your current level %d"):format(f.level, ctx.level) end
   if f.gear and WA.Meter and WA.Meter.GearAtPull then
     local now = WA.Meter.GearAtPull()
-    if now and now ~= f.gear then return false, "your gear has changed since" end
+    if now and now ~= f.gear then return false, L"your gear has changed since" end
   end
-  return true, f.gear and "same level and gear" or "same level; this fight did not record the gear"
+  return true, f.gear and (L"same level and gear") or (L"same level; this fight did not record the gear")
 end
 
 -- Rows { key, label, status, value, text, from } for one fight. ctx: the class model (or nil).
@@ -699,93 +700,93 @@ function C.Provenance(f, ctx)
   -- damage
   local dmgStatus, dmgFrom
   if b.dmg == "effective" then
-    dmgStatus, dmgFrom = "measured", "the combat log's own damage events, effective damage (without overkill)" ..
-      ((f.overkill or 0) > 0 and (", " .. f.overkill .. " overkill subtracted") or "")
+    dmgStatus, dmgFrom = L"measured", L"the combat log's own damage events, effective damage (without overkill)" ..
+      ((f.overkill or 0) > 0 and (", " .. f.overkill .. L" overkill subtracted") or "")
   elseif b.dmg == "meter-own" then
-    dmgStatus, dmgFrom = "measured", "the game's damage meter's own row (isLocalPlayer), read after the fight"
+    dmgStatus, dmgFrom = L"measured", L"the game's damage meter's own row (isLocalPlayer), read after the fight"
   elseif b.dmg == "target-hits" then
-    dmgStatus, dmgFrom = "estimated", "the sum of hits on the target (UNIT_COMBAT), playing solo; the damage meter was not readable"
+    dmgStatus, dmgFrom = L"estimated", L"the sum of hits on the target (UNIT_COMBAT), playing solo; the damage meter was not readable"
   elseif log then
-    dmgStatus, dmgFrom = "measured", "the combat log's own damage events (older upload: overkill may be included)"
+    dmgStatus, dmgFrom = L"measured", L"the combat log's own damage events (older upload: overkill may be included)"
   else
-    dmgStatus, dmgFrom = "estimated", "older recording: unknown whether it came from the damage meter or the target's hits"
+    dmgStatus, dmgFrom = L"estimated", L"older recording: unknown whether it came from the damage meter or the target's hits"
   end
-  if not total then dmgStatus = "not assessable" end
+  if not total then dmgStatus = L"not assessable" end
   local own = total and (total - pet) or nil
-  Row("own", "Own damage (without pet)", dmgStatus, own, own and tostring(math.floor(own + 0.5)) or "–", dmgFrom)
+  Row("own", L"Own damage (without pet)", dmgStatus, own, own and tostring(math.floor(own + 0.5)) or "–", dmgFrom)
 
   -- the pet
-  local petStatus, petFrom = "measured", nil
+  local petStatus, petFrom = L"measured", nil
   local partial = false
   if b.pet == "owner-flags" or (log and not b.pet) then
-    petFrom = "your pet or totem by the combat log's flags (affiliation: mine, pet/guardian); never matched by name"
+    petFrom = L"your pet or totem by the combat log's flags (affiliation: mine, pet/guardian); never matched by name"
   elseif b.pet == "meter-guid" then
-    petFrom = "the damage meter's pet row, by the GUID of the pet out at the end of the fight; if you resummoned meanwhile, the earlier pet's part may be missing"
+    petFrom = L"the damage meter's pet row, by the GUID of the pet out at the end of the fight; if you resummoned meanwhile, the earlier pet's part may be missing"
     partial = true
   elseif b.pet == "meter-merged" then
-    petFrom = "the damage meter gave the pet's abilities in your row; counted once"
+    petFrom = L"the damage meter gave the pet's abilities in your row; counted once"
   elseif b.pet == "guess" then
-    petStatus, petFrom, partial = "estimated", "physical hits on the target while you were not hitting: not proven to be your pet", true
+    petStatus, petFrom, partial = L"estimated", L"physical hits on the target while you were not hitting: not proven to be your pet", true
   else
-    petFrom = "there was no pet damage"
+    petFrom = L"there was no pet damage"
   end
   if pet > 0 or (b.pet and b.pet ~= "none") then
-    Row("pet", "Pet damage", petStatus, pet, tostring(math.floor(pet + 0.5)), petFrom)
+    Row("pet", L"Pet damage", petStatus, pet, tostring(math.floor(pet + 0.5)), petFrom)
   end
 
   -- duration
   local durStatus, durFrom
   if b.dur == "own-events" or (log and not b.dur) then
-    durStatus, durFrom = "measured", "between the first and the last own (or pet) damage event; an 8 s pause starts a new fight"
+    durStatus, durFrom = L"measured", L"between the first and the last own (or pet) damage event; an 8 s pause starts a new fight"
   elseif b.dur == "meter-session" then
-    durStatus, durFrom = "measured", "the length of the damage meter's session (durationSeconds)"
+    durStatus, durFrom = L"measured", L"the length of the damage meter's session (durationSeconds)"
   elseif b.dur == "regen-clock" then
-    durStatus, durFrom = "estimated", "between entering and leaving combat, by the clock (the meter gave no length)"
+    durStatus, durFrom = L"estimated", L"between entering and leaving combat, by the clock (the meter gave no length)"
   else
-    durStatus, durFrom = "estimated", "older recording: the meter's length or the time since entering combat"
+    durStatus, durFrom = L"estimated", L"older recording: the meter's length or the time since entering combat"
   end
-  if not dur or dur <= 0 then durStatus = "not assessable" end
-  Row("dur", "Duration", durStatus, dur and dur > 0 and dur or nil, dur and dur > 0 and (F1(dur) .. " s") or "–", durFrom)
+  if not dur or dur <= 0 then durStatus = L"not assessable" end
+  Row("dur", L"Duration", durStatus, dur and dur > 0 and dur or nil, dur and dur > 0 and (F1(dur) .. L" s") or "–", durFrom)
 
   -- DPS
   local okDps = total and dur and dur > 0
   local dps = okDps and total / dur or nil
-  local dpsStatus = okDps and Worst(dmgStatus, durStatus, pet > 0 and petStatus or "measured") or "not assessable"
-  Row("dps", "DPS (own + pet)", dpsStatus, dps, dps and (F1(dps) .. (partial and pet > 0 and " (partial)" or "")) or "–",
-    okDps and ("(%d own + %d pet) / %s s%s"):format(math.floor(own + 0.5), math.floor(pet + 0.5), F1(dur),
-      partial and pet > 0 and "; the pet part is not fully proven" or "") or "no positive duration or damage")
+  local dpsStatus = okDps and Worst(dmgStatus, durStatus, pet > 0 and petStatus or (L"measured")) or (L"not assessable")
+  Row("dps", L"DPS (own + pet)", dpsStatus, dps, dps and (F1(dps) .. (partial and pet > 0 and (L" (partial)") or "")) or "–",
+    okDps and (L"(%d own + %d pet) / %s s%s"):format(math.floor(own + 0.5), math.floor(pet + 0.5), F1(dur),
+      partial and pet > 0 and (L"; the pet part is not fully proven") or "") or (L"no positive duration or damage"))
   if pet > 0 then
     local ownDps = okDps and own / dur or nil
-    Row("ownDps", "Own DPS (without pet)", okDps and Worst(dmgStatus, durStatus) or "not assessable", ownDps, ownDps and F1(ownDps) or "–",
-      okDps and ("%d / %s s"):format(math.floor(own + 0.5), F1(dur)) or "no positive duration")
+    Row("ownDps", L"Own DPS (without pet)", okDps and Worst(dmgStatus, durStatus) or (L"not assessable"), ownDps, ownDps and F1(ownDps) or "–",
+      okDps and (L"%d / %s s"):format(math.floor(own + 0.5), F1(dur)) or (L"no positive duration"))
   end
 
   -- the model, and the ratio only for a matching situation
   local okCmp, why = C.Comparable(f, ctx)
   if ctx and ctx.baseline and ctx.baseline > 0 then
     local fights = ctx.combat and ctx.combat.fights or 0
-    Row("model", "Expected DPS (Waystone model)", okCmp and "simulated" or "not assessable", okCmp and ctx.baseline or nil,
+    Row("model", L"Expected DPS (Waystone model)", okCmp and (L"simulated") or (L"not assessable"), okCmp and ctx.baseline or nil,
       okCmp and F1(ctx.baseline) or "–",
-      ("Waystone's leveling model from your current stats and gear%s; not a WoWSims simulation%s")
-        :format(fights > 0 and (", " .. fights .. " calibrated with recorded fights") or ", with textbook values",
+      (L"Waystone's leveling model from your current stats and gear%s; not a WoWSims simulation%s")
+        :format(fights > 0 and (", " .. fights .. L" calibrated with recorded fights") or (L", with textbook values"),
           okCmp and "" or (" · " .. why)))
     if okCmp and dps then
-      Row("ratio", "Measured / expected", "simulated", dps / ctx.baseline * 100, ("%d%%"):format(math.floor(dps / ctx.baseline * 100 + 0.5)),
-        "100 × measured DPS / expected DPS; " .. why .. ". The gap alone is not a rotation mistake: moving, several targets or the end of the fight are in it too.")
+      Row("ratio", L"Measured / expected", L"simulated", dps / ctx.baseline * 100, ("%d%%"):format(math.floor(dps / ctx.baseline * 100 + 0.5)),
+        L"100 × measured DPS / expected DPS; " .. why .. L". The gap alone is not a rotation mistake: moving, several targets or the end of the fight are in it too.")
     end
   end
   local sm = ctx and ctx.sim or C.SimModel(WA.Game and WA.Game.Class and WA.Game.Class(), WA.Game and WA.Game.MainTalentTab and WA.Game.MainTalentTab())
   local simWhat = sm and (sm.class .. (sm.spec and (" " .. sm.spec) or "") .. (sm.status and (": " .. C.SIM_STATUS_TEXT[sm.status]) or "")) or nil
-  Row("sim", "Reference simulation (WoWSims Forever)", "not assessable", nil, "–",
-    (((f.level or 0) > 0 and f.level < 60) and "the Forever engine only builds level 60 characters: there is no same-level reference for this level"
-      or (sm and sm.status == "GearPlanner") and "for this spec the engine only plans gear: there is no HPS or rotation reference"
-      or "not wired into the addon: it would need an external run and an import") ..
+  Row("sim", L"Reference simulation (WoWSims Forever)", L"not assessable", nil, "–",
+    (((f.level or 0) > 0 and f.level < 60) and (L"the Forever engine only builds level 60 characters: there is no same-level reference for this level")
+      or (sm and sm.status == "GearPlanner") and (L"for this spec the engine only plans gear: there is no HPS or rotation reference")
+      or (L"not wired into the addon: it would need an external run and an import")) ..
     (simWhat and (" · " .. simWhat .. " (" .. C.SIM_SOURCE .. ")") or ""))
 
   -- where it all came from
-  local srcText = log and "combat log (WoWCombatLog, processed by the uploader)"
-    or ((b.dmg == "meter-own") and "in game: the game's damage meter" or "in game: the target's hits")
-  Row("source", "Data source", "measured", nil, log and "combat log" or "in game", srcText ..
+  local srcText = log and (L"combat log (WoWCombatLog, processed by the uploader)")
+    or ((b.dmg == "meter-own") and (L"in game: the game's damage meter") or (L"in game: the target's hits"))
+  Row("source", L"Data source", L"measured", nil, log and (L"combat log") or (L"in game"), srcText ..
     (f.sessionID and (", session #" .. f.sessionID) or ""))
   return rows
 end

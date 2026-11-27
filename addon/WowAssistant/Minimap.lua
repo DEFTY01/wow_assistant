@@ -6,17 +6,18 @@
 -- Also listed in the addon compartment (the addon list button by the minimap) where the client has one.
 
 local _, WA = ...
+local L = WA.L
 local MB = {}
 WA.Minimap = MB
 
 -- { icon, badge (small texture on the bottom right corner, or nil), name, whole texture (no crop) }
-local ICONS = {
+local ICONS = WA.LR {
   { "Interface\\AddOns\\WowAssistant\\Media\\Waystone", nil, "Waystone", true },
-  { "Interface\\Icons\\INV_Weapon_ShortBlade_05", "Interface\\MoneyFrame\\UI-GoldIcon", "dagger and gold" },
+  { "Interface\\Icons\\INV_Weapon_ShortBlade_05", "Interface\\MoneyFrame\\UI-GoldIcon", L"dagger and gold" },
   { "Interface\\Icons\\Ability_Rogue_Eviscerate", nil, "Eviscerate" },
-  { "Interface\\Icons\\INV_Misc_Coin_01", nil, "gold coins" },
-  { "Interface\\Icons\\Ability_Stealth", nil, "stealth" },
-  { "Interface\\Icons\\INV_Misc_Map_01", nil, "map" },
+  { "Interface\\Icons\\INV_Misc_Coin_01", nil, L"gold coins" },
+  { "Interface\\Icons\\Ability_Stealth", nil, L"stealth" },
+  { "Interface\\Icons\\INV_Misc_Map_01", nil, L"map" },
 }
 local FALLBACK_ICON = "Interface\\Icons\\INV_Misc_QuestionMark"
 
@@ -76,17 +77,17 @@ end
 local function ShowTooltip(self)
   GameTooltip:SetOwner(self, "ANCHOR_LEFT")
   GameTooltip:AddLine("Waystone", 1, 0.82, 0)
-  GameTooltip:AddLine(WA.Fix(("%s's companion"):format(UnitName("player") or "")), 0.8, 0.8, 0.8)
+  GameTooltip:AddLine(WA.Fix((L"%s's companion"):format(UnitName("player") or "")), 0.8, 0.8, 0.8)
   local last = LastFightLine()
   if last then
     GameTooltip:AddLine(" ")
-    GameTooltip:AddDoubleLine(WA.Fix("Last fight"), WA.Fix(last), 1, 0.82, 0, 1, 1, 1)
+    GameTooltip:AddDoubleLine(WA.Fix(L"Last fight"), WA.Fix(last), 1, 0.82, 0, 1, 1, 1)
   end
   GameTooltip:AddLine(" ")
-  GameTooltip:AddDoubleLine(WA.Fix("Left-click"), WA.Fix("main window"), 0.6, 0.8, 1, 1, 1, 1)
-  GameTooltip:AddDoubleLine(WA.Fix("Right-click"), WA.Fix("what to craft for vendors"), 0.6, 0.8, 1, 1, 1, 1)
-  GameTooltip:AddDoubleLine(WA.Fix("Shift + left-click"), WA.Fix("session bar on/off"), 0.6, 0.8, 1, 1, 1, 1)
-  GameTooltip:AddDoubleLine(WA.Fix("Drag"), WA.Fix("move"), 0.6, 0.8, 1, 1, 1, 1)
+  GameTooltip:AddDoubleLine(WA.Fix(L"Left-click"), WA.Fix(L"main window"), 0.6, 0.8, 1, 1, 1, 1)
+  GameTooltip:AddDoubleLine(WA.Fix(L"Right-click"), WA.Fix(L"what to craft for vendors"), 0.6, 0.8, 1, 1, 1, 1)
+  GameTooltip:AddDoubleLine(WA.Fix(L"Shift + left-click"), WA.Fix(L"session bar on/off"), 0.6, 0.8, 1, 1, 1, 1)
+  GameTooltip:AddDoubleLine(WA.Fix(L"Drag"), WA.Fix(L"move"), 0.6, 0.8, 1, 1, 1, 1)
   GameTooltip:Show()
 end
 
@@ -179,7 +180,7 @@ WA.Command("minimap", function(rest)
   rest = strtrim(rest or ""):lower()
   if rest == "icon" then
     d.icon = (d.icon or 1) % #ICONS + 1
-    WA.Print(("minimap icon: %s (%d/%d)"):format(ICONS[d.icon][3], d.icon, #ICONS))
+    WA.Print((L"minimap icon: %s (%d/%d)"):format(ICONS[d.icon][3], d.icon, #ICONS))
   elseif rest == "show" then
     d.hide = false
   elseif rest == "hide" then
@@ -188,4 +189,4 @@ WA.Command("minimap", function(rest)
     d.hide = not d.hide
   end
   MB.Update()
-end, "/wa minimap [show | hide | icon] – minimap button on/off, change the icon")
+end, L"/wa minimap [show | hide | icon] – minimap button on/off, change the icon")

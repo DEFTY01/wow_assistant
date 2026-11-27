@@ -24,6 +24,65 @@ WA.onLogin = {}  -- run at PLAYER_LOGIN, once the character key is known
 WA.commands = {} -- /wa <name> ... handlers: fn(rest, msg)
 WA.help = {}     -- lines for /wa help
 
+---------------------------------------------------------------------------
+-- language
+---------------------------------------------------------------------------
+-- The code is written in English. With Hungarian chosen (WowAssistantDB.lang = "hu", /wa lang hu)
+-- L looks every text up in WA.HU (Locale_hu.lua). The files run before the SavedVariables load,
+-- so texts written into tables at load time are registered with WA.LR (values) or WA.LRK (keys)
+-- and translated in place once the setting is known (ADDON_LOADED).
+WA.lang = "en"
+WA.HU = WA.HU or {}
+function WA.L(s)
+  if WA.lang == "hu" then return WA.HU[s] or s end
+  return s
+end
+local L = WA.L
+local valueRoots, keyRoots = {}, {}
+function WA.LR(t) valueRoots[#valueRoots + 1] = t return t end
+function WA.LRK(t) keyRoots[#keyRoots + 1] = t return t end
+
+local function TranslateValues(t, seen)
+  if seen[t] then return end
+  seen[t] = true
+  for k, v in pairs(t) do
+    if type(v) == "string" then
+      local hu = WA.HU[v]
+      if hu then t[k] = hu end
+    elseif type(v) == "table" then
+      TranslateValues(v, seen)
+    end
+  end
+end
+
+local function TranslateKeys(t)
+  local moved = {}
+  for k, v in pairs(t) do
+    if type(k) == "string" and WA.HU[k] then moved[k] = v end
+  end
+  for k, v in pairs(moved) do
+    t[k] = nil
+    t[WA.HU[k]] = v
+  end
+end
+
+local function ApplyLanguage(db)
+  WA.lang = db.lang == "hu" and "hu" or "en"
+  if WA.lang ~= "hu" then return end
+  local seen = {}
+  for _, t in ipairs(valueRoots) do TranslateValues(t, seen) end
+  TranslateValues(WA.help, seen)
+  for _, t in ipairs(keyRoots) do TranslateKeys(t) end
+end
+
+-- Saves the choice and reloads the interface, so every text is built again in that language.
+function WA.SetLanguage(lang)
+  if lang ~= "hu" then lang = "en" end
+  WA.db.lang = lang
+  WA.Print(L("language: %s (reloading the interface)"):format(L(lang == "hu" and "Hungarian" or "English")))
+  if C_UI and C_UI.Reload then C_UI.Reload() elseif ReloadUI then ReloadUI() end
+end
+
 -- Chat uses the game's font, which has no ő and ű: WA.Fix (Style.lua) swaps them for ö and ü.
 function WA.Print(msg) DEFAULT_CHAT_FRAME:AddMessage("|cfff0c040Waystone:|r " .. (WA.Fix and WA.Fix(msg) or msg)) end
 
@@ -144,9 +203,10 @@ ev:SetScript("OnEvent", function(_, event, name)
     c.known = c.known or {}
     if not c.id then c.id = ("%08x%04x"):format(time() % 2 ^ 32, math.random(0, 0xffff)) end
     WA.db, WA.charDB = db, c
+    ApplyLanguage(db)
     for _, fn in ipairs(WA.onLoad) do
       local ok, err = pcall(fn)
-      if not ok then WA.Print("error while loading: " .. tostring(err)) end
+      if not ok then WA.Print(L"error while loading: " .. tostring(err)) end
     end
   elseif event == "PLAYER_LOGIN" then
     local db = WA.db
@@ -156,7 +216,7 @@ ev:SetScript("OnEvent", function(_, event, name)
     db.last = WA.key
     for _, fn in ipairs(WA.onLogin) do
       local ok, err = pcall(fn)
-      if not ok then WA.Print("error at login: " .. tostring(err)) end
+      if not ok then WA.Print(L"error at login: " .. tostring(err)) end
     end
   end
 end)
@@ -183,6 +243,13 @@ local function Dispatch(msg)
   if WA.commands[""] then return WA.commands[""](msg, msg) end
 end
 WA.Dispatch = Dispatch
+
+WA.Command("lang", function(rest)
+  rest = (rest or ""):lower()
+  if rest == "hu" or rest == "magyar" or rest == "hungarian" then WA.SetLanguage("hu")
+  elseif rest == "en" or rest == "angol" or rest == "english" then WA.SetLanguage("en")
+  else WA.SetLanguage(WA.lang == "hu" and "en" or "hu") end
+end, "/wa lang en | hu – the addon's language (English or Hungarian)")
 
 SLASH_WOWASSISTANT1 = "/wa"
 SLASH_WOWASSISTANT2 = "/waystone"

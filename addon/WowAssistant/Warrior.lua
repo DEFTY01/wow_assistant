@@ -22,6 +22,7 @@
 -- (off-hand hit %), dualWield (off-hand damage %), flurry (attack speed % for 3 swings after a crit).
 
 local _, WA = ...
+local L = WA.L
 WA = WA or {}
 local M = WA.Model
 local WR = {}
@@ -164,7 +165,7 @@ function WR.Context(input)
     specialPerSec = level >= 12 and 0.1 or 0, specialBonus = 5 + 1.5 * level,
     otherDps = 0, notes = notes,
   }
-  notes[#notes + 1] = ("1%% crit ≈ %s agility (from your own stats); 1 strength = 2 AP. Heroic Strike: +%d damage on the next swing (level %d rank, Wowhead Forever).")
+  notes[#notes + 1] = (L"1%% crit ≈ %s agility (from your own stats); 1 strength = 2 AP. Heroic Strike: +%d damage on the next swing (level %d rank, Wowhead Forever).")
     :format(F1(agiPerCrit), params.hsBonus, hsRank and hsRank[1] or 1)
 
   local function mix(prior, measured, n, half)
@@ -204,13 +205,13 @@ function WR.Context(input)
     end
     params.specialPerSec = mix(params.specialPerSec, specials / secs, secs, 120)
     params.otherDps = mix(0, other / secs, secs, 120)
-    notes[#notes + 1] = ("Calibrated from %d recorded fights (%d s): swinging %d%% of the time, Heroic Strike %s per minute (+%d), weapon special %s per minute (+%d), everything else (Rend, Execute, Bloodthirst...) %s DPS.")
+    notes[#notes + 1] = (L"Calibrated from %d recorded fights (%d s): swinging %d%% of the time, Heroic Strike %s per minute (+%d), weapon special %s per minute (+%d), everything else (Rend, Execute, Bloodthirst...) %s DPS.")
       :format(combat.fights, Round(secs), Round(params.meleeUptime * 100), F1(params.hsPerSec * 60), Round(params.hsBonus),
         F1(params.specialPerSec * 60), Round(params.specialBonus), F1(params.otherDps))
   else
-    notes[#notes + 1] = "No recorded fights, so it uses textbook values. Turn on the combat log (/wa log) to calibrate."
+    notes[#notes + 1] = L"No recorded fights, so it uses textbook values. Turn on the combat log (/wa log) to calibrate."
   end
-  notes[#notes + 1] = ("The model does not simulate rage: your white hits give about %s rage a second (3.46 × weapon speed per hit, 4.5 × with a two-hander; WoWSims Forever sim/core/rage.go).")
+  notes[#notes + 1] = (L"The model does not simulate rage: your white hits give about %s rage a second (3.46 × weapon speed per hit, 4.5 × with a two-hander; WoWSims Forever sim/core/rage.go).")
     :format(F1(WR.WhiteRage(sheet, params)))
 
   local unbuffed = WR.Dps(sheet, params)
@@ -300,7 +301,7 @@ function WR.Context(input)
     local line = M.WEAPON_SKILLS[sub]
     local s = line and skills[line]
     if not line then return nil end
-    if not s then return ("%s is not trained"):format(line) end
+    if not s then return (L"%s is not trained"):format(line) end
     if s.rank < s.max - 15 then return ("%s skill %d/%d"):format(line, s.rank, s.max) end
     return nil
   end
@@ -365,7 +366,7 @@ function WR.Score(f, ctx)
   local baseline = ctx and WA.Combat.Comparable(f, ctx) and ctx.baseline or nil
   if baseline and baseline > 0 then
     local ratio = dps / baseline
-    Part("dps", "DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, ("%d DPS against the %d your gear should give: %d%%"):format(
+    Part("dps", L"DPS against the expected", math.min(ratio / 1.1, 1) * 40, 40, (L"%d DPS against the %d your gear should give: %d%%"):format(
       Round(dps), Round(baseline), Round(ratio * 100)))
   end
   local ab = f.ab or {}
@@ -374,7 +375,7 @@ function WR.Score(f, ctx)
     local melee, hs = Find(ab, "Melee"), Find(ab, "Heroic Strike")
     local swings = (melee and melee.n or 0) + (hs and hs.n or 0)
     local up = math.min(1, swings * mh.speed / dur)
-    Part("melee", "You swing continuously", math.min(up / 0.9, 1) * 20, 20, ("you were swinging about %d%% of the fight (%d swings, %s s weapon)"):format(
+    Part("melee", L"You swing continuously", math.min(up / 0.9, 1) * 20, 20, (L"you were swinging about %d%% of the fight (%d swings, %s s weapon)"):format(
       Round(up * 100), swings, F1(mh.speed)))
   end
   if type(f.rage) == "table" and #f.rage > 0 then
@@ -382,7 +383,7 @@ function WR.Score(f, ctx)
     for _, r in ipairs(f.rage) do gain, over = gain + (r.gain or 0), over + (r.over or 0) end
     local total = gain + over
     local kept = total > 0 and gain / total or 1
-    Part("rage", "No rage wasted", kept * 15, 15, ("%d rage from the logged rage sources, of which %d was lost over 100"):format(Round(total), Round(over)))
+    Part("rage", L"No rage wasted", kept * 15, 15, (L"%d rage from the logged rage sources, of which %d was lost over 100"):format(Round(total), Round(over)))
   end
   local got, max = 0, 0
   for _, x in ipairs(parts) do got, max = got + x.points, max + x.max end
@@ -416,7 +417,7 @@ end
 
 local function Clock(start, tenths)
   local s = (start or 0) + (tonumber(tenths) or 0) / 10
-  return date and date("%m/%d %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
+  return date and date(L"%m/%d %H:%M:%S", math.floor(s)) or tostring(math.floor(s))
 end
 
 function WR.Advise(r, fights)
@@ -424,7 +425,7 @@ function WR.Advise(r, fights)
   local out = {}
   local function Push(o) out[#out + 1] = C.Finding(o) end
   if r.seconds < 300 then
-    Push({ info = true, title = "Not enough data yet", fact = ("So far %d fights and %d seconds are recorded. The ratios are reliable after about 10 minutes of combat.")
+    Push({ info = true, title = L"Not enough data yet", fact = (L"So far %d fights and %d seconds are recorded. The ratios are reliable after about 10 minutes of combat.")
       :format(r.fights, Round(r.seconds)) })
   end
   local _, share = WR.Sources(r.abilities, r.damage)
@@ -433,27 +434,27 @@ function WR.Advise(r, fights)
     local lines = {}
     for i = 1, math.min(3, #rage.wasteful) do
       local x = rage.wasteful[i]
-      lines[i] = ("%s: %s, %d rage, %d of it lost"):format(Clock(x.start, x.r.t), x.r.spell, (x.r.gain or 0) + (x.r.over or 0), x.r.over or 0)
+      lines[i] = (L"%s: %s, %d rage, %d of it lost"):format(Clock(x.start, x.r.t), x.r.spell, (x.r.gain or 0) + (x.r.over or 0), x.r.over or 0)
     end
-    Push({ title = "Bloodrage or Charge at full rage", fault = true, rule = "rageCap",
-      fact = ("%d times most of the rage gained went over 100 and was lost (combat log: the rage event itself says how much went over the maximum):\n- %s%s")
-        :format(#rage.wasteful, table.concat(lines, "\n- "), #rage.wasteful > 3 and ("\n- … plus " .. (#rage.wasteful - 3)) or ""),
-      advice = "Press Bloodrage when there is room for the rage: spend first (Heroic Strike, special)." })
+    Push({ title = L"Bloodrage or Charge at full rage", fault = true, rule = "rageCap",
+      fact = (L"%d times most of the rage gained went over 100 and was lost (combat log: the rage event itself says how much went over the maximum):\n- %s%s")
+        :format(#rage.wasteful, table.concat(lines, "\n- "), #rage.wasteful > 3 and (L"\n- … plus " .. (#rage.wasteful - 3)) or ""),
+      advice = L"Press Bloodrage when there is room for the rage: spend first (Heroic Strike, special)." })
   end
   if rage.passiveOver > 0 then
-    Push({ info = true, title = "Rage over the maximum",
-      fact = ("Passive rage sources (e.g. Shield Specialization, Unbridled Wrath) gave rage over 100 %d times, %d rage lost in total: your rage was full then.")
+    Push({ info = true, title = L"Rage over the maximum",
+      fact = (L"Passive rage sources (e.g. Shield Specialization, Unbridled Wrath) gave rage over 100 %d times, %d rage lost in total: your rage was full then.")
         :format(rage.passiveN, Round(rage.passiveOver)) })
   end
   local avgFight = r.fights > 0 and r.seconds / r.fights or 0
   local hs = Find(r.abilities, "Heroic Strike")
   if r.seconds >= 300 and avgFight >= 10 and not hs and rage.passiveOver > 0 then
-    Push({ title = "No Heroic Strike although rage was full", rule = "hsDump",
-      fact = ("There is not a single Heroic Strike in your fights, while %d rage was lost over 100."):format(Round(rage.passiveOver)),
-      advice = "Heroic Strike puts spare rage into the next swing: at full rage that is free damage." })
+    Push({ title = L"No Heroic Strike although rage was full", rule = "hsDump",
+      fact = (L"There is not a single Heroic Strike in your fights, while %d rage was lost over 100."):format(Round(rage.passiveOver)),
+      advice = L"Heroic Strike puts spare rage into the next swing: at full rage that is free damage." })
   end
   if r.seconds >= 120 then
-    Push({ info = true, title = "Measured ratios", fact = ("Damage: white hits %d%%, Heroic Strike %d%%, weapon specials %d%%, DoT (Rend) %d%%, other %d%%.")
+    Push({ info = true, title = L"Measured ratios", fact = (L"Damage: white hits %d%%, Heroic Strike %d%%, weapon specials %d%%, DoT (Rend) %d%%, other %d%%.")
       :format(Round(share.melee), Round(share.hs), Round(share.special), Round(share.dot), Round(share.other)) })
   end
   return out

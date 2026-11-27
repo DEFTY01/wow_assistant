@@ -10,6 +10,7 @@
 --   flat  the plain dark panel with a thin gold edge (close to Daylight UI).
 
 local _, WA = ...
+local L = WA.L
 local S = {}
 WA.Style = S
 
@@ -317,9 +318,9 @@ end
 WA.Command("style", function(rest)
   rest = (rest or ""):lower()
   if rest ~= "wow" and rest ~= "flat" then
-    WA.Print("/wa style wow | flat – now: " .. S.Name())
+    WA.Print(L"/wa style wow | flat – now: " .. S.Name())
     return
   end
   WA.db.style = rest
-  WA.Print("window style: " .. rest .. " (shown after /reload)")
-end, "/wa style wow | flat – window style (game-like or clean)")
+  WA.Print(L"window style: " .. rest .. L" (shown after /reload)")
+end, L"/wa style wow | flat – window style (game-like or clean)")

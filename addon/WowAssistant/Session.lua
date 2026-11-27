@@ -4,6 +4,7 @@
 -- (a régi SessionBarDB / SessionBarCharDB tartalmát a Core.lua másolja át egyszer).
 
 local _, WA = ...
+local L = WA.L
 
 ---------------------------------------------------------------------------
 -- Beállítások
@@ -52,27 +53,27 @@ local SPARK_BLOCK = SPARK_H + 12
 local SPARK_WIDTH = SPARK_N * SPARK_W + 16
 local SPARK_HEIGHT = SPARK_BLOCK * 2 + 6
 
-local CATS = {
+local CATS = WA.LR {
   loot    = "Loot",
-  quest   = "Quest",
+  quest   = L"Quest",
   vendor  = "Vendor",
-  mail    = "Mail (AH sales too)",
-  ah      = "Auction house",
-  trade   = "Trade",
-  repair  = "Repair",
-  taxi    = "Flight",
-  trainer = "Trainer",
-  other   = "Other",
+  mail    = L"Mail (AH sales too)",
+  ah      = L"Auction house",
+  trade   = L"Trade",
+  repair  = L"Repair",
+  taxi    = L"Flight",
+  trainer = L"Trainer",
+  other   = L"Other",
 }
 local CAT_ORDER = { "loot", "quest", "vendor", "mail", "ah", "trade", "repair", "taxi", "trainer", "other" }
 
-local INCOME_TIPS = {
-  loot   = "Gold dropped by mobs is your main source: stay in your best zone, and pick dense groups that die fast.",
-  vendor = "Loot sold at the vendor brings the most: keep your bags empty, and take back everything sellable.",
-  quest  = "Quests bring the most: if you do not need the reward item, pick the one that sells for the most.",
-  mail   = "A lot of gold comes from AH sales (mail): list more materials (leather, ore, herbs, cloth).",
-  ah     = "The auction house is an important source: sell sought-after materials on the AH, not at the vendor.",
-  trade  = "Goods sold directly to players do well for you: worth continuing.",
+local INCOME_TIPS = WA.LR {
+  loot   = L"Gold dropped by mobs is your main source: stay in your best zone, and pick dense groups that die fast.",
+  vendor = L"Loot sold at the vendor brings the most: keep your bags empty, and take back everything sellable.",
+  quest  = L"Quests bring the most: if you do not need the reward item, pick the one that sells for the most.",
+  mail   = L"A lot of gold comes from AH sales (mail): list more materials (leather, ore, herbs, cloth).",
+  ah     = L"The auction house is an important source: sell sought-after materials on the AH, not at the vendor.",
+  trade  = L"Goods sold directly to players do well for you: worth continuing.",
 }
 
 local KILL_FMTS = {
@@ -170,7 +171,7 @@ local function Safe(where, fn, ...)
   local ok, err = pcall(fn, ...)
   if not ok and not reported[where] then
     reported[where] = true
-    print("|cffff4040SessionBar error (" .. where .. "):|r " .. tostring(err))
+    print(L"|cffff4040SessionBar error (" .. where .. "):|r " .. tostring(err))
   end
   return ok
 end
@@ -514,9 +515,9 @@ end
 
 -- Mennyi adat áll egy zóna mögött (és mennyi ritka drop esett ott, ami nincs benne az értékben).
 local function Evidence(z)
-  local s = ("%d min, %d kills"):format(math.floor(z.active / 60), z.kills or 0)
+  local s = (L"%d min, %d kills"):format(math.floor(z.active / 60), z.kills or 0)
   if (z.luckN or 0) > 0 then
-    s = s .. (", rare drops: %d, %s"):format(z.luckN, Money(z.luck))
+    s = s .. (L", rare drops: %d, %s"):format(z.luckN, Money(z.luck))
   end
   return s
 end
@@ -588,26 +589,26 @@ local function GoldAdvice()
   local here = ZoneName()
   local best = zones[1]
   if best and best.sure and best.rate > 0 then
-    add(("Your best farm zone: |cffffd100%s|r – %s/hour steady income (%s)."):format(
+    add((L"Your best farm zone: |cffffd100%s|r – %s/hour steady income (%s)."):format(
       best.name, Money(best.rate), Evidence(best)))
     if best.name ~= here then
       local hereZ
       for _, z in ipairs(zones) do if z.name == here then hereZ = z end end
       if hereZ and best.rate > hereZ.rate * 1.2 then
-        add(("Here (%s) %s/hour%s: %s pays %d%% better."):format(
-          here, Money(hereZ.rate), hereZ.sure and "" or " (little data yet)", best.name,
+        add((L"Here (%s) %s/hour%s: %s pays %d%% better."):format(
+          here, Money(hereZ.rate), hereZ.sure and "" or (L" (little data yet)"), best.name,
           hereZ.rate > 0 and math.floor((best.rate / hereZ.rate - 1) * 100) or 100))
       end
     end
   elseif best and best.rate > 0 then
-    add(("Still uncertain, but so far |cffffd100%s|r is the best: %s/hour (%s). It becomes reliable after half an hour or %d kills."):format(
+    add((L"Still uncertain, but so far |cffffd100%s|r is the best: %s/hour (%s). It becomes reliable after half an hour or %d kills."):format(
       best.name, Money(best.rate), Evidence(best), SURE_KILLS))
     best = nil -- bizonytalan zónára nem építünk célbecslést
   else
-    add("Not enough data yet to compare zones (10 active minutes per zone needed).")
+    add(L"Not enough data yet to compare zones (10 active minutes per zone needed).")
   end
   if session.lootLuckN > 0 then
-    add(("This session %d rare drops fell (%s at vendor price). That is luck, so it is not in the zone value; on the AH it is usually worth more."):format(
+    add((L"This session %d rare drops fell (%s at vendor price). That is luck, so it is not in the zone value; on the AH it is usually worth more."):format(
       session.lootLuckN, Money(session.lootLuck)))
   end
 
@@ -619,32 +620,32 @@ local function GoldAdvice()
       if c ~= "other" and v > topV then top, topV = c, v end
     end
     if top then
-      add(("Your main income: %s (%d%%). %s"):format(CATS[top], Pct(topV, total), INCOME_TIPS[top] or ""))
+      add((L"Your main income: %s (%d%%). %s"):format(CATS[top], Pct(topV, total), INCOME_TIPS[top] or ""))
     end
   end
 
   if bags.junk > 0 then
-    add(("Your bags hold %s worth of grey items (%d): sell them at the vendor."):format(Money(bags.junk), bags.junkCount))
+    add((L"Your bags hold %s worth of grey items (%d): sell them at the vendor."):format(Money(bags.junk), bags.junkCount))
   end
   if bags.total > 0 and bags.free <= BAG_WARN then
-    add(("Only %d free slots left: with full bags you leave loot on the ground."):format(bags.free))
+    add((L"Only %d free slots left: with full bags you leave loot on the ground."):format(bags.free))
   end
 
   local exp = MergedCats("expense")
   local expTotal = Sum(exp)
   if expTotal > 0 and (exp.repair or 0) / expTotal >= 0.3 then
-    add(("%d%% of your spending is repairs: fewer deaths, more gold."):format(Pct(exp.repair, expTotal)))
+    add((L"%d%% of your spending is repairs: fewer deaths, more gold."):format(Pct(exp.repair, expTotal)))
   end
 
   local st = GoalStatus("gold")
   if st and not st.done then
     local parts = {}
-    if st.eta then parts[#parts + 1] = ("at the current pace ~%s"):format(FmtTime(st.eta)) end
+    if st.eta then parts[#parts + 1] = (L"at the current pace ~%s"):format(FmtTime(st.eta)) end
     if best and best.rate > 0 and best.name ~= here then
-      parts[#parts + 1] = ("at the pace of %s ~%s"):format(best.name, FmtTime(st.remaining / best.rate * 3600))
+      parts[#parts + 1] = (L"at the pace of %s ~%s"):format(best.name, FmtTime(st.remaining / best.rate * 3600))
     end
     if #parts > 0 then
-      add(("Left to the goal %s: %s."):format(Money(st.remaining), table.concat(parts, ", ")))
+      add((L"Left to the goal %s: %s."):format(Money(st.remaining), table.concat(parts, ", ")))
     end
   end
   return out
@@ -654,21 +655,21 @@ local function LevelAdvice()
   local out = {}
   local zones = RankZones("xp")
   if zones[1] then
-    out[#out + 1] = ("Most XP/hour: |cffffd100%s|r – %s/hour."):format(zones[1].name, Abbrev(zones[1].rate))
+    out[#out + 1] = (L"Most XP/hour: |cffffd100%s|r – %s/hour."):format(zones[1].name, Abbrev(zones[1].rate))
   end
   local kill, quest = Sources(session)
   local total = session.xp + hist.src.xp
   kill, quest = kill + hist.src.kill, quest + hist.src.quest
   if total > 0 then
     if quest >= kill then
-      out[#out + 1] = ("%d%% of your XP comes from quests: gather more quests in a zone, and turn them in at once."):format(Pct(quest, total))
+      out[#out + 1] = (L"%d%% of your XP comes from quests: gather more quests in a zone, and turn them in at once."):format(Pct(quest, total))
     else
-      out[#out + 1] = ("%d%% of your XP comes from killing mobs: dense groups of mobs at your level are the fastest."):format(Pct(kill, total))
+      out[#out + 1] = (L"%d%% of your XP comes from killing mobs: dense groups of mobs at your level are the fastest."):format(Pct(kill, total))
     end
   end
   local rested = Rested()
   if rested > 0 then
-    out[#out + 1] = ("You have %s rested XP: while it lasts, killing mobs gives double XP."):format(Abbrev(rested))
+    out[#out + 1] = (L"You have %s rested XP: while it lasts, killing mobs gives double XP."):format(Abbrev(rested))
   end
   return out
 end
@@ -689,17 +690,17 @@ local function SummaryLines(s, title)
   local dur = s.duration or ((s.last or time()) - s.start)
   local net = Net(s)
   local L = { "|cffffd100" .. title .. "|r" }
-  L[#L + 1] = ("Time: %s (active %s)"):format(FmtTime(dur), FmtTime(a))
+  L[#L + 1] = (L"Time: %s (active %s)"):format(FmtTime(dur), FmtTime(a))
   if (s.xp or 0) > 0 then
     local kill, quest, other = Sources(s)
-    L[#L + 1] = ("XP: +%s (%s/hour) – mobs %s, quests %s, discovery/other %s%s"):format(
+    L[#L + 1] = (L"XP: +%s (%s/hour) – mobs %s, quests %s, discovery/other %s%s"):format(
       Abbrev(s.xp), Abbrev(Rate(s.xp, a, 60) or 0), Abbrev(kill), Abbrev(quest), Abbrev(other),
-      (s.levels or 0) > 0 and (", +%d levels"):format(s.levels) or "")
+      (s.levels or 0) > 0 and (L", +%d levels"):format(s.levels) or "")
   end
-  L[#L + 1] = ("Gold: %s (%s/hour) · farm value %s/hour"):format(Money(net, true), Money(Rate(net, a, 60) or 0, true),
+  L[#L + 1] = (L"Gold: %s (%s/hour) · farm value %s/hour"):format(Money(net, true), Money(Rate(net, a, 60) or 0, true),
     Money(Rate(Farm(s), a, 60) or 0))
   if (s.lootLuckN or 0) > 0 then
-    L[#L + 1] = ("Rare drops (luck, not in the farm value): %d, %s at vendor price"):format(s.lootLuckN, Money(s.lootLuck))
+    L[#L + 1] = (L"Rare drops (luck, not in the farm value): %d, %s at vendor price"):format(s.lootLuckN, Money(s.lootLuck))
   end
   local bestName, bestRate
   for name, z in pairs(s.zones or {}) do
@@ -708,13 +709,13 @@ local function SummaryLines(s, title)
       if not bestRate or r > bestRate then bestName, bestRate = name, r end
     end
   end
-  if bestName then L[#L + 1] = ("Best zone: %s (%s/hour)"):format(bestName, Money(bestRate, true)) end
+  if bestName then L[#L + 1] = (L"Best zone: %s (%s/hour)"):format(bestName, Money(bestRate, true)) end
   if hist.n > 0 and a >= MIN_RATE_ACTIVE then
     local cmp = {}
     local xph, gph = Rate(s.xp, a, 60), Rate(net, a, 60)
-    if xph and hist.avgXph and (s.xp or 0) > 0 then cmp[#cmp + 1] = ("XP/hour %d%%"):format(Pct(xph, hist.avgXph)) end
-    if gph and hist.avgGph and hist.avgGph > 0 then cmp[#cmp + 1] = ("gold/hour %d%%"):format(Pct(gph, hist.avgGph)) end
-    if #cmp > 0 then L[#L + 1] = "Against your average: " .. table.concat(cmp, ", ") end
+    if xph and hist.avgXph and (s.xp or 0) > 0 then cmp[#cmp + 1] = (L"XP/hour %d%%"):format(Pct(xph, hist.avgXph)) end
+    if gph and hist.avgGph and hist.avgGph > 0 then cmp[#cmp + 1] = (L"gold/hour %d%%"):format(Pct(gph, hist.avgGph)) end
+    if #cmp > 0 then L[#L + 1] = L"Against your average: " .. table.concat(cmp, ", ") end
   end
   return L
 end
@@ -737,79 +738,79 @@ local function BuildRows(full)
   local maxed = IsMaxed()
 
   header(Icon(ICONS.clock) .. " Session: " .. FmtTime(now - session.start))
-  add("Active time", FmtTime(a) .. (IsActive(now) and "" or " |cff888888(AFK, idle)|r"))
+  add(L"Active time", FmtTime(a) .. (IsActive(now) and "" or (L" |cff888888(AFK, idle)|r")))
 
   -- Tapasztalat és források
   if not maxed then
     local cur, max = UnitXP("player"), UnitXPMax("player")
     local rph = Rate(session.xp, a, 60) or 0
-    header(Icon(ICONS.xp) .. " Experience")
-    add("XP gained", Abbrev(session.xp))
-    add("XP / hour", Abbrev(rph) .. Trend(Rate(session.xp, a, MIN_RATE_ACTIVE), hist.avgXph))
+    header(Icon(ICONS.xp) .. L" Experience")
+    add(L"XP gained", Abbrev(session.xp))
+    add(L"XP / hour", Abbrev(rph) .. Trend(Rate(session.xp, a, MIN_RATE_ACTIVE), hist.avgXph))
     if session.xp > 0 then
       local kill, quest, other = Sources(session)
       local function src(v)
-        return ("%s (%d%%)  %s/hour"):format(Abbrev(v), Pct(v, session.xp), Abbrev(Rate(v, a, 60) or 0))
+        return (L"%s (%d%%)  %s/hour"):format(Abbrev(v), Pct(v, session.xp), Abbrev(Rate(v, a, 60) or 0))
       end
-      add("   Mob kills", src(kill))
-      add("   Quests", src(quest))
-      add("   Discovery / other", src(other))
+      add(L"   Mob kills", src(kill))
+      add(L"   Quests", src(quest))
+      add(L"   Discovery / other", src(other))
     end
-    add("Level", ("%d  (%.1f%%)"):format(UnitLevel("player"), max > 0 and cur / max * 100 or 0))
-    if session.levels > 0 then add("Levels this session", session.levels) end
-    if rph > 0 then add("To next level", "~" .. FmtTime((max - cur) / rph * 3600)) end
+    add(L"Level", ("%d  (%.1f%%)"):format(UnitLevel("player"), max > 0 and cur / max * 100 or 0))
+    if session.levels > 0 then add(L"Levels this session", session.levels) end
+    if rph > 0 then add(L"To next level", "~" .. FmtTime((max - cur) / rph * 3600)) end
 
     -- Pihent XP tervező
     local rested = Rested()
     local cap = REST_CAP * max
     local per8 = REST_PER_8H * max
-    header(Icon(ICONS.rest) .. " Rested XP")
+    header(Icon(ICONS.rest) .. L" Rested XP")
     if rested > 0 then
-      add("Rested XP", ("%s  (%d%% of a level)"):format(Abbrev(rested), Pct(rested, max)))
+      add(L"Rested XP", (L"%s  (%d%% of a level)"):format(Abbrev(rested), Pct(rested, max)))
       local rr = RestedRate()
-      if rr then add("Runs out in about", FmtTime(rested / rr * 3600) .. " of play") end
+      if rr then add(L"Runs out in about", FmtTime(rested / rr * 3600) .. L" of play") end
     else
-      add("Rested XP", "|cff888888used up|r")
+      add(L"Rested XP", L"|cff888888used up|r")
     end
     if IsResting and Known(IsResting()) then
-      add("You are in a rest area", ("|cff3cff3c+%s / 8 hours|r"):format(Abbrev(math.min(per8, math.max(0, cap - rested)))))
-      if full and cap > rested then add("   Full (150%) in", "~" .. FmtTime((cap - rested) / per8 * 8 * 3600) .. " from now") end
+      add(L"You are in a rest area", (L"|cff3cff3c+%s / 8 hours|r"):format(Abbrev(math.min(per8, math.max(0, cap - rested)))))
+      if full and cap > rested then add(L"   Full (150%) in", "~" .. FmtTime((cap - rested) / per8 * 8 * 3600) .. L" from now") end
     else
-      add("Logout", "|cffffd1004x faster in an inn|r")
+      add(L"Logout", L"|cffffd1004x faster in an inn|r")
     end
   end
 
   -- Arany
   local inc, exp = Sum(session.income), Sum(session.expense)
-  header(Icon(ICONS.gold) .. " Gold")
-  add("Income", Money(inc))
+  header(Icon(ICONS.gold) .. L" Gold")
+  add(L"Income", Money(inc))
   if full then
     for _, c in ipairs(CAT_ORDER) do
       local v = session.income[c]
       if v and v > 0 then add("   " .. CATS[c], Money(v)) end
     end
   end
-  add("Spending", Money(exp))
+  add(L"Spending", Money(exp))
   if full then
     for _, c in ipairs(CAT_ORDER) do
       local v = session.expense[c]
       if v and v > 0 then add("   " .. CATS[c], Money(v)) end
     end
   end
-  add("Net", Money(inc - exp, true))
-  add("Net / hour", Money(Rate(inc - exp, a, 60) or 0, true) .. Trend(Rate(inc - exp, a, MIN_RATE_ACTIVE), hist.avgGph))
-  add("Farm value / hour (steady)", Money(Rate(Farm(session), a, 60) or 0))
-  if full and session.lootItems > 0 then add("   vendor price of grey/white loot", Money(session.lootItems)) end
+  add(L"Net", Money(inc - exp, true))
+  add(L"Net / hour", Money(Rate(inc - exp, a, 60) or 0, true) .. Trend(Rate(inc - exp, a, MIN_RATE_ACTIVE), hist.avgGph))
+  add(L"Farm value / hour (steady)", Money(Rate(Farm(session), a, 60) or 0))
+  if full and session.lootItems > 0 then add(L"   vendor price of grey/white loot", Money(session.lootItems)) end
   if session.lootLuckN > 0 then
-    add(("   rare drops: %d (separate)"):format(session.lootLuckN), "|cff1eff00" .. Money(session.lootLuck) .. "|r")
+    add((L"   rare drops: %d (separate)"):format(session.lootLuckN), "|cff1eff00" .. Money(session.lootLuck) .. "|r")
   end
-  if full and session.kills > 0 then add("   value / kill", Money(Farm(session) / session.kills)) end
-  add("Balance", Money(GetMoney()))
+  if full and session.kills > 0 then add(L"   value / kill", Money(Farm(session) / session.kills)) end
+  add(L"Balance", Money(GetMoney()))
 
   -- Zónák
   local here = ZoneName()
   if full then
-    header(Icon(ICONS.zone) .. " Zones (this session)")
+    header(Icon(ICONS.zone) .. L" Zones (this session)")
     local list = {}
     for name, z in pairs(session.zones) do list[#list + 1] = { name = name, z = z } end
     table.sort(list, function(x, y) return x.z.active > y.z.active end)
@@ -817,67 +818,67 @@ local function BuildRows(full)
       local z = list[i].z
       local label = (list[i].name == here and "|cffffffff" or "") .. list[i].name .. (list[i].name == here and "|r" or "")
       if z.active >= 60 then
-        add(label, ("%s XP/hour · %s/hour%s"):format(Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(ZoneFarm(z), z.active, 60)),
-          (z.luckN or 0) > 0 and (" |cff1eff00+%d rare|r"):format(z.luckN) or ""))
+        add(label, (L"%s XP/hour · %s/hour%s"):format(Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(ZoneFarm(z), z.active, 60)),
+          (z.luckN or 0) > 0 and (L" |cff1eff00+%d rare|r"):format(z.luckN) or ""))
       else
-        add(label, "|cff888888little data|r")
+        add(label, L"|cff888888little data|r")
       end
     end
   else
     local z = session.zones[here]
     if z and z.active >= 60 then
-      add(Icon(ICONS.zone) .. " " .. here, ("%s XP/hour · %s/hour"):format(
+      add(Icon(ICONS.zone) .. " " .. here, (L"%s XP/hour · %s/hour"):format(
         Abbrev(Rate(z.xp, z.active, 60)), Money(Rate(ZoneFarm(z), z.active, 60))))
     end
   end
 
   -- Táska
   if bags.total > 0 then
-    header(Icon(ICONS.bag) .. " Bags")
+    header(Icon(ICONS.bag) .. L" Bags")
     local col = bags.free <= 3 and "|cffff4040" or (bags.free <= BAG_WARN and "|cffffd100" or "|cffffffff")
-    add("Free slots", ("%s%d|r / %d"):format(col, bags.free, bags.total))
-    if bags.junk > 0 then add("Grey items", ("%s  (%d)"):format(Money(bags.junk), bags.junkCount)) end
+    add(L"Free slots", ("%s%d|r / %d"):format(col, bags.free, bags.total))
+    if bags.junk > 0 then add(L"Grey items", (L"%s  (%d)"):format(Money(bags.junk), bags.junkCount)) end
   end
 
   -- Célok és tanácsok
   local gst, lst = GoalStatus("gold"), GoalStatus("level")
   if gst or lst then
-    header(Icon(ICONS.goal) .. " Goals")
+    header(Icon(ICONS.goal) .. L" Goals")
     local function deadlineRow(st, fmtNeed)
       if not st.goal.deadline or st.done then return end
-      local label = "   Deadline " .. date("%H:%M", st.goal.deadline)
+      local label = L"   Deadline " .. date("%H:%M", st.goal.deadline)
       if st.late then
-        add(label, "|cffff4040" .. (st.need and ("needs " .. fmtNeed(st.need) .. "/hour") or "expired") .. "|r")
+        add(label, "|cffff4040" .. (st.need and (L"needs " .. fmtNeed(st.need) .. L"/hour") or (L"expired")) .. "|r")
       else
-        add(label, "|cff3cff3con track|r")
+        add(label, L"|cff3cff3con track|r")
       end
     end
     if gst then
-      add("Gold: " .. Money(gst.goal.target), gst.done and "|cff3cff3cdone!|r" or ("%d%%"):format(math.floor(gst.progress * 100)))
+      add(L"Gold: " .. Money(gst.goal.target), gst.done and (L"|cff3cff3cdone!|r") or ("%d%%"):format(math.floor(gst.progress * 100)))
       if not gst.done then
-        add("   Left", Money(gst.remaining))
-        if gst.eta then add("   Estimated time", "~" .. FmtTime(gst.eta)) end
+        add(L"   Left", Money(gst.remaining))
+        if gst.eta then add(L"   Estimated time", "~" .. FmtTime(gst.eta)) end
         deadlineRow(gst, function(v) return Money(v) end)
       end
     end
     if lst then
-      add("Level: " .. lst.goal.target, lst.done and "|cff3cff3cdone!|r" or ("%d%%"):format(math.floor(lst.progress * 100)))
+      add(L"Level: " .. lst.goal.target, lst.done and (L"|cff3cff3cdone!|r") or ("%d%%"):format(math.floor(lst.progress * 100)))
       if not lst.done then
-        add("   Left", "~" .. Abbrev(lst.remaining) .. " XP")
-        if lst.eta then add("   Estimated time", "~" .. FmtTime(lst.eta)) end
+        add(L"   Left", "~" .. Abbrev(lst.remaining) .. " XP")
+        if lst.eta then add(L"   Estimated time", "~" .. FmtTime(lst.eta)) end
         deadlineRow(lst, Abbrev)
       end
     end
   end
   if full then
-    header(Icon(ICONS.gold) .. " Gold advice")
+    header(Icon(ICONS.gold) .. L" Gold advice")
     local adv = GoldAdvice()
     for i = 1, math.min(4, #adv) do note(adv[i]) end
     if lst and not lst.done then
-      header(Icon(ICONS.xp) .. " Level advice")
+      header(Icon(ICONS.xp) .. L" Level advice")
       for _, s in ipairs(LevelAdvice()) do note(s) end
     end
-    if not gst and not lst then note("|cff888888Goal: /sbar goal gold 100  or  /sbar goal level 40 22:00|r") end
+    if not gst and not lst then note(L"|cff888888Goal: /sbar goal gold 100  or  /sbar goal level 40 22:00|r") end
   elseif gst and not gst.done then
     local adv = GoldAdvice()
     if adv[1] then note(adv[1]) end
@@ -885,17 +886,17 @@ local function BuildRows(full)
 
   -- Összevetés a korábbi sessionökkel
   if hist.n > 0 then
-    header(Icon(ICONS.trend) .. (" Comparison (%d earlier sessions)"):format(hist.n))
+    header(Icon(ICONS.trend) .. (L" Comparison (%d earlier sessions)"):format(hist.n))
     if not maxed and hist.avgXph then
       local cx = Rate(session.xp, a, MIN_RATE_ACTIVE)
-      add("XP/hour now", (cx and Abbrev(cx) or "–") .. Trend(cx, hist.avgXph))
-      add("   average / best", Abbrev(hist.avgXph) .. " / " .. Abbrev(hist.bestXph or 0))
+      add(L"XP/hour now", (cx and Abbrev(cx) or "–") .. Trend(cx, hist.avgXph))
+      add(L"   average / best", Abbrev(hist.avgXph) .. " / " .. Abbrev(hist.bestXph or 0))
     end
     if hist.avgGph then
       local cg = Rate(inc - exp, a, MIN_RATE_ACTIVE)
-      add("Gold/hour now", (cg and Money(cg, true) or "–") .. Trend(cg, hist.avgGph))
-      add("   average", Money(hist.avgGph, true))
-      if full then add("   best", Money(hist.bestGph or 0, true)) end
+      add(L"Gold/hour now", (cg and Money(cg, true) or "–") .. Trend(cg, hist.avgGph))
+      add(L"   average", Money(hist.avgGph, true))
+      if full then add(L"   best", Money(hist.bestGph or 0, true)) end
     end
   end
   return rows
@@ -945,7 +946,7 @@ local function CreateSpark(parent, template)
   local f = CreateFrame("Frame", nil, parent, template)
   f:SetSize(SPARK_WIDTH, SPARK_HEIGHT)
   f.series = {}
-  local defs = { { key = "net", title = "Gold", r = 1, g = 0.82, b = 0 }, { key = "xp", title = "XP", r = 0.6, g = 0.45, b = 1 } }
+  local defs = { { key = "net", title = L"Gold", r = 1, g = 0.82, b = 0 }, { key = "xp", title = "XP", r = 0.6, g = 0.45, b = 1 } }
   for si, d in ipairs(defs) do
     local top = -2 - (si - 1) * SPARK_BLOCK
     local s = { key = d.key, title = d.title, color = d, bars = {} }
@@ -980,7 +981,7 @@ local function UpdateSpark(f)
   local enough = time() - session.start >= 120
   for _, s in ipairs(f.series) do
     if not enough then
-      s.label:SetText(s.title .. ": |cff888888collecting data…|r")
+      s.label:SetText(s.title .. L": |cff888888collecting data…|r")
       for _, t in ipairs(s.bars) do t:Hide() end
     else
       local vals = SeriesValues(s.key, SPARK_N)
@@ -1130,7 +1131,7 @@ local function ShowTooltip()
     end
   end
   GameTooltip:AddLine(" ")
-  GameTooltip:AddLine("Drag: move  ·  Arrow: expand  ·  /sbar", 0.5, 0.5, 0.5)
+  GameTooltip:AddLine(L"Drag: move  ·  Arrow: expand  ·  /sbar", 0.5, 0.5, 0.5)
   GameTooltip:Show()
   tipSpark:ClearAllPoints()
   tipSpark:SetPoint("TOPLEFT", GameTooltip, "BOTTOMLEFT", 0, -2)
@@ -1212,15 +1213,15 @@ local function CheckGoals(now)
       local g = st.goal
       if st.done and not g.announced then
         g.announced = true
-        Print(kind == "gold" and ("|cff3cff3cGold goal reached: %s!|r"):format(Money(g.target))
-          or ("|cff3cff3cLevel goal reached: %d!|r"):format(g.target))
+        Print(kind == "gold" and (L"|cff3cff3cGold goal reached: %s!|r"):format(Money(g.target))
+          or (L"|cff3cff3cLevel goal reached: %d!|r"):format(g.target))
         pcall(PlaySound, 888)
       elseif st.late and g.deadline and session.active >= MIN_ZONE_ACTIVE
         and now - (lastWarn[kind] or 0) >= WARN_EVERY then
         lastWarn[kind] = now
         local need = st.need and (kind == "gold" and Money(st.need) or Abbrev(st.need)) or "?"
-        Print(("|cffff4040The %s goal is falling behind|r: until %s it would need %s an hour, now %s."):format(
-          kind == "gold" and "gold" or "level", date("%H:%M", g.deadline), need,
+        Print((L"|cffff4040The %s goal is falling behind|r: until %s it would need %s an hour, now %s."):format(
+          kind == "gold" and (L"gold") or (L"level"), date("%H:%M", g.deadline), need,
           st.rate and (kind == "gold" and Money(st.rate) or Abbrev(st.rate)) or "?"))
         if kind == "gold" then
           local adv = GoldAdvice()
@@ -1345,7 +1346,7 @@ function H.PLAYER_ENTERING_WORLD(isInitialLogin, isReloadingUi)
     if prev then
       Migrate(prev)
       -- Az összefoglaló az archiválás előtt készül, hogy ne önmagához hasonlítsa a sessiont.
-      summary = SummaryLines(prev, "Previous session summary")
+      summary = SummaryLines(prev, L"Previous session summary")
     end
     if not ArchiveSession(prev) then summary = nil end
     charDB.current = NewSession()
@@ -1382,9 +1383,9 @@ function H.PLAYER_CAMPING()
   if not ready or campingShown then return end
   campingShown = true
   C_Timer.After(30, function() campingShown = false end)
-  PrintSummary(session, "Session summary")
+  PrintSummary(session, L"Session summary")
   if not IsMaxed() and not (IsResting and Known(IsResting())) then
-    Print("|cffffd100You are logging out outside a rest area:|r in an inn or a city rested XP builds four times faster.")
+    Print(L"|cffffd100You are logging out outside a rest area:|r in an inn or a city rested XP builds four times faster.")
   end
 end
 
@@ -1554,14 +1555,14 @@ local function ShowGoal(kind)
   local st = GoalStatus(kind)
   if not st then return end
   local g = st.goal
-  local what = kind == "gold" and ("Gold goal: " .. Money(g.target)) or ("Level goal: " .. g.target)
-  if st.done then Print(what .. " – |cff3cff3creached|r") return end
+  local what = kind == "gold" and (L"Gold goal: " .. Money(g.target)) or (L"Level goal: " .. g.target)
+  if st.done then Print(what .. L" – |cff3cff3creached|r") return end
   local rem = kind == "gold" and Money(st.remaining) or ("~" .. Abbrev(st.remaining) .. " XP")
-  local line = ("%s – %d%%, left %s"):format(what, math.floor(st.progress * 100), rem)
-  if st.eta then line = line .. (", estimated time ~%s"):format(FmtTime(st.eta)) end
+  local line = (L"%s – %d%%, left %s"):format(what, math.floor(st.progress * 100), rem)
+  if st.eta then line = line .. (L", estimated time ~%s"):format(FmtTime(st.eta)) end
   if g.deadline then
-    line = line .. (", deadline %s %s"):format(date("%H:%M", g.deadline),
-      st.late and "|cffff4040(the pace is slow)|r" or "|cff3cff3c(on track)|r")
+    line = line .. (L", deadline %s %s"):format(date("%H:%M", g.deadline),
+      st.late and L"|cffff4040(the pace is slow)|r" or L"|cff3cff3c(on track)|r")
   end
   Print(line)
 end
@@ -1570,10 +1571,10 @@ local function GoalCommand(args)
   local kind, val, dl = args[2], args[3], args[4]
   if kind == "gold" then kind = "gold" elseif kind == "level" then kind = "level" end
   if kind == "clear" or kind == "torol" then
-    if val == "gold" or val == "gold" then charDB.goals.gold = nil
-    elseif val == "level" or val == "level" then charDB.goals.level = nil
+    if val == "gold" or val == L"gold" then charDB.goals.gold = nil
+    elseif val == "level" or val == L"level" then charDB.goals.level = nil
     else charDB.goals = {} end
-    Print("goal cleared.")
+    Print(L"goal cleared.")
     Tick()
     return
   end
@@ -1581,28 +1582,28 @@ local function GoalCommand(args)
     if charDB.goals.gold or charDB.goals.level then
       ShowGoal("gold"); ShowGoal("level")
     else
-      Print("no goal. Examples:")
+      Print(L"no goal. Examples:")
     end
-    Print("/sbar goal gold 100 [22:00]  – a 100 gold balance (with an optional deadline)")
-    Print("/sbar goal gold +50  – +50 gold on top of what you have now")
+    Print(L"/sbar goal gold 100 [22:00]  – a 100 gold balance (with an optional deadline)")
+    Print(L"/sbar goal gold +50  – +50 gold on top of what you have now")
     Print("/sbar goal level 40 [22:00]  ·  /sbar goal clear [gold|level]")
     return
   end
   local deadline = ParseDeadline(dl)
-  if dl and not deadline then Print("the deadline's format is HH:MM, e.g. 22:00") return end
+  if dl and not deadline then Print(L"the deadline's format is HH:MM, e.g. 22:00") return end
   if kind == "gold" then
     local rel = val and val:sub(1, 1) == "+"
     local n = tonumber(((val or ""):gsub("^%+", ""):gsub("g$", ""):gsub(",", ".")))
-    if not n or n <= 0 then Print("give a gold amount, e.g. /sbar goal gold 100") return end
+    if not n or n <= 0 then Print(L"give a gold amount, e.g. /sbar goal gold 100") return end
     local copper = math.floor(n * 10000 + 0.5)
     local money = GetMoney()
     local target = rel and (money + copper) or copper
-    if target <= money then Print(("you already have that much (%s)."):format(Money(money))) return end
+    if target <= money then Print((L"you already have that much (%s)."):format(Money(money))) return end
     charDB.goals.gold = { target = target, base = rel and money or 0, deadline = deadline, set = time() }
   else
     local n = tonumber(val)
     local lvl = UnitLevel("player")
-    if not n or n <= lvl then Print(("the goal level must be higher than the current one (%d)."):format(lvl)) return end
+    if not n or n <= lvl then Print((L"the goal level must be higher than the current one (%d)."):format(lvl)) return end
     charDB.goals.level = { target = math.floor(n), base = LevelNow(), deadline = deadline, set = time() }
   end
   lastWarn[kind] = nil
@@ -1616,63 +1617,63 @@ local function SessionCommand(msg)
   local args = {}
   for w in strtrim(msg or ""):lower():gmatch("%S+") do args[#args + 1] = w end
   local cmd, arg = args[1], args[2]
-  if not session then Print("still loading, try again in a few seconds.") return end
+  if not session then Print(L"still loading, try again in a few seconds.") return end
   if cmd == "reset" then
-    local lines = SummaryLines(session, "Closed session")
+    local lines = SummaryLines(session, L"Closed session")
     if ArchiveSession(session) then
       for _, line in ipairs(lines) do Print(line) end
     end
     charDB.current = NewSession()
     session = charDB.current
     lastSample = time()
-    Print("a new session started.")
+    Print(L"a new session started.")
     Tick()
   elseif cmd == "goal" or cmd == "cel" then -- the Hungarian words are old aliases
     GoalCommand(args)
   elseif cmd == "advice" or cmd == "tanacs" then
-    Print("|cffffd100Gold advice|r")
+    Print(L"|cffffd100Gold advice|r")
     for _, s in ipairs(GoldAdvice()) do Print(s) end
     if not IsMaxed() then
-      Print("|cffffd100Level advice|r")
+      Print(L"|cffffd100Level advice|r")
       for _, s in ipairs(LevelAdvice()) do Print(s) end
     end
   elseif cmd == "zones" or cmd == "zonak" then
     local g, x = RankZones("gold"), RankZones("xp")
-    if #g == 0 then Print("no zone with at least 10 active minutes yet.") return end
-    Print("|cffffd100Steady farm value / hour by zone|r (coin, quests, grey/white loot – rare drops separate)")
+    if #g == 0 then Print(L"no zone with at least 10 active minutes yet.") return end
+    Print(L"|cffffd100Steady farm value / hour by zone|r (coin, quests, grey/white loot – rare drops separate)")
     for i = 1, math.min(5, #g) do
       local z = g[i]
-      Print(("%d. %s – %s/hour%s%s  |cff888888(%s)|r"):format(i, z.name, Money(z.rate),
-        z.sure and "" or " |cffff9933uncertain|r",
-        z.perKill and (", %s/kill"):format(Money(z.perKill)) or "", Evidence(z)))
+      Print((L"%d. %s – %s/hour%s%s  |cff888888(%s)|r"):format(i, z.name, Money(z.rate),
+        z.sure and "" or (L" |cffff9933uncertain|r"),
+        z.perKill and (L", %s/kill"):format(Money(z.perKill)) or "", Evidence(z)))
     end
     if not IsMaxed() then
-      Print("|cffffd100XP / hour by zone|r")
+      Print(L"|cffffd100XP / hour by zone|r")
       for i = 1, math.min(5, #x) do Print(("%d. %s – %s"):format(i, x[i].name, Abbrev(x[i].rate))) end
     end
   elseif cmd == "summary" or cmd == "osszegzes" then
-    PrintSummary(session, "Session summary")
+    PrintSummary(session, L"Session summary")
   elseif cmd == "autosummary" then
     db.summary = arg ~= "off"
-    Print("login summary: " .. (db.summary and "on" or "off"))
+    Print(L"login summary: " .. (db.summary and (L"on") or (L"off")))
   elseif cmd == "lock" then
-    db.locked = true; Print("bar locked.")
+    db.locked = true; Print(L"bar locked.")
   elseif cmd == "unlock" then
-    db.locked = false; Print("bar can be moved.")
+    db.locked = false; Print(L"bar can be moved.")
   elseif cmd == "scale" and tonumber(arg) then
     db.scale = math.min(2, math.max(0.5, tonumber(arg)))
-    bar:SetScale(db.scale); Print("scale: " .. db.scale)
+    bar:SetScale(db.scale); Print(L"scale: " .. db.scale)
   elseif cmd == "hide" then
     db.hidden = true; bar:Hide()
   elseif cmd == "show" then
     db.hidden = false; bar:Show()
   elseif cmd == "history" then
-    if #charDB.history == 0 then Print("no saved session yet.") return end
+    if #charDB.history == 0 then Print(L"no saved session yet.") return end
     for i = 1, math.min(5, #charDB.history) do
       local h = charDB.history[i]
       local a = ActiveOf(h)
-      Print(("%s  %s (active %s)  XP +%s  net %s  (%s/hour)"):format(
-        date("%m/%d %H:%M", h.start), FmtTime(h.duration), FmtTime(a), Abbrev(h.xp or 0),
+      Print((L"%s  %s (active %s)  XP +%s  net %s  (%s/hour)"):format(
+        date(L"%m/%d %H:%M", h.start), FmtTime(h.duration), FmtTime(a), Abbrev(h.xp or 0),
         Money(Net(h), true), Money(Rate(Net(h), a, 60) or 0, true)))
     end
   else
@@ -1682,7 +1683,7 @@ local function SessionCommand(msg)
 end
 WA.Session = { Command = SessionCommand }
 WA.SessionState = function() return session, charDB end
-WA.Command("sbar", SessionCommand, "/wa sbar goal | advice | zones | summary | history | reset | lock | unlock | scale | hide | show (formerly /sbar)")
+WA.Command("sbar", SessionCommand, L"/wa sbar goal | advice | zones | summary | history | reset | lock | unlock | scale | hide | show (formerly /sbar)")
 SLASH_SESSIONBAR1 = "/sbar"
 SLASH_SESSIONBAR2 = "/sessionbar"
 SlashCmdList.SESSIONBAR = SessionCommand

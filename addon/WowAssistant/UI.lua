@@ -12,6 +12,7 @@
 -- Which sections are open and which show more columns is remembered.
 
 local _, WA = ...
+local L = WA.L
 local UI = {}
 WA.UI = UI
 local G = WA.Game
@@ -75,17 +76,17 @@ local function State()
   return s
 end
 
-local PAGES = {
-  { "plan", "Plan", "Interface\\Icons\\INV_Misc_Map_01" },
-  { "combat", "Combat", "Interface\\Icons\\Ability_Rogue_Eviscerate" },
-  { "gear", "Gear", "Interface\\Icons\\INV_Chest_Leather_09" },
+local PAGES = WA.LR {
+  { "plan", L"Plan", "Interface\\Icons\\INV_Misc_Map_01" },
+  { "combat", L"Combat", "Interface\\Icons\\Ability_Rogue_Eviscerate" },
+  { "gear", L"Gear", "Interface\\Icons\\INV_Chest_Leather_09" },
   { "pet", "Pet", "Interface\\Icons\\Ability_Hunter_BeastTaming", class = "HUNTER" },
-  { "prof", "Professions", "Interface\\Icons\\Trade_Engineering" },
-  { "talent", "Talents", "Interface\\Icons\\Ability_Marksmanship" },
+  { "prof", L"Professions", "Interface\\Icons\\Trade_Engineering" },
+  { "talent", L"Talents", "Interface\\Icons\\Ability_Marksmanship" },
 }
-local WINDOWS = {
-  { "Vendor crafting", "Interface\\Icons\\INV_Misc_Coin_02", function() if WA.VC then WA.VC.Toggle() end end },
-  { "Session bar", "Interface\\Icons\\INV_Misc_PocketWatch_01", function()
+local WINDOWS = WA.LR {
+  { L"Vendor crafting", "Interface\\Icons\\INV_Misc_Coin_02", function() if WA.VC then WA.VC.Toggle() end end },
+  { L"Session bar", "Interface\\Icons\\INV_Misc_PocketWatch_01", function()
     local hidden = WA.db.session and WA.db.session.hidden
     if WA.Session then WA.Session.Command(hidden and "show" or "hide") end
   end },
@@ -168,6 +169,17 @@ local function Build()
   local f = St.Window("WowAssistantMainFrame", W, H, "Waystone")
   local inset, top = f.inset, f.top
 
+  -- language switch: English / Hungarian; the choice reloads the interface
+  local lang = St.Button(f, WA.lang == "hu" and "HU" or "EN", 36, function() WA.SetLanguage(WA.lang == "hu" and "en" or "hu") end)
+  lang:SetPoint("RIGHT", f.close, "LEFT", -2, 0)
+  lang:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, "ANCHOR_BOTTOMLEFT")
+    GameTooltip:AddLine(WA.Fix(L"Language: English. Click: Hungarian (reloads the interface)."), 1, 1, 1, true)
+    GameTooltip:Show()
+  end)
+  lang:SetScript("OnLeave", function() GameTooltip:Hide() end)
+  f.lang = lang
+
   -- side menu: who, the pages, the other windows
   local nav = CreateFrame("Frame", nil, f, "BackdropTemplate")
   nav:SetPoint("TOPLEFT", inset, -top)
@@ -236,7 +248,7 @@ local function Build()
   f.pageSub:SetPoint("RIGHT", f, "RIGHT", -(inset + 260), 0)
   f.pageSub:SetJustifyH("LEFT")
   f.pageSub:SetWordWrap(false)
-  local search = St.Search(f, "Search", 170, function(text) UI.filter = text UI.Draw() end)
+  local search = St.Search(f, L"Search", 170, function(text) UI.filter = text UI.Draw() end)
   search:SetPoint("TOPRIGHT", -(inset + 6), -(top + 8))
   f.search = search
   local headRule = Fill(f:CreateTexture(nil, "ARTWORK"), 1, 0.82, 0, 0.3)
@@ -430,14 +442,14 @@ local function DrawTable(child, b, x, y, w, detail)
     local t = Text(child, "WowAssistantFontMuted")
     t:SetWidth(w)
     t:SetPoint("TOPLEFT", child, "TOPLEFT", x + 2, -(y + 3))
-    t:SetText(needle ~= "" and "No row matches the search." or (b.empty or "No data."))
+    t:SetText(needle ~= "" and (L"No row matches the search.") or (b.empty or (L"No data.")))
     y = y + 22
   elseif #rows > (b.limit or ROWS_SHOWN) then
     local m = MoreButton(child)
     m:SetWidth(w)
     m:SetPoint("TOPLEFT", child, "TOPLEFT", x, -(y + 2))
-    if UI.more[b.id] then m.text:SetText("Fewer rows")
-    else m.text:SetText(("Show all (%d more)"):format(#rows - limit)) end
+    if UI.more[b.id] then m.text:SetText(L"Fewer rows")
+    else m.text:SetText((L"Show all (%d more)"):format(#rows - limit)) end
     m:SetScript("OnClick", function() UI.more[b.id] = not UI.more[b.id] or nil UI.Draw() end)
     y = y + 24
   end
@@ -614,7 +626,7 @@ local function DrawTalents(child, b, x, y, w)
     panel.icon:SetTexture(tab.icon or (tab.talents[1] and tab.talents[1].icon))
     panel.title:SetText(tab.name or "")
     local pts, ptsNow = WA.Talent.TabPoints(tab, tb.ranks), WA.Talent.TabPoints(tab, tb.cur)
-    panel.points:SetText(pts ~= ptsNow and ("%d points (now %d)"):format(pts, ptsNow) or ("%d points"):format(pts))
+    panel.points:SetText(pts ~= ptsNow and (L"%d points (now %d)"):format(pts, ptsNow) or (L"%d points"):format(pts))
     -- where a talent sits inside the panel
     local left = math.floor((tw - 4 * TCX) / 2) + math.floor((TCX - TICON) / 2)
     local function At(t) return left + (t.col - 1) * TCX, THEAD + (t.tier - 1) * TCY end
@@ -771,7 +783,7 @@ local function DrawSection(child, s, x, y, w)
     UI.Draw()
   end)
   h.detail:SetShown(open and hasExtra)
-  h.detail.text:SetText(detail and "Fewer columns" or "More columns")
+  h.detail.text:SetText(detail and (L"Fewer columns") or (L"More columns"))
   h.detail:SetScript("OnClick", function()
     st.detail[s.id] = not detail or nil
     UI.Draw()
@@ -837,14 +849,14 @@ function UI.Draw()
   local blocks = UI.cache[UI.tab]
   if not blocks then
     local ok, res = pcall(UI.pages[UI.tab])
-    blocks = ok and res or { { empty = { "Error", Color(HEX.bad, tostring(res)) } } }
+    blocks = ok and res or { { empty = { L"Error", Color(HEX.bad, tostring(res)) } } }
     UI.cache[UI.tab] = blocks
   end
   local child = frame.child
   UI.hits = 0
   local y = DrawBlocks(child, blocks, 0, 4, CONTENT_W, false)
   if UI.filter ~= "" and UI.hits == 0 then
-    y = DrawBlocks(child, { { empty = { "No results", ("Nothing on this page contains “%s”."):format(UI.filter) } } }, 0, y, CONTENT_W, false)
+    y = DrawBlocks(child, { { empty = { L"No results", (L"Nothing on this page contains “%s”."):format(UI.filter) } } }, 0, y, CONTENT_W, false)
   end
   for kind, list in pairs(pools) do
     for i = (used[kind] or 0) + 1, #list do list[i]:Hide() end
@@ -859,7 +871,7 @@ function UI.Draw()
   pcall(SetPortraitTexture, frame.portrait, "player")
   frame.name:SetText(UnitName("player") or "")
   local class = UnitClass and UnitClass("player")
-  frame.level:SetText(("Level %d%s"):format(UnitLevel("player") or 0, class and (" · " .. class) or ""))
+  frame.level:SetText((L"Level %d%s"):format(UnitLevel("player") or 0, class and (" · " .. class) or ""))
   frame.money:SetText(Money(GetMoney()))
   frame.note:SetText(UI.status or "")
 end
@@ -910,12 +922,12 @@ end
 local function Add(out, b) if b then out[#out + 1] = b end end
 
 local function NotSupported(tab, title)
-  UI.head[tab] = { title, "The damage model does not know this class yet" }
-  return { { empty = { "For now: rogue, hunter, shaman, druid, warlock, mage, warrior, priest and paladin", "The damage model (and with it the Plan and Gear pages) knows the rogue, hunter, shaman, druid, warlock, mage, warrior, priest and paladin for now; " ..
-    "the other classes come in turn. Professions and Vendor crafting work on every character." } } }
+  UI.head[tab] = { title, L"The damage model does not know this class yet" }
+  return { { empty = { L"For now: rogue, hunter, shaman, druid, warlock, mage, warrior, priest and paladin", L"The damage model (and with it the Plan and Gear pages) knows the rogue, hunter, shaman, druid, warlock, mage, warrior, priest and paladin for now; " ..
+    L"the other classes come in turn. Professions and Vendor crafting work on every character." } } }
 end
 
-local SOURCE_HU = { ah = "AH", craft = "crafting", trainer = "trainer", owned = "owned", quest = "quest" }
+local SOURCE_HU = WA.LR { ah = "AH", craft = L"crafting", trainer = "trainer", owned = L"owned", quest = "quest" }
 
 local function OptionRows(list, withCost)
   local rows = {}
@@ -923,77 +935,77 @@ local function OptionRows(list, withCost)
     local cells = {
       Cell(o.itemId and Item(o.title, o.quality) or o.title, o.title), Cell(Gain(o.gain), o.gain),
       withCost and Cell(Money(o.cost), o.cost) or "",
-      (o.where or "") .. (o.req and Color(HEX.warn, (" (" .. o.req .. "+)")) or ""),
+      (o.where or "") .. (o.req and Color(HEX.warn, (" (" .. o.req .. L"+)")) or ""),
       SOURCE_HU[o.source] or o.source, Cell(Pct(o.gainPct), o.gainPct),
     }
     rows[#rows + 1] = { cells = cells, itemId = o.itemId,
-      tip = (o.detail or "") .. (o.warning and ("\n" .. o.warning) or "") .. (o.estimated and "\n(estimated value)" or "") }
+      tip = (o.detail or "") .. (o.warning and ("\n" .. o.warning) or "") .. (o.estimated and (L"\n(estimated value)") or "") }
   end
   return rows
 end
 local function OptionCols(withCost)
-  return { { "What", 0, flex = true }, { "DPS", 56, "RIGHT" }, { "Price", 92, "RIGHT", extra = not withCost },
-    { "Where", 220 }, { "Source", 70, extra = true }, { "%", 52, "RIGHT", extra = true } }
+  return { { L"What", 0, flex = true }, { "DPS", 56, "RIGHT" }, { L"Price", 92, "RIGHT", extra = not withCost },
+    { L"Where", 220 }, { L"Source", 70, extra = true }, { "%", 52, "RIGHT", extra = true } }
 end
 
 function UI.pages.plan()
-  if not G.Supported() then return NotSupported("plan", "Plan") end
+  if not G.Supported() then return NotSupported("plan", L"Plan") end
   local ctx = G.Context()
   local p = WA.Plan.Build(G.PlanInput(ctx))
-  UI.head.plan = { "Plan", "What to buy, learn and farm with what you have now" }
+  UI.head.plan = { L"Plan", L"What to buy, learn and farm with what you have now" }
   local out = {}
   out[#out + 1] = { cards = {
-    { label = "Estimated DPS now", value = F1(p.baseline), sub = "without buffs " .. F1(p.unbuffed) .. (p.measuredDps and (" · measured " .. F1(p.measuredDps)) or "") },
-    { label = "After the plan", value = Color(HEX.good, F1(p.projected)), sub = (p.projected and p.baseline) and (Gain(p.projected - p.baseline) .. " DPS") or "" },
-    { label = "To spend", value = Money(p.spent), sub = "what the plan costs" },
-    { label = "Left", value = Money(p.left), sub = "of your gold: " .. Money(p.gold) },
+    { label = L"Estimated DPS now", value = F1(p.baseline), sub = L"without buffs " .. F1(p.unbuffed) .. (p.measuredDps and (L" · measured " .. F1(p.measuredDps)) or "") },
+    { label = L"After the plan", value = Color(HEX.good, F1(p.projected)), sub = (p.projected and p.baseline) and (Gain(p.projected - p.baseline) .. " DPS") or "" },
+    { label = L"To spend", value = Money(p.spent), sub = L"what the plan costs" },
+    { label = L"Left", value = Money(p.left), sub = L"of your gold: " .. Money(p.gold) },
   } }
   Add(out, Warnings(p.warnings))
   -- WA-006: the suggested rotation in one line; the numbers are on the Harc page
   local rot = WA.Rotation and WA.Rotation.Build(ctx)
   if rot then
-    out[#out + 1] = Section("plan.rot", "Suggested rotation · " .. rot.spec, { { p = rot.summary },
-      { p = "Order, numbers per ability and their sources: Combat page → Suggested rotation.", muted = true } }, true)
+    out[#out + 1] = Section("plan.rot", L"Suggested rotation · " .. rot.spec, { { p = rot.summary },
+      { p = L"Order, numbers per ability and their sources: Combat page → Suggested rotation.", muted = true } }, true)
   end
-  out[#out + 1] = Section("plan.buy", "Buy now", { { table = { id = "plan.buy", cols = OptionCols(true), rows = OptionRows(p.buy, true),
-    empty = "With this gold there is no worthwhile upgrade right now." } } }, true, #p.buy)
+  out[#out + 1] = Section("plan.buy", L"Buy now", { { table = { id = "plan.buy", cols = OptionCols(true), rows = OptionRows(p.buy, true),
+    empty = L"With this gold there is no worthwhile upgrade right now." } } }, true, #p.buy)
   if #p.free > 0 then
-    out[#out + 1] = Section("plan.free", "Free: you have it or can craft it",
+    out[#out + 1] = Section("plan.free", L"Free: you have it or can craft it",
       { { table = { id = "plan.free", cols = OptionCols(false), rows = OptionRows(p.free, false) } } }, true, #p.free)
   end
   if #p.skills > 0 then
-    local TIER = { dps = Color(HEX.good, "DPS"), core = Color(HEX.gold, "core"), situational = "situational", skip = Muted("skippable") }
+    local TIER = { dps = Color(HEX.good, "DPS"), core = Color(HEX.gold, L"core"), situational = L"situational", skip = Muted(L"skippable") }
     local TIER_N = { dps = 0, core = 1, situational = 2, skip = 3 }
     local rows = {}
     for _, s in ipairs(p.skills) do
       rows[#rows + 1] = { cells = { Cell(s.name, s.name), Cell(TIER[s.tier] or s.tier, TIER_N[s.tier]), Cell(Money(s.cost), s.cost),
         Cell(s.gain > 0 and Gain(s.gain) or "", s.gain), s.why }, tip = s.why }
     end
-    out[#out + 1] = Section("plan.skills", "Learn at the trainer", { { table = { id = "plan.skills",
-      cols = { { "Ability", 0, flex = true }, { "Important", 80 }, { "Price", 92, "RIGHT" }, { "DPS", 56, "RIGHT" }, { "Why", 330, extra = true } },
+    out[#out + 1] = Section("plan.skills", L"Learn at the trainer", { { table = { id = "plan.skills",
+      cols = { { L"Ability", 0, flex = true }, { L"Important", 80 }, { L"Price", 92, "RIGHT" }, { "DPS", 56, "RIGHT" }, { L"Why", 330, extra = true } },
       rows = rows } } }, true, #p.skills)
   end
   if #p.combat > 0 then
     local tips = {}
     for _, a in ipairs(p.combat) do tips[#tips + 1] = { level = "tip", title = a.title, text = a.text } end
-    out[#out + 1] = Section("plan.combat", "Advice from your fights", { { tips = tips } }, true, #tips)
+    out[#out + 1] = Section("plan.combat", L"Advice from your fights", { { tips = tips } }, true, #tips)
   end
   if p.ammo and #p.ammo > 0 then
     local rows = {}
     for _, a in ipairs(p.ammo) do
-      local src = a.priceSource == "vendor" and "seen at a vendor" or (a.priceSource == "estimate" and "estimated from the sell price" or a.priceSource)
-      rows[#rows + 1] = { cells = { Cell(Item(a.name, "COMMON") .. (a.current and Muted(" (you have this now)") or ""), a.name),
+      local src = a.priceSource == "vendor" and (L"seen at a vendor") or (a.priceSource == L"estimate" and (L"estimated from the sell price") or a.priceSource)
+      rows[#rows + 1] = { cells = { Cell(Item(a.name, "COMMON") .. (a.current and Muted(L" (you have this now)") or ""), a.name),
         Cell(F1(a.dps), a.dps), Cell(a.current and "–" or Gain(a.gain), a.gain),
         Cell(a.price and Money(a.price * 200) or Muted("?"), a.price or math.huge),
         Cell(a.perHour and Money(a.perHour) or Muted("?"), a.perHour or math.huge), Cell(a.reqLevel, a.reqLevel) }, itemId = a.itemId,
-        tip = "Ammo: sold by vendors (General Goods, Bowyer, Gunsmith). Every Auto Shot and shot adds its damage." ..
-          (a.price and ("\nPrice: " .. Plain(Money(a.price)) .. "/ea (" .. (src or "?") .. ")") or "\nPrice: open the window of a vendor that sells ammo.") ..
-          (a.perHour and ("\nPer hour: " .. math.floor(p.shotsPerHour + 0.5) .. " shots in continuous combat.") or "") }
+        tip = L"Ammo: sold by vendors (General Goods, Bowyer, Gunsmith). Every Auto Shot and shot adds its damage." ..
+          (a.price and (L"\nPrice: " .. Plain(Money(a.price)) .. L"/ea (" .. (src or "?") .. ")") or (L"\nPrice: open the window of a vendor that sells ammo.")) ..
+          (a.perHour and (L"\nPer hour: " .. math.floor(p.shotsPerHour + 0.5) .. L" shots in continuous combat.") or "") }
     end
-    out[#out + 1] = Section("plan.ammo", "Ammo", { { p = ("About %d shots an hour in continuous combat (%s a minute); the price is for 200.")
+    out[#out + 1] = Section("plan.ammo", L"Ammo", { { p = (L"About %d shots an hour in continuous combat (%s a minute); the price is for 200.")
       :format(math.floor((p.shotsPerHour or 0) + 0.5), F1((p.shotsPerHour or 0) / 60)), muted = true },
-      { table = { id = "plan.ammo", cols = { { "Ammo", 0, flex = true },
-      { "DPS", 60, "RIGHT" }, { "For you", 60, "RIGHT" }, { "200 pcs", 80, "RIGHT" }, { "Per hour", 80, "RIGHT" }, { "Level", 50, "RIGHT", extra = true } },
+      { table = { id = "plan.ammo", cols = { { L"Ammo", 0, flex = true },
+      { L"DPS", 60, "RIGHT" }, { L"For you", 60, "RIGHT" }, { L"200 pcs", 80, "RIGHT" }, { L"Per hour", 80, "RIGHT" }, { L"Level", 50, "RIGHT", extra = true } },
       rows = rows } } }, true, #p.ammo)
   end
   if #p.farm > 0 then
@@ -1004,16 +1016,16 @@ function UI.pages.plan()
       rows[#rows + 1] = { d.name, d.levels, Cell(Gain(d.gain), d.gain), Cell(d.perRun and Gain(d.perRun) or "–", d.perRun or 0),
         table.concat(names, ", ") }
     end
-    out[#out + 1] = Section("plan.farm", "Where to go farming", { { table = { id = "plan.farm", cols = { { "Dungeon", 0, flex = true },
-      { "Level", 60 }, { "Total DPS", 80, "RIGHT" }, { "Per run", 84, "RIGHT" }, { "Best items", 0, flex = true, extra = true } },
+    out[#out + 1] = Section("plan.farm", L"Where to go farming", { { table = { id = "plan.farm", cols = { { "Dungeon", 0, flex = true },
+      { L"Level", 60 }, { L"Total DPS", 80, "RIGHT" }, { L"Per run", 84, "RIGHT" }, { L"Best items", 0, flex = true, extra = true } },
       rows = rows } } }, false, #p.farm)
   end
   if #p.wishlist > 0 then
-    out[#out + 1] = Section("plan.wish", "If you had more gold",
+    out[#out + 1] = Section("plan.wish", L"If you had more gold",
       { { table = { id = "plan.wish", cols = OptionCols(true), rows = OptionRows(p.wishlist, true) } } }, false, #p.wishlist)
   end
   if #p.quests > 0 then
-    out[#out + 1] = Section("plan.quest", "Quest rewards",
+    out[#out + 1] = Section("plan.quest", L"Quest rewards",
       { { table = { id = "plan.quest", cols = OptionCols(false), rows = OptionRows(p.quests, false) } } }, false, #p.quests)
   end
   if #p.professions > 0 then
@@ -1021,8 +1033,8 @@ function UI.pages.plan()
     for _, r in ipairs(p.professions) do
       rows[#rows + 1] = { r.name, Cell(r.skill .. " / " .. r.cap, r.skill), r.next or "–", Cell(Money(r.cost), r.cost), r.note or "" }
     end
-    out[#out + 1] = Section("plan.prof", "Professions", { { table = { id = "plan.prof", cols = { { "Profession", 120 }, { "Skill", 70 },
-      { "Next step", 0, flex = true }, { "Cost", 92, "RIGHT" }, { "Note", 0, flex = true, extra = true } }, rows = rows } } }, false, #p.professions)
+    out[#out + 1] = Section("plan.prof", L"Professions", { { table = { id = "plan.prof", cols = { { L"Profession", 120 }, { "Skill", 70 },
+      { L"Next step", 0, flex = true }, { L"Cost", 92, "RIGHT" }, { L"Note", 0, flex = true, extra = true } }, rows = rows } } }, false, #p.professions)
   end
   if #p.consumables > 0 then
     local rows = {}
@@ -1030,8 +1042,8 @@ function UI.pages.plan()
       rows[#rows + 1] = { cells = { c.name, Cell(Gain(c.gain), c.gain), Cell(Money(c.perHour), c.perHour or math.huge), c.summary,
         Cell(Money(c.price), c.price or math.huge) }, itemId = c.itemId, tip = c.summary }
     end
-    out[#out + 1] = Section("plan.cons", "Consumables", { { table = { id = "plan.cons", cols = { { "What", 0, flex = true },
-      { "DPS", 56, "RIGHT" }, { "Per hour", 92, "RIGHT" }, { "Effect", 260, extra = true }, { "Each", 92, "RIGHT", extra = true } },
+    out[#out + 1] = Section("plan.cons", L"Consumables", { { table = { id = "plan.cons", cols = { { L"What", 0, flex = true },
+      { "DPS", 56, "RIGHT" }, { L"Per hour", 92, "RIGHT" }, { L"Effect", 260, extra = true }, { L"Each", 92, "RIGHT", extra = true } },
       rows = rows } } }, false, #p.consumables)
   end
   if #p.roadmap > 0 then
@@ -1041,10 +1053,10 @@ function UI.pages.plan()
       for _, g in ipairs(r.gear) do gear[#gear + 1] = Item(g.title, g.quality) .. " " .. Gain(g.gain) end
       rows[#rows + 1] = { Cell(r.level, r.level), table.concat(r.skills, ", "), Cell(Money(r.skillCost), r.skillCost), table.concat(gear, ", ") }
     end
-    out[#out + 1] = Section("plan.road", "The next levels", { { table = { id = "plan.road", cols = { { "Level", 50 },
-      { "New abilities", 0, flex = true }, { "Cost", 92, "RIGHT" }, { "Gear", 0, flex = true, extra = true } }, rows = rows } } }, false, #p.roadmap)
+    out[#out + 1] = Section("plan.road", L"The next levels", { { table = { id = "plan.road", cols = { { L"Level", 50 },
+      { L"New abilities", 0, flex = true }, { L"Cost", 92, "RIGHT" }, { L"Gear", 0, flex = true, extra = true } }, rows = rows } } }, false, #p.roadmap)
   end
-  UI.status = ("%d AH offers · %d fights in the model"):format(#(G.Offers()), ctx.combat and ctx.combat.fights or 0)
+  UI.status = (L"%d AH offers · %d fights in the model"):format(#(G.Offers()), ctx.combat and ctx.combat.fights or 0)
   return out
 end
 
@@ -1054,9 +1066,9 @@ local function Grade(sc)
   return ("|cff%s%d (%s)|r"):format(GRADE_COLOR[sc.grade] or "ffffff", sc.total, sc.grade)
 end
 local function TargetName(x)
-  return (x.target and x.target ~= "?" and x.target ~= "") and x.target or Muted("unknown target")
+  return (x.target and x.target ~= "?" and x.target ~= "") and x.target or Muted(L"unknown target")
 end
-local SOURCE_NAME = { log = "combat log", live = "in game", meter = "damage meter" }
+local SOURCE_NAME = WA.LR { log = L"combat log", live = L"in game", meter = "damage meter" }
 local function Clock(ds) -- deciseconds -> m:ss.d
   local s = (ds or 0) / 10
   return ("%d:%04.1f"):format(math.floor(s / 60), s % 60)
@@ -1078,23 +1090,23 @@ local function AbilityRows(list, damage)
   end
   return rows
 end
-local ABILITY_COLS = { { "Ability", 0, flex = true }, { "Share", 60, "RIGHT" }, { "Damage", 70, "RIGHT" },
-  { "Qty", 44, "RIGHT" }, { "Crit", 56, "RIGHT" }, { "Avoided", 70, "RIGHT" },
-  { "Average", 54, "RIGHT", extra = true }, { "Max", 54, "RIGHT", extra = true }, { "Miss", 52, "RIGHT", extra = true },
+local ABILITY_COLS = WA.LR { { L"Ability", 0, flex = true }, { L"Share", 60, "RIGHT" }, { L"Damage", 70, "RIGHT" },
+  { L"Qty", 44, "RIGHT" }, { "Crit", 56, "RIGHT" }, { L"Avoided", 70, "RIGHT" },
+  { L"Average", 54, "RIGHT", extra = true }, { "Max", 54, "RIGHT", extra = true }, { "Miss", 52, "RIGHT", extra = true },
   { "Dodge", 54, "RIGHT", extra = true }, { "Parry", 52, "RIGHT", extra = true }, { "Glancing", 64, "RIGHT", extra = true } }
 
 -- Hunters: the raid-log style summary of every fight (damage sources, Auto Shot activity,
 -- casts per minute and damage per cast, sting and aspect uptime).
-local KIND_HU = { ranged = "ranged", melee = "melee", pet = "pet", dot = "DoT", other = "other" }
+local KIND_HU = WA.LR { ranged = L"ranged", melee = L"melee", pet = "pet", dot = "DoT", other = L"other" }
 local function HunterSummary(r, ctx)
   local s = WA.Hunter.Summary(r, ctx)
   local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
   local blocks = {
     { cards = {
-      { label = "Average DPS", value = F1(s.dps), sub = ("%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
-      { label = "Auto Shot", value = s.autoUptime and Pct(s.autoUptime * 100) or "–", sub = "of the possible shots",
-        tip = "How many shots you fired compared with how many your weapon (with the quiver) could have fired in that time." },
-      { label = "Serpent Sting", value = Pct(s.stingUptime), sub = "uptime in combat time" },
+      { label = L"Average DPS", value = F1(s.dps), sub = (L"%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = "Auto Shot", value = s.autoUptime and Pct(s.autoUptime * 100) or "–", sub = L"of the possible shots",
+        tip = L"How many shots you fired compared with how many your weapon (with the quiver) could have fired in that time." },
+      { label = "Serpent Sting", value = Pct(s.stingUptime), sub = L"uptime in combat time" },
       { label = "Aspect of the Hawk", value = s.hawk and Pct(s.hawk) or "–", sub = "uptime" },
     } },
   }
@@ -1105,34 +1117,34 @@ local function HunterSummary(r, ctx)
         Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
     end
   end
-  blocks[#blocks + 1] = { h = "Where the damage comes from" }
-  blocks[#blocks + 1] = { table = { id = "combat.hsrc", cols = { { "Source", 110 }, { "Share", 0, flex = true }, { "Damage", 80, "RIGHT" },
+  blocks[#blocks + 1] = { h = L"Where the damage comes from" }
+  blocks[#blocks + 1] = { table = { id = "combat.hsrc", cols = { { L"Source", 110 }, { L"Share", 0, flex = true }, { L"Damage", 80, "RIGHT" },
     { "DPS", 64, "RIGHT" } }, rows = srcRows } }
   local rows = {}
   for _, a in ipairs(s.rows) do
     rows[#rows + 1] = { a.name, KIND_HU[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
       Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
   end
-  blocks[#blocks + 1] = { h = "Abilities: uses per minute and damage per use" }
-  blocks[#blocks + 1] = { table = { id = "combat.hcpm", cols = { { "Ability", 0, flex = true }, { "Kind", 80 }, { "Share", 60, "RIGHT" },
-    { "Qty", 50, "RIGHT" }, { "Per minute", 76, "RIGHT" }, { "Per use", 104, "RIGHT" }, { "Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
+  blocks[#blocks + 1] = { h = L"Abilities: uses per minute and damage per use" }
+  blocks[#blocks + 1] = { table = { id = "combat.hcpm", cols = { { L"Ability", 0, flex = true }, { L"Kind", 80 }, { L"Share", 60, "RIGHT" },
+    { L"Qty", 50, "RIGHT" }, { L"Per minute", 76, "RIGHT" }, { L"Per use", 104, "RIGHT" }, { L"Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
   if s.autoMiss then
     blocks[#blocks + 1] = { p = ("Auto Shot: %s miss/dodge, %s crit."):format(Pct(s.autoMiss), Pct(s.autoCrit)), muted = true }
   end
-  return Section("combat.hunter", "Hunter summary (all fights)", blocks, true, r.fights)
+  return Section("combat.hunter", L"Hunter summary (all fights)", blocks, true, r.fights)
 end
 
 -- Shamans: the same summary (melee, imbue, spells, totems, DoT; swing activity, shocks).
-local KIND_SH = { melee = "melee", imbue = "imbue", spell = "spell", totem = "totem", dot = "DoT", other = "other" }
+local KIND_SH = WA.LR { melee = L"melee", imbue = "imbue", spell = L"spell", totem = "totem", dot = "DoT", other = L"other" }
 local function ShamanSummary(r, ctx)
   local s = WA.Shaman.Summary(r, ctx)
   local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
   local blocks = {
     { cards = {
-      { label = "Average DPS", value = F1(s.dps), sub = ("%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
-      { label = "Melee", value = s.swingUptime and Pct(s.swingUptime * 100) or "–", sub = "of the possible swings",
-        tip = "How many swings you made compared with how many your weapon could have made in that time (Windfury's extra swings included)." },
-      { label = "Shock", value = F1(s.shocksPerMin), sub = "per minute" },
+      { label = L"Average DPS", value = F1(s.dps), sub = (L"%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = L"Melee", value = s.swingUptime and Pct(s.swingUptime * 100) or "–", sub = L"of the possible swings",
+        tip = L"How many swings you made compared with how many your weapon could have made in that time (Windfury's extra swings included)." },
+      { label = "Shock", value = F1(s.shocksPerMin), sub = L"per minute" },
       { label = "Lightning Shield", value = s.shield and Pct(s.shield) or "–", sub = "uptime" },
     } },
   }
@@ -1143,38 +1155,38 @@ local function ShamanSummary(r, ctx)
         Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
     end
   end
-  blocks[#blocks + 1] = { h = "Where the damage comes from" }
-  blocks[#blocks + 1] = { table = { id = "combat.ssrc", cols = { { "Source", 110 }, { "Share", 0, flex = true }, { "Damage", 80, "RIGHT" },
+  blocks[#blocks + 1] = { h = L"Where the damage comes from" }
+  blocks[#blocks + 1] = { table = { id = "combat.ssrc", cols = { { L"Source", 110 }, { L"Share", 0, flex = true }, { L"Damage", 80, "RIGHT" },
     { "DPS", 64, "RIGHT" } }, rows = srcRows } }
   local rows = {}
   for _, a in ipairs(s.rows) do
     rows[#rows + 1] = { a.name, KIND_SH[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
       Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
   end
-  blocks[#blocks + 1] = { h = "Abilities: uses per minute and damage per use" }
-  blocks[#blocks + 1] = { table = { id = "combat.scpm", cols = { { "Ability", 0, flex = true }, { "Kind", 80 }, { "Share", 60, "RIGHT" },
-    { "Qty", 50, "RIGHT" }, { "Per minute", 76, "RIGHT" }, { "Per use", 104, "RIGHT" }, { "Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
+  blocks[#blocks + 1] = { h = L"Abilities: uses per minute and damage per use" }
+  blocks[#blocks + 1] = { table = { id = "combat.scpm", cols = { { L"Ability", 0, flex = true }, { L"Kind", 80 }, { L"Share", 60, "RIGHT" },
+    { L"Qty", 50, "RIGHT" }, { L"Per minute", 76, "RIGHT" }, { L"Per use", 104, "RIGHT" }, { L"Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
   if s.meleeMiss then
-    blocks[#blocks + 1] = { p = ("Melee: %s miss/dodge/parry, %s crit."):format(Pct(s.meleeMiss), Pct(s.meleeCrit)), muted = true }
+    blocks[#blocks + 1] = { p = (L"Melee: %s miss/dodge/parry, %s crit."):format(Pct(s.meleeMiss), Pct(s.meleeCrit)), muted = true }
   end
-  return Section("combat.shaman", "Shaman summary (all fights)", blocks, true, r.fights)
+  return Section("combat.shaman", L"Shaman summary (all fights)", blocks, true, r.fights)
 end
 
 -- Druids: the same summary (paw, Cat Form abilities, bleeds, bear, spells; bleed uptime from the
 -- ticks, finisher combo points, energy at the cap).
-local KIND_DR = { melee = "claws / melee", cat = "Cat Form", bleed = "bleed", bear = "bear", spell = "spell", other = "other" }
+local KIND_DR = WA.LR { melee = L"claws / melee", cat = "Cat Form", bleed = L"bleed", bear = L"bear", spell = L"spell", other = L"other" }
 local function DruidSummary(r, ctx)
   local s = WA.Druid.Summary(r, ctx)
   local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
   local blocks = {
     { cards = {
-      { label = "Average DPS", value = F1(s.dps), sub = ("%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
-      { label = "Rake", value = s.rake and Pct(s.rake) or "–", sub = "bleeding in combat time",
-        tip = "From Rake's ticks: 3 s of bleeding per tick (Wowhead Forever spell=1822), divided by the total combat time." },
-      { label = "Rip", value = s.rip and Pct(s.rip) or "–", sub = s.ripCp and ("average " .. F1(s.ripCp) .. " combo points") or "bleeding in combat time",
-        tip = "From Rip's ticks: 2 s of bleeding per tick (Wowhead Forever spell=1079), divided by the total combat time." },
-      { label = "Energy full", value = s.energyCapped and Pct(s.energyCapped) or "–", sub = s.biteCp and ("Bite average " .. F1(s.biteCp) .. " points") or "in Cat Form",
-        tip = "From the combat log's energy values: the share of time you sat at full energy." },
+      { label = L"Average DPS", value = F1(s.dps), sub = (L"%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = "Rake", value = s.rake and Pct(s.rake) or "–", sub = L"bleeding in combat time",
+        tip = L"From Rake's ticks: 3 s of bleeding per tick (Wowhead Forever spell=1822), divided by the total combat time." },
+      { label = "Rip", value = s.rip and Pct(s.rip) or "–", sub = s.ripCp and (L"average " .. F1(s.ripCp) .. L" combo points") or (L"bleeding in combat time"),
+        tip = L"From Rip's ticks: 2 s of bleeding per tick (Wowhead Forever spell=1079), divided by the total combat time." },
+      { label = L"Energy full", value = s.energyCapped and Pct(s.energyCapped) or "–", sub = s.biteCp and (L"Bite average " .. F1(s.biteCp) .. L" points") or (L"in Cat Form"),
+        tip = L"From the combat log's energy values: the share of time you sat at full energy." },
     } },
   }
   local srcRows = {}
@@ -1184,39 +1196,39 @@ local function DruidSummary(r, ctx)
         Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
     end
   end
-  blocks[#blocks + 1] = { h = "Where the damage comes from" }
-  blocks[#blocks + 1] = { table = { id = "combat.dsrc", cols = { { "Source", 120 }, { "Share", 0, flex = true }, { "Damage", 80, "RIGHT" },
+  blocks[#blocks + 1] = { h = L"Where the damage comes from" }
+  blocks[#blocks + 1] = { table = { id = "combat.dsrc", cols = { { L"Source", 120 }, { L"Share", 0, flex = true }, { L"Damage", 80, "RIGHT" },
     { "DPS", 64, "RIGHT" } }, rows = srcRows } }
   local rows = {}
   for _, a in ipairs(s.rows) do
     rows[#rows + 1] = { a.name, KIND_DR[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
       Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
   end
-  blocks[#blocks + 1] = { h = "Abilities: uses per minute and damage per use" }
-  blocks[#blocks + 1] = { table = { id = "combat.dcpm", cols = { { "Ability", 0, flex = true }, { "Kind", 100 }, { "Share", 60, "RIGHT" },
-    { "Qty", 50, "RIGHT" }, { "Per minute", 76, "RIGHT" }, { "Per use", 104, "RIGHT" }, { "Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
+  blocks[#blocks + 1] = { h = L"Abilities: uses per minute and damage per use" }
+  blocks[#blocks + 1] = { table = { id = "combat.dcpm", cols = { { L"Ability", 0, flex = true }, { L"Kind", 100 }, { L"Share", 60, "RIGHT" },
+    { L"Qty", 50, "RIGHT" }, { L"Per minute", 76, "RIGHT" }, { L"Per use", 104, "RIGHT" }, { L"Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
   if s.meleeMiss then
-    blocks[#blocks + 1] = { p = ("Melee: %s miss/dodge/parry, %s crit."):format(Pct(s.meleeMiss), Pct(s.meleeCrit)), muted = true }
+    blocks[#blocks + 1] = { p = (L"Melee: %s miss/dodge/parry, %s crit."):format(Pct(s.meleeMiss), Pct(s.meleeCrit)), muted = true }
   end
-  return Section("combat.druid", "Druid summary (all fights)", blocks, true, r.fights)
+  return Section("combat.druid", L"Druid summary (all fights)", blocks, true, r.fights)
 end
 
 -- Warlocks: the same summary (spells, DoTs, drains, demon, wand; DoT uptime from the ticks, Life Tap).
-local KIND_WL = { nuke = "direct spells", dot = "DoT", drain = "drain, Wrack", pet = "demon", wand = "wand", melee = "melee", other = "other" }
+local KIND_WL = WA.LR { nuke = L"direct spells", dot = "DoT", drain = "drain, Wrack", pet = L"demon", wand = L"wand", melee = L"melee", other = L"other" }
 local function WarlockSummary(r, ctx, fights)
   local s = WA.Warlock.Summary(r, ctx, fights)
   local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
   local dot1, dot2 = s.dots[1], s.dots[2]
   local blocks = {
     { cards = {
-      { label = "Average DPS", value = F1(s.dps), sub = ("%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
-      { label = dot1 and dot1.name or "DoT", value = dot1 and Pct(dot1.uptime) or "–", sub = "ticking in combat time",
-        tip = "From the ticks: 3 s per tick (Corruption, Immolate, Siphon Life) or 2 s (Bane of Agony), divided by the total combat time." ..
-          (s.wrack and " Under Wrack the DoTs tick faster, so this value leans high." or "") },
-      { label = dot2 and dot2.name or "Demon", value = dot2 and Pct(dot2.uptime) or Pct(s.shares.pet), sub = dot2 and "ticking in combat time" or "of your damage" },
+      { label = L"Average DPS", value = F1(s.dps), sub = (L"%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = dot1 and dot1.name or "DoT", value = dot1 and Pct(dot1.uptime) or "–", sub = L"ticking in combat time",
+        tip = L"From the ticks: 3 s per tick (Corruption, Immolate, Siphon Life) or 2 s (Bane of Agony), divided by the total combat time." ..
+          (s.wrack and (L" Under Wrack the DoTs tick faster, so this value leans high.") or "") },
+      { label = dot2 and dot2.name or (L"Demon"), value = dot2 and Pct(dot2.uptime) or Pct(s.shares.pet), sub = dot2 and (L"ticking in combat time") or (L"of your damage") },
       { label = "Life Tap", value = s.taps.n > 0 and tostring(s.taps.n) or "–",
-        sub = s.taps.n > 0 and ("%d mana, %d lost"):format(math.floor(s.taps.gain + 0.5), math.floor(s.taps.over + 0.5)) or "no data in the fights",
-        tip = "From the combat log: the mana event itself says how much went over the maximum." },
+        sub = s.taps.n > 0 and (L"%d mana, %d lost"):format(math.floor(s.taps.gain + 0.5), math.floor(s.taps.over + 0.5)) or (L"no data in the fights"),
+        tip = L"From the combat log: the mana event itself says how much went over the maximum." },
     } },
   }
   local srcRows = {}
@@ -1226,34 +1238,34 @@ local function WarlockSummary(r, ctx, fights)
         Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
     end
   end
-  blocks[#blocks + 1] = { h = "Where the damage comes from" }
-  blocks[#blocks + 1] = { table = { id = "combat.wsrc", cols = { { "Source", 120 }, { "Share", 0, flex = true }, { "Damage", 80, "RIGHT" },
+  blocks[#blocks + 1] = { h = L"Where the damage comes from" }
+  blocks[#blocks + 1] = { table = { id = "combat.wsrc", cols = { { L"Source", 120 }, { L"Share", 0, flex = true }, { L"Damage", 80, "RIGHT" },
     { "DPS", 64, "RIGHT" } }, rows = srcRows } }
   local rows = {}
   for _, a in ipairs(s.rows) do
     rows[#rows + 1] = { a.name, KIND_WL[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
       Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
   end
-  blocks[#blocks + 1] = { h = "Abilities: uses per minute and damage per use" }
-  blocks[#blocks + 1] = { table = { id = "combat.wcpm", cols = { { "Ability", 0, flex = true }, { "Kind", 100 }, { "Share", 60, "RIGHT" },
-    { "Qty", 50, "RIGHT" }, { "Per minute", 76, "RIGHT" }, { "Per use", 104, "RIGHT" }, { "Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
-  return Section("combat.warlock", "Warlock summary (all fights)", blocks, true, r.fights)
+  blocks[#blocks + 1] = { h = L"Abilities: uses per minute and damage per use" }
+  blocks[#blocks + 1] = { table = { id = "combat.wcpm", cols = { { L"Ability", 0, flex = true }, { L"Kind", 100 }, { L"Share", 60, "RIGHT" },
+    { L"Qty", 50, "RIGHT" }, { L"Per minute", 76, "RIGHT" }, { L"Per use", 104, "RIGHT" }, { L"Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
+  return Section("combat.warlock", L"Warlock summary (all fights)", blocks, true, r.fights)
 end
 
 -- Mages: the same summary (main nuke, other spells, AoE, wand; mana potions and gems).
-local KIND_MG = { nuke = "direct spells", dot = "DoT", aoe = "AoE", wand = "wand", melee = "melee", other = "other" }
+local KIND_MG = WA.LR { nuke = L"direct spells", dot = "DoT", aoe = "AoE", wand = L"wand", melee = L"melee", other = L"other" }
 local function MageSummary(r, ctx, fights)
   local s = WA.Mage.Summary(r, ctx, fights)
   local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
   local blocks = {
     { cards = {
-      { label = "Average DPS", value = F1(s.dps), sub = ("%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
-      { label = s.main and s.main.name or (s.nuke or "Main spell"), value = s.main and (F1(s.main.cpm) .. "/min") or "–",
-        sub = s.main and ("crit %s, miss %s"):format(Pct(s.main.crit), Pct(s.main.miss)) or "no data" },
-      { label = "Wand share", value = Pct(s.shares.wand), sub = ("AoE %d%%"):format(math.floor(s.shares.aoe + 0.5)) },
-      { label = "Mana potion, mana gem", value = s.mana.n > 0 and tostring(s.mana.n) or "–",
-        sub = s.mana.n > 0 and ("%d mana, %d lost"):format(math.floor(s.mana.gain + 0.5), math.floor(s.mana.over + 0.5)) or "no data in the fights",
-        tip = "From the combat log: the mana event itself says how much went over the maximum." },
+      { label = L"Average DPS", value = F1(s.dps), sub = (L"%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = s.main and s.main.name or (s.nuke or (L"Main spell")), value = s.main and (F1(s.main.cpm) .. L"/min") or "–",
+        sub = s.main and ("crit %s, miss %s"):format(Pct(s.main.crit), Pct(s.main.miss)) or (L"no data") },
+      { label = L"Wand share", value = Pct(s.shares.wand), sub = ("AoE %d%%"):format(math.floor(s.shares.aoe + 0.5)) },
+      { label = L"Mana potion, mana gem", value = s.mana.n > 0 and tostring(s.mana.n) or "–",
+        sub = s.mana.n > 0 and (L"%d mana, %d lost"):format(math.floor(s.mana.gain + 0.5), math.floor(s.mana.over + 0.5)) or (L"no data in the fights"),
+        tip = L"From the combat log: the mana event itself says how much went over the maximum." },
     } },
   }
   local srcRows = {}
@@ -1263,34 +1275,34 @@ local function MageSummary(r, ctx, fights)
         Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
     end
   end
-  blocks[#blocks + 1] = { h = "Where the damage comes from" }
-  blocks[#blocks + 1] = { table = { id = "combat.msrc", cols = { { "Source", 120 }, { "Share", 0, flex = true }, { "Damage", 80, "RIGHT" },
+  blocks[#blocks + 1] = { h = L"Where the damage comes from" }
+  blocks[#blocks + 1] = { table = { id = "combat.msrc", cols = { { L"Source", 120 }, { L"Share", 0, flex = true }, { L"Damage", 80, "RIGHT" },
     { "DPS", 64, "RIGHT" } }, rows = srcRows } }
   local rows = {}
   for _, a in ipairs(s.rows) do
     rows[#rows + 1] = { a.name, KIND_MG[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
       Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
   end
-  blocks[#blocks + 1] = { h = "Abilities: uses per minute and damage per use" }
-  blocks[#blocks + 1] = { table = { id = "combat.mcpm", cols = { { "Ability", 0, flex = true }, { "Kind", 100 }, { "Share", 60, "RIGHT" },
-    { "Qty", 50, "RIGHT" }, { "Per minute", 76, "RIGHT" }, { "Per use", 104, "RIGHT" }, { "Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
-  return Section("combat.mage", "Mage summary (all fights)", blocks, true, r.fights)
+  blocks[#blocks + 1] = { h = L"Abilities: uses per minute and damage per use" }
+  blocks[#blocks + 1] = { table = { id = "combat.mcpm", cols = { { L"Ability", 0, flex = true }, { L"Kind", 100 }, { L"Share", 60, "RIGHT" },
+    { L"Qty", 50, "RIGHT" }, { L"Per minute", 76, "RIGHT" }, { L"Per use", 104, "RIGHT" }, { L"Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
+  return Section("combat.mage", L"Mage summary (all fights)", blocks, true, r.fights)
 end
 
 -- Priests: Smite, Mind Blast, Mind Flay, Shadow Word: Pain, wand; mana potions.
-local KIND_PR = { nuke = "direct spells", flay = "Mind Flay", dot = "DoT", aoe = "AoE", wand = "wand", melee = "melee", other = "other" }
+local KIND_PR = WA.LR { nuke = L"direct spells", flay = "Mind Flay", dot = "DoT", aoe = "AoE", wand = L"wand", melee = L"melee", other = L"other" }
 local function PriestSummary(r, ctx, fights)
   local s = WA.Priest.Summary(r, ctx, fights)
   local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
   local blocks = {
     { cards = {
-      { label = "Average DPS", value = F1(s.dps), sub = ("%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
-      { label = "Mind Blast", value = s.mb and (F1(s.mb.cpm) .. "/min") or "–",
-        sub = s.mb and ("at most %s/min (8 s cooldown)"):format(F1(s.mb.max)) or "not in the fights" },
-      { label = "Shadow Word: Pain", value = s.swp and Pct(s.swp) or "–", sub = "share of combat time it was ticking (from the ticks)" },
-      { label = "Mana potion", value = s.mana.n > 0 and tostring(s.mana.n) or "–",
-        sub = s.mana.n > 0 and ("%d mana, %d lost"):format(math.floor(s.mana.gain + 0.5), math.floor(s.mana.over + 0.5)) or "no data in the fights",
-        tip = "From the combat log: the mana event itself says how much went over the maximum." },
+      { label = L"Average DPS", value = F1(s.dps), sub = (L"%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = "Mind Blast", value = s.mb and (F1(s.mb.cpm) .. L"/min") or "–",
+        sub = s.mb and (L"at most %s/min (8 s cooldown)"):format(F1(s.mb.max)) or (L"not in the fights") },
+      { label = "Shadow Word: Pain", value = s.swp and Pct(s.swp) or "–", sub = L"share of combat time it was ticking (from the ticks)" },
+      { label = L"Mana potion", value = s.mana.n > 0 and tostring(s.mana.n) or "–",
+        sub = s.mana.n > 0 and (L"%d mana, %d lost"):format(math.floor(s.mana.gain + 0.5), math.floor(s.mana.over + 0.5)) or (L"no data in the fights"),
+        tip = L"From the combat log: the mana event itself says how much went over the maximum." },
     } },
   }
   local srcRows = {}
@@ -1300,35 +1312,35 @@ local function PriestSummary(r, ctx, fights)
         Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
     end
   end
-  blocks[#blocks + 1] = { h = "Where the damage comes from" }
-  blocks[#blocks + 1] = { table = { id = "combat.psrc", cols = { { "Source", 120 }, { "Share", 0, flex = true }, { "Damage", 80, "RIGHT" },
+  blocks[#blocks + 1] = { h = L"Where the damage comes from" }
+  blocks[#blocks + 1] = { table = { id = "combat.psrc", cols = { { L"Source", 120 }, { L"Share", 0, flex = true }, { L"Damage", 80, "RIGHT" },
     { "DPS", 64, "RIGHT" } }, rows = srcRows } }
   local rows = {}
   for _, a in ipairs(s.rows) do
     rows[#rows + 1] = { a.name, KIND_PR[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
       Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
   end
-  blocks[#blocks + 1] = { h = "Abilities: uses per minute and damage per use" }
-  blocks[#blocks + 1] = { table = { id = "combat.pcpm", cols = { { "Ability", 0, flex = true }, { "Kind", 100 }, { "Share", 60, "RIGHT" },
-    { "Qty", 50, "RIGHT" }, { "Per minute", 76, "RIGHT" }, { "Per use", 104, "RIGHT" }, { "Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
-  return Section("combat.priest", "Priest summary (all fights)", blocks, true, r.fights)
+  blocks[#blocks + 1] = { h = L"Abilities: uses per minute and damage per use" }
+  blocks[#blocks + 1] = { table = { id = "combat.pcpm", cols = { { L"Ability", 0, flex = true }, { L"Kind", 100 }, { L"Share", 60, "RIGHT" },
+    { L"Qty", 50, "RIGHT" }, { L"Per minute", 76, "RIGHT" }, { L"Per use", 104, "RIGHT" }, { L"Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
+  return Section("combat.priest", L"Priest summary (all fights)", blocks, true, r.fights)
 end
 
 -- Paladins: white swings, Holy Strike, seals, Judgement, Consecration.
-local KIND_PA = { melee = "white hits", hs = "Holy Strike", seal = "seal", judgement = "Judgement", other = "other" }
+local KIND_PA = WA.LR { melee = L"white hits", hs = "Holy Strike", seal = "seal", judgement = "Judgement", other = L"other" }
 local function PaladinSummary(r, ctx, fights)
   local s = WA.Paladin.Summary(r, ctx, fights)
   local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
   local m = s.melee
   local blocks = {
     { cards = {
-      { label = "Average DPS", value = F1(s.dps), sub = ("%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
-      { label = "White hits", value = m and Pct(s.shares.melee) or "–",
-        sub = m and ("miss %s, dodge %s, crit %s"):format(Pct(m.miss), Pct(m.dodge), Pct(m.crit)) or "no data" },
+      { label = L"Average DPS", value = F1(s.dps), sub = (L"%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = L"White hits", value = m and Pct(s.shares.melee) or "–",
+        sub = m and ("miss %s, dodge %s, crit %s"):format(Pct(m.miss), Pct(m.dodge), Pct(m.crit)) or (L"no data") },
       { label = "Seal", value = Pct(s.shares.seal), sub = (s.seals.seconds >= 60 and #s.seals.list > 0)
-        and ("%s up, Judgement %d%%"):format(WA.Paladin.SealList({ list = { s.seals.list[1] } }), math.floor(s.shares.judgement + 0.5))
+        and (L"%s up, Judgement %d%%"):format(WA.Paladin.SealList({ list = { s.seals.list[1] } }), math.floor(s.shares.judgement + 0.5))
         or ("Judgement %d%%"):format(math.floor(s.shares.judgement + 0.5)) },
-      { label = "Holy Strike", value = F1(s.hsCpm) .. "/min", sub = "at most 6/min (10 s cooldown)" },
+      { label = "Holy Strike", value = F1(s.hsCpm) .. L"/min", sub = L"at most 6/min (10 s cooldown)" },
     } },
   }
   local srcRows = {}
@@ -1338,22 +1350,22 @@ local function PaladinSummary(r, ctx, fights)
         Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
     end
   end
-  blocks[#blocks + 1] = { h = "Where the damage comes from" }
-  blocks[#blocks + 1] = { table = { id = "combat.pasrc", cols = { { "Source", 120 }, { "Share", 0, flex = true }, { "Damage", 80, "RIGHT" },
+  blocks[#blocks + 1] = { h = L"Where the damage comes from" }
+  blocks[#blocks + 1] = { table = { id = "combat.pasrc", cols = { { L"Source", 120 }, { L"Share", 0, flex = true }, { L"Damage", 80, "RIGHT" },
     { "DPS", 64, "RIGHT" } }, rows = srcRows } }
   local rows = {}
   for _, a in ipairs(s.rows) do
     rows[#rows + 1] = { a.name, KIND_PA[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
       Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
   end
-  blocks[#blocks + 1] = { h = "Abilities: uses per minute and damage per use" }
-  blocks[#blocks + 1] = { table = { id = "combat.pacpm", cols = { { "Ability", 0, flex = true }, { "Kind", 100 }, { "Share", 60, "RIGHT" },
-    { "Qty", 50, "RIGHT" }, { "Per minute", 76, "RIGHT" }, { "Per use", 104, "RIGHT" }, { "Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
-  return Section("combat.paladin", "Paladin summary (all fights)", blocks, true, r.fights)
+  blocks[#blocks + 1] = { h = L"Abilities: uses per minute and damage per use" }
+  blocks[#blocks + 1] = { table = { id = "combat.pacpm", cols = { { L"Ability", 0, flex = true }, { L"Kind", 100 }, { L"Share", 60, "RIGHT" },
+    { L"Qty", 50, "RIGHT" }, { L"Per minute", 76, "RIGHT" }, { L"Per use", 104, "RIGHT" }, { L"Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
+  return Section("combat.paladin", L"Paladin summary (all fights)", blocks, true, r.fights)
 end
 
 -- Warriors: white swings, Heroic Strike, weapon specials, Rend; rage over the maximum.
-local KIND_WR = { melee = "white hits", hs = "Heroic Strike", special = "weapon special", dot = "DoT (Rend)", other = "other" }
+local KIND_WR = WA.LR { melee = L"white hits", hs = "Heroic Strike", special = L"weapon special", dot = "DoT (Rend)", other = L"other" }
 local function WarriorSummary(r, ctx, fights)
   local s = WA.Warrior.Summary(r, ctx, fights)
   local function Bar(pct) return ("%s %s"):format(Pct(pct), Muted(("|"):rep(math.floor(pct / 4 + 0.5)))) end
@@ -1361,13 +1373,13 @@ local function WarriorSummary(r, ctx, fights)
   for _, x in pairs(s.rage.bySpell) do lost = lost + x.over end
   local blocks = {
     { cards = {
-      { label = "Average DPS", value = F1(s.dps), sub = ("%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
-      { label = "White hits", value = s.melee and Pct(100 - s.melee.miss - s.melee.dodge) or "–",
-        sub = s.melee and ("miss %s, dodge/parry %s, crit %s"):format(Pct(s.melee.miss), Pct(s.melee.dodge), Pct(s.melee.crit)) or "no data" },
-      { label = "Heroic Strike", value = Pct(s.hsShare), sub = "of your hits" },
-      { label = "Rage lost", value = s.rage.seen > 0 and tostring(math.floor(lost + 0.5)) or "–",
-        sub = s.rage.seen > 0 and ("%d rage from the logged sources"):format(math.floor(s.rage.gain + lost + 0.5)) or "no data in the fights",
-        tip = "From the combat log: the rage event (Bloodrage, Charge, Shield Specialization, Unbridled Wrath...) itself says how much went over 100. Rage from white hits is not an event, so it does not show." },
+      { label = L"Average DPS", value = F1(s.dps), sub = (L"%d fights, %d min"):format(r.fights, math.floor(s.seconds / 60 + 0.5)) },
+      { label = L"White hits", value = s.melee and Pct(100 - s.melee.miss - s.melee.dodge) or "–",
+        sub = s.melee and ("miss %s, dodge/parry %s, crit %s"):format(Pct(s.melee.miss), Pct(s.melee.dodge), Pct(s.melee.crit)) or (L"no data") },
+      { label = "Heroic Strike", value = Pct(s.hsShare), sub = L"of your hits" },
+      { label = L"Rage lost", value = s.rage.seen > 0 and tostring(math.floor(lost + 0.5)) or "–",
+        sub = s.rage.seen > 0 and (L"%d rage from the logged sources"):format(math.floor(s.rage.gain + lost + 0.5)) or (L"no data in the fights"),
+        tip = L"From the combat log: the rage event (Bloodrage, Charge, Shield Specialization, Unbridled Wrath...) itself says how much went over 100. Rage from white hits is not an event, so it does not show." },
     } },
   }
   local srcRows = {}
@@ -1377,18 +1389,18 @@ local function WarriorSummary(r, ctx, fights)
         Cell(F1(s.sources[k] / s.seconds), s.sources[k] / s.seconds) }
     end
   end
-  blocks[#blocks + 1] = { h = "Where the damage comes from" }
-  blocks[#blocks + 1] = { table = { id = "combat.wrsrc", cols = { { "Source", 120 }, { "Share", 0, flex = true }, { "Damage", 80, "RIGHT" },
+  blocks[#blocks + 1] = { h = L"Where the damage comes from" }
+  blocks[#blocks + 1] = { table = { id = "combat.wrsrc", cols = { { L"Source", 120 }, { L"Share", 0, flex = true }, { L"Damage", 80, "RIGHT" },
     { "DPS", 64, "RIGHT" } }, rows = srcRows } }
   local rows = {}
   for _, a in ipairs(s.rows) do
     rows[#rows + 1] = { a.name, KIND_WR[a.kind] or a.kind, Cell(Pct(a.share), a.share), Cell(a.n, a.n), Cell(F1(a.cpm), a.cpm),
       Cell(math.floor(a.perCast + 0.5), a.perCast), Cell(math.floor(a.avg + 0.5), a.avg) }
   end
-  blocks[#blocks + 1] = { h = "Abilities: uses per minute and damage per use" }
-  blocks[#blocks + 1] = { table = { id = "combat.wrcpm", cols = { { "Ability", 0, flex = true }, { "Kind", 110 }, { "Share", 60, "RIGHT" },
-    { "Qty", 50, "RIGHT" }, { "Per minute", 76, "RIGHT" }, { "Per use", 104, "RIGHT" }, { "Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
-  return Section("combat.warrior", "Warrior summary (all fights)", blocks, true, r.fights)
+  blocks[#blocks + 1] = { h = L"Abilities: uses per minute and damage per use" }
+  blocks[#blocks + 1] = { table = { id = "combat.wrcpm", cols = { { L"Ability", 0, flex = true }, { L"Kind", 110 }, { L"Share", 60, "RIGHT" },
+    { L"Qty", 50, "RIGHT" }, { L"Per minute", 76, "RIGHT" }, { L"Per use", 104, "RIGHT" }, { L"Average hit", 90, "RIGHT", extra = true } }, rows = rows } }
+  return Section("combat.warrior", L"Warrior summary (all fights)", blocks, true, r.fights)
 end
 
 -- The suggested rotation (WA-006): the order, per ability suggested vs measured with the DPS
@@ -1401,36 +1413,36 @@ local function RotDiff(d)
 end
 local function RotationSection(rot, report)
   local blocks = {}
-  local head = ("Expected %s DPS with this order"):format(Color(HEX.gold, F1(rot.dps)))
+  local head = (L"Expected %s DPS with this order"):format(Color(HEX.gold, F1(rot.dps)))
   if rot.now then
-    head = head .. ("; the model at your measured rates gives %s DPS (%s), your fights' measured DPS is %s. The DPS column shows the difference per ability; it adds up to this."):format(
+    head = head .. (L"; the model at your measured rates gives %s DPS (%s), your fights' measured DPS is %s. The DPS column shows the difference per ability; it adds up to this."):format(
       F1(rot.now), (rot.dps - rot.now >= 0 and "+" or "−") .. F1(math.abs(rot.dps - rot.now)), F1(report and report.dps))
   else
-    head = head .. ". You have no recorded fights yet, so the measured column is empty."
+    head = head .. L". You have no recorded fights yet, so the measured column is empty."
   end
   blocks[#blocks + 1] = { p = head }
   local prio = {}
   for i, x in ipairs(rot.priority) do prio[#prio + 1] = { Cell(i .. ".", i), x.name, x.when } end
-  blocks[#blocks + 1] = { h = "Order (the first one you can use right now)" }
-  blocks[#blocks + 1] = { table = { id = "combat.rot.prio", cols = { { "#", 30, "RIGHT" }, { "Ability", 130 }, { "When", 0, flex = true } }, rows = prio } }
+  blocks[#blocks + 1] = { h = L"Order (the first one you can use right now)" }
+  blocks[#blocks + 1] = { table = { id = "combat.rot.prio", cols = { { "#", 30, "RIGHT" }, { L"Ability", 130 }, { L"When", 0, flex = true } }, rows = prio } }
   local rows = {}
   for _, x in ipairs(rot.rows) do
     rows[#rows + 1] = { cells = { x.name, x.plan, x.measured or Muted("–"), RotDiff(x.diff), x.from }, tip = x.name .. "\n" .. x.from }
   end
-  blocks[#blocks + 1] = { h = "Per ability: suggested and measured" }
-  blocks[#blocks + 1] = { table = { id = "combat.rot", cols = { { "Ability", 110 }, { "Suggested", 200 }, { "Measured", 150 },
-    { "DPS", 56, "RIGHT" }, { "Source", 0, flex = true } }, rows = rows } }
+  blocks[#blocks + 1] = { h = L"Per ability: suggested and measured" }
+  blocks[#blocks + 1] = { table = { id = "combat.rot", cols = { { L"Ability", 110 }, { L"Suggested", 200 }, { L"Measured", 150 },
+    { "DPS", 56, "RIGHT" }, { L"Source", 0, flex = true } }, rows = rows } }
   if #rot.cooldowns > 0 then
     local cds = {}
     for _, x in ipairs(rot.cooldowns) do
       cds[#cds + 1] = { cells = { x.name, x.plan, x.measured or Muted("–"), x.from }, tip = x.name .. "\n" .. x.from }
     end
-    blocks[#blocks + 1] = { h = "Cooldowns (the value of one use; not in the DPS above)" }
-    blocks[#blocks + 1] = { table = { id = "combat.rot.cd", cols = { { "Ability", 110 }, { "Suggested", 200 }, { "Measured", 110 },
-      { "Source", 0, flex = true } }, rows = cds } }
+    blocks[#blocks + 1] = { h = L"Cooldowns (the value of one use; not in the DPS above)" }
+    blocks[#blocks + 1] = { table = { id = "combat.rot.cd", cols = { { L"Ability", 110 }, { L"Suggested", 200 }, { L"Measured", 110 },
+      { L"Source", 0, flex = true } }, rows = cds } }
   end
   for _, n in ipairs(rot.notes) do blocks[#blocks + 1] = { p = n, muted = true } end
-  return Section("combat.rot", "Suggested rotation · " .. rot.spec, blocks, true, #rot.rows)
+  return Section("combat.rot", L"Suggested rotation · " .. rot.spec, blocks, true, #rot.rows)
 end
 
 function UI.pages.combat()
@@ -1438,10 +1450,10 @@ function UI.pages.combat()
   table.sort(all, function(a, b) return a.start > b.start end)
   local counts = { log = 0, live = 0, meter = 0 }
   for _, f in ipairs(all) do counts[f.source or "log"] = (counts[f.source or "log"] or 0) + 1 end
-  UI.status = ("%d fights: %d recorded in game, %d from the combat log"):format(#all, counts.live + counts.meter, counts.log)
-  UI.head.combat = { "Combat", "Every fight is recorded on its own; pick one from the list for its details" }
+  UI.status = (L"%d fights: %d recorded in game, %d from the combat log"):format(#all, counts.live + counts.meter, counts.log)
+  UI.head.combat = { L"Combat", L"Every fight is recorded on its own; pick one from the list for its details" }
   if #all == 0 then
-    return { { empty = { "No recorded fights yet", "The addon records every fight on its own: hit a mob, and once the fight is over it will be here." } } }
+    return { { empty = { L"No recorded fights yet", L"The addon records every fight on its own: hit a mob, and once the fight is over it will be here." } } }
   end
   local hunter = G.Class() == "HUNTER"
   local shaman = G.Class() == "SHAMAN"
@@ -1472,74 +1484,74 @@ function UI.pages.combat()
   local prov = WA.Combat.Provenance(f, ctx)
   local P = {}
   for _, r in ipairs(prov) do P[r.key] = r end
-  UI.head.combat[2] = ("%s%s · %s · source: %s"):format(TargetName(f), (f.targetLevel or 0) > 0 and (" (" .. f.targetLevel .. ")") or "",
-    date("%m/%d %H:%M", f.start), SOURCE_NAME[f.source or "log"] or "?")
+  UI.head.combat[2] = (L"%s%s · %s · source: %s"):format(TargetName(f), (f.targetLevel or 0) > 0 and (" (" .. f.targetLevel .. ")") or "",
+    date(L"%m/%d %H:%M", f.start), SOURCE_NAME[f.source or "log"] or "?")
   out[#out + 1] = { cards = {
-    { label = "Score", value = Grade(sc), sub = sc and "0–100, S is the best" or "not enough data",
-      tip = hunter and "DPS against the expected, Auto Shot uptime, the pet's share, range, Serpent Sting, shots per minute."
-        or shaman and "DPS against the expected, swing uptime, shocks per minute, totem in long fights, Stormstrike on cooldown."
-        or druid and "DPS against the expected; in Cat Form swing uptime, wasted energy, finisher combo points, Rake; without Cat Form spells per minute."
-        or warlock and "DPS against the expected, continuous casting (wand included), DoT in longer fights, wasted Life Tap."
-        or mage and "DPS against the expected, continuous casting (wand included), wasted mana potion or mana gem."
-        or warrior and "DPS against the expected, continuous swinging, rage lost over 100 (from the combat log's rage events)."
-        or priest and "DPS against the expected, continuous casting (wand included), Shadow Word: Pain in longer fights, wasted mana potion."
-        or paladin and "DPS against the expected, continuous swinging, Holy Strike against its cooldown, wasted mana potion."
-        or "DPS against what your gear should give, wasted energy, Eviscerate combo points, Slice and Dice uptime, abilities per minute." },
-    { label = "DPS", value = P.dps.text, sub = P.dps.status .. (P.model and P.model.value and (" · expected " .. P.model.text .. " (simulated)") or ""),
-      tip = P.dps.from .. (P.model and ("\nExpected: " .. P.model.from) or "") },
+    { label = L"Score", value = Grade(sc), sub = sc and (L"0–100, S is the best") or (L"not enough data"),
+      tip = hunter and (L"DPS against the expected, Auto Shot uptime, the pet's share, range, Serpent Sting, shots per minute.")
+        or shaman and (L"DPS against the expected, swing uptime, shocks per minute, totem in long fights, Stormstrike on cooldown.")
+        or druid and (L"DPS against the expected; in Cat Form swing uptime, wasted energy, finisher combo points, Rake; without Cat Form spells per minute.")
+        or warlock and (L"DPS against the expected, continuous casting (wand included), DoT in longer fights, wasted Life Tap.")
+        or mage and (L"DPS against the expected, continuous casting (wand included), wasted mana potion or mana gem.")
+        or warrior and (L"DPS against the expected, continuous swinging, rage lost over 100 (from the combat log's rage events).")
+        or priest and (L"DPS against the expected, continuous casting (wand included), Shadow Word: Pain in longer fights, wasted mana potion.")
+        or paladin and (L"DPS against the expected, continuous swinging, Holy Strike against its cooldown, wasted mana potion.")
+        or (L"DPS against what your gear should give, wasted energy, Eviscerate combo points, Slice and Dice uptime, abilities per minute.") },
+    { label = "DPS", value = P.dps.text, sub = P.dps.status .. (P.model and P.model.value and (L" · expected " .. P.model.text .. L" (simulated)") or ""),
+      tip = P.dps.from .. (P.model and (L"\nExpected: " .. P.model.from) or "") },
     hunter and (function()
       local _, sh = WA.Hunter.Sources(f.ab, f.dmg)
-      return { label = "Pet share", value = Pct(sh.pet), sub = ("ranged %d%%, melee %d%%"):format(math.floor(sh.ranged + 0.5), math.floor(sh.melee + 0.5)) }
+      return { label = L"Pet share", value = Pct(sh.pet), sub = (L"ranged %d%%, melee %d%%"):format(math.floor(sh.ranged + 0.5), math.floor(sh.melee + 0.5)) }
     end)() or shaman and (function()
       local _, sh = WA.Shaman.Sources(f.ab, f.dmg)
-      return { label = "Melee share", value = Pct(sh.melee + sh.imbue), sub = ("spells %d%%, totem %d%%"):format(math.floor(sh.spell + 0.5), math.floor(sh.totem + 0.5)) }
+      return { label = L"Melee share", value = Pct(sh.melee + sh.imbue), sub = (L"spells %d%%, totem %d%%"):format(math.floor(sh.spell + 0.5), math.floor(sh.totem + 0.5)) }
     end)() or druid and (function()
       local _, sh = WA.Druid.Sources(f.ab, f.dmg)
-      return { label = "Cat Form share", value = Pct(sh.melee + sh.cat + sh.bleed), sub = ("bleed %d%%, spells %d%%"):format(math.floor(sh.bleed + 0.5), math.floor(sh.spell + 0.5)) }
+      return { label = L"Cat Form share", value = Pct(sh.melee + sh.cat + sh.bleed), sub = (L"bleed %d%%, spells %d%%"):format(math.floor(sh.bleed + 0.5), math.floor(sh.spell + 0.5)) }
     end)() or warlock and (function()
       local _, sh = WA.Warlock.Sources(f.ab, f.dmg)
-      return { label = "DoT share", value = Pct(sh.dot + sh.drain), sub = ("demon %d%%, wand %d%%"):format(math.floor(sh.pet + 0.5), math.floor(sh.wand + 0.5)) }
+      return { label = L"DoT share", value = Pct(sh.dot + sh.drain), sub = (L"demon %d%%, wand %d%%"):format(math.floor(sh.pet + 0.5), math.floor(sh.wand + 0.5)) }
     end)() or mage and (function()
       local _, sh = WA.Mage.Sources(f.ab, f.dmg)
-      return { label = "Direct spells", value = Pct(sh.nuke), sub = ("AoE %d%%, wand %d%%"):format(math.floor(sh.aoe + 0.5), math.floor(sh.wand + 0.5)) }
+      return { label = L"Direct spells", value = Pct(sh.nuke), sub = (L"AoE %d%%, wand %d%%"):format(math.floor(sh.aoe + 0.5), math.floor(sh.wand + 0.5)) }
     end)() or warrior and (function()
       local _, sh = WA.Warrior.Sources(f.ab, f.dmg)
-      return { label = "White hit share", value = Pct(sh.melee), sub = ("Heroic Strike %d%%, special %d%%"):format(math.floor(sh.hs + 0.5), math.floor(sh.special + 0.5)) }
+      return { label = L"White hit share", value = Pct(sh.melee), sub = ("Heroic Strike %d%%, special %d%%"):format(math.floor(sh.hs + 0.5), math.floor(sh.special + 0.5)) }
     end)() or priest and (function()
       local _, sh = WA.Priest.Sources(f.ab, f.dmg)
-      return { label = "Spell share", value = Pct(sh.nuke + sh.flay + sh.dot), sub = ("DoT %d%%, wand %d%%"):format(math.floor(sh.dot + 0.5), math.floor(sh.wand + 0.5)) }
+      return { label = L"Spell share", value = Pct(sh.nuke + sh.flay + sh.dot), sub = (L"DoT %d%%, wand %d%%"):format(math.floor(sh.dot + 0.5), math.floor(sh.wand + 0.5)) }
     end)() or paladin and (function()
       local _, sh = WA.Paladin.Sources(f.ab, f.dmg)
-      return { label = "White hit share", value = Pct(sh.melee), sub = ("seal %d%%, Holy Strike %d%%"):format(math.floor(sh.seal + 0.5), math.floor(sh.hs + 0.5)) }
-    end)() or { label = "Damage", value = tostring(f.dmg or 0), sub = (f.ab and #f.ab or 0) .. " abilities" },
-    { label = "Length", value = F1(f.dur) .. " s", sub = f.casts and (#f.casts .. " uses") or "" },
+      return { label = L"White hit share", value = Pct(sh.melee), sub = ("seal %d%%, Holy Strike %d%%"):format(math.floor(sh.seal + 0.5), math.floor(sh.hs + 0.5)) }
+    end)() or { label = L"Damage", value = tostring(f.dmg or 0), sub = (f.ab and #f.ab or 0) .. L" abilities" },
+    { label = L"Length", value = F1(f.dur) .. L" s", sub = f.casts and (#f.casts .. L" uses") or "" },
   } }
   if f.source == "live" and not f.detailed then
-    out[#out + 1] = { tips = { { level = "info", text = "No hit table in this fight: the addon only counts the target's hits while you play solo." } } }
+    out[#out + 1] = { tips = { { level = "info", text = L"No hit table in this fight: the addon only counts the target's hits while you play solo." } } }
   end
 
   local list = {}
   for i = 1, math.min(60, #all) do
     local x = all[i]
     local s2 = Score(x)
-    list[#list + 1] = { cells = { Cell(date("%m/%d %H:%M", x.start), x.start), TargetName(x) .. ((x.targetLevel or 0) > 0 and (" (" .. x.targetLevel .. ")") or ""),
+    list[#list + 1] = { cells = { Cell(date(L"%m/%d %H:%M", x.start), x.start), TargetName(x) .. ((x.targetLevel or 0) > 0 and (" (" .. x.targetLevel .. ")") or ""),
       Cell((x.dur or 0) > 0 and F1(x.dmg / x.dur) or "–", (x.dur or 0) > 0 and x.dmg / x.dur or -1), Cell(Grade(s2), s2 and s2.total or -1),
-      Cell(F1(x.dur) .. " s", x.dur), SOURCE_NAME[x.source or "log"] or "?" },
+      Cell(F1(x.dur) .. L" s", x.dur), SOURCE_NAME[x.source or "log"] or "?" },
       selected = x == f, onClick = function() UI.selFight = x.start UI.cache.combat = nil UI.Draw() end }
   end
-  out[#out + 1] = Section("combat.list", "Fights", { { table = { id = "combat.list", cols = { { "When", 90 }, { "Target", 0, flex = true },
-    { "DPS", 64, "RIGHT" }, { "Points", 74, "RIGHT" }, { "Length", 70, "RIGHT", extra = true }, { "Source", 96, extra = true } }, rows = list, limit = 6 } } }, true, #all)
+  out[#out + 1] = Section("combat.list", L"Fights", { { table = { id = "combat.list", cols = { { L"When", 90 }, { L"Target", 0, flex = true },
+    { "DPS", 64, "RIGHT" }, { L"Points", 74, "RIGHT" }, { L"Length", 70, "RIGHT", extra = true }, { L"Source", 96, extra = true } }, rows = list, limit = 6 } } }, true, #all)
 
   -- where every number above comes from, and what kind of number it is
-  local STATUS_COLOR = { ["measured"] = HEX.good, ["estimated"] = HEX.gold, ["simulated"] = "8fb8ff", ["not assessable"] = HEX.warn }
+  local STATUS_COLOR = { [L"measured"] = HEX.good, [L"estimated"] = HEX.gold, [L"simulated"] = "8fb8ff", [L"not assessable"] = HEX.warn }
   local provRows = {}
   for _, r in ipairs(prov) do
     provRows[#provRows + 1] = { cells = { r.label, Color(STATUS_COLOR[r.status] or "ffffff", r.status), Cell(r.text, r.value or -1), r.from },
       tip = r.label .. ": " .. r.from }
   end
-  out[#out + 1] = Section("combat.prov", "Where the numbers come from", { { p = "measured: summed from the source · estimated: from indirect data · simulated: computed by a model · " ..
-    "not assessable: no data for it (shown as –, not 0).", muted = true },
-    { table = { id = "combat.prov", cols = { { "What", 190 }, { "Status", 104 }, { "Value", 80, "RIGHT" }, { "From", 0, flex = true } },
+  out[#out + 1] = Section("combat.prov", L"Where the numbers come from", { { p = L"measured: summed from the source · estimated: from indirect data · simulated: computed by a model · " ..
+    L"not assessable: no data for it (shown as –, not 0).", muted = true },
+    { table = { id = "combat.prov", cols = { { L"What", 190 }, { L"Status", 104 }, { L"Value", 80, "RIGHT" }, { L"From", 0, flex = true } },
       rows = provRows } } }, true, #prov)
 
   if sc then
@@ -1549,15 +1561,15 @@ function UI.pages.combat()
       local col = pct >= 0.8 and HEX.good or (pct >= 0.5 and HEX.gold or HEX.warn)
       rows[#rows + 1] = { p.label, Cell(Color(col, ("%d / %d"):format(math.floor(p.points + 0.5), p.max)), pct), p.text }
     end
-    out[#out + 1] = Section("combat.score", "Why the score is what it is", { { p = "The score compares your measured data with typical play; " ..
-      "a low part is not a proven mistake on its own (see the advice for what can be proven).", muted = true }, { table = { id = "combat.score",
-      cols = { { "What counts", 210 }, { "Points", 70, "RIGHT" }, { "Details", 0, flex = true } }, rows = rows } } }, true)
+    out[#out + 1] = Section("combat.score", L"Why the score is what it is", { { p = L"The score compares your measured data with typical play; " ..
+      L"a low part is not a proven mistake on its own (see the advice for what can be proven).", muted = true }, { table = { id = "combat.score",
+      cols = { { L"What counts", 210 }, { L"Points", 70, "RIGHT" }, { L"Details", 0, flex = true } }, rows = rows } } }, true)
   end
 
   local ab = {}
   for _, a in ipairs(f.ab or {}) do ab[#ab + 1] = a end
   WA.Model.Stable(ab, function(a, b) return (a.dmg or 0) > (b.dmg or 0) end)
-  out[#out + 1] = Section("combat.fab", "Abilities in this fight", { { table = { id = "combat.fab", cols = ABILITY_COLS,
+  out[#out + 1] = Section("combat.fab", L"Abilities in this fight", { { table = { id = "combat.fab", cols = ABILITY_COLS,
     rows = AbilityRows(ab, f.dmg or 0) } } }, true, #ab)
 
   if f.casts and #f.casts > 0 then
@@ -1566,8 +1578,8 @@ function UI.pages.combat()
       rows[#rows + 1] = { Cell(Clock(c[1]), c[1]), c[2], Cell((c[3] or -1) >= 0 and c[3] or "–", c[3] or -1),
         Cell((c[4] or 0) > 0 and c[4] or "", c[4] or 0), Cell(i, i) }
     end
-    out[#out + 1] = Section("combat.casts", "What you used when", { { table = { id = "combat.casts", cols = { { "Time", 70 },
-      { "Ability", 0, flex = true }, { "Energy", 70, "RIGHT" }, { "Combo", 60, "RIGHT" }, { "#", 40, "RIGHT", extra = true } }, rows = rows, limit = 12 } } },
+    out[#out + 1] = Section("combat.casts", L"What you used when", { { table = { id = "combat.casts", cols = { { L"Time", 70 },
+      { L"Ability", 0, flex = true }, { L"Energy", 70, "RIGHT" }, { "Combo", 60, "RIGHT" }, { "#", 40, "RIGHT", extra = true } }, rows = rows, limit = 12 } } },
       false, #f.casts)
   end
 
@@ -1585,32 +1597,32 @@ function UI.pages.combat()
   if #r.advice > 0 then
     local tips = {}
     for _, a in ipairs(r.advice) do tips[#tips + 1] = { level = a.level, title = a.title, text = a.text } end
-    out[#out + 1] = Section("combat.advice", "Advice from all your fights", { { tips = tips } }, true, #tips)
+    out[#out + 1] = Section("combat.advice", L"Advice from all your fights", { { tips = tips } }, true, #tips)
   end
   local blocks = {
-    { p = ("%d fights, %d min, average %s DPS%s"):format(r.fights, math.floor(r.seconds / 60 + 0.5), F1(r.dps),
-      r.energyCappedPct and (" · at the energy cap " .. Pct(r.energyCappedPct)) or "") },
-    { p = ("Auto-attack: %s miss, %s dodge, %s glancing, %s crit · abilities: %s miss, %s crit")
+    { p = (L"%d fights, %d min, average %s DPS%s"):format(r.fights, math.floor(r.seconds / 60 + 0.5), F1(r.dps),
+      r.energyCappedPct and (L" · at the energy cap " .. Pct(r.energyCappedPct)) or "") },
+    { p = (L"Auto-attack: %s miss, %s dodge, %s glancing, %s crit · abilities: %s miss, %s crit")
       :format(Pct(r.white.miss), Pct(r.white.dodge), Pct(r.white.glance), Pct(r.white.crit), Pct(r.yellow.miss), Pct(r.yellow.crit)), muted = true },
     { table = { id = "combat.ab", cols = ABILITY_COLS, rows = AbilityRows(r.abilities, r.damage) } },
   }
   if #r.finishers > 0 or #r.auras > 0 then
     local rows2 = {}
-    for _, x in ipairs(r.finishers) do rows2[#rows2 + 1] = { x.name, "finisher", Cell(x.casts .. " ×, average " .. F1(x.avgCp) .. " CP", x.casts) } end
+    for _, x in ipairs(r.finishers) do rows2[#rows2 + 1] = { x.name, "finisher", Cell(x.casts .. L" ×, average " .. F1(x.avgCp) .. " CP", x.casts) } end
     for _, x in ipairs(r.auras) do rows2[#rows2 + 1] = { x.name, "buff", Cell(Pct(x.uptimePct) .. " uptime", x.uptimePct) } end
-    blocks[#blocks + 1] = { h = "Finishers and buffs" }
-    blocks[#blocks + 1] = { table = { id = "combat.fin", cols = { { "Name", 0, flex = true }, { "Kind", 90 }, { "Value", 220 } }, rows = rows2 } }
+    blocks[#blocks + 1] = { h = L"Finishers and buffs" }
+    blocks[#blocks + 1] = { table = { id = "combat.fin", cols = { { L"Name", 0, flex = true }, { L"Kind", 90 }, { L"Value", 220 } }, rows = rows2 } }
   end
   if #r.byLevel > 0 then
     local rows3 = {}
     for _, x in ipairs(r.byLevel) do
       rows3[#rows3 + 1] = { Cell((x.diff > 0 and "+" or "") .. x.diff, x.diff), Cell(x.fights, x.fights), Cell(F1(x.dps), x.dps), Cell(Pct(x.missPct), x.missPct) }
     end
-    blocks[#blocks + 1] = { h = "By target level" }
-    blocks[#blocks + 1] = { table = { id = "combat.lvl", cols = { { "Level difference", 0, flex = true }, { "Combat", 70, "RIGHT" },
-      { "DPS", 80, "RIGHT" }, { "White miss", 90, "RIGHT" } }, rows = rows3 } }
+    blocks[#blocks + 1] = { h = L"By target level" }
+    blocks[#blocks + 1] = { table = { id = "combat.lvl", cols = { { L"Level difference", 0, flex = true }, { L"Combat", 70, "RIGHT" },
+      { "DPS", 80, "RIGHT" }, { L"White miss", 90, "RIGHT" } }, rows = rows3 } }
   end
-  out[#out + 1] = Section("combat.all", "Summary, all fights", blocks, false, r.fights)
+  out[#out + 1] = Section("combat.all", L"Summary, all fights", blocks, false, r.fights)
   -- the model behind the numbers: the engine's status for every spec of your class, the addon's
   -- own model, and the reference functions that apply to you (spec §6)
   do
@@ -1625,8 +1637,8 @@ function UI.pages.combat()
       for i, t in ipairs(cm.tabs) do
         local mine = mainTab == i
         rows5[#rows5 + 1] = { (mine and "> " or "") .. cm.name .. " " .. t[1], t[2],
-          cm.waystone and "yes (leveling model)" or "no",
-          C.SIM_STATUS_TEXT[t[2]] .. (mine and (" · the model counts with this one (" .. pts .. " points)") or "") }
+          cm.waystone and (L"yes (leveling model)") or (L"no"),
+          C.SIM_STATUS_TEXT[t[2]] .. (mine and (L" · the model counts with this one (" .. pts .. L" points)") or "") }
       end
       local refs = {}
       local function Ref(label, value, from) refs[#refs + 1] = { label, value, from } end
@@ -1635,7 +1647,7 @@ function UI.pages.combat()
         local sub = link and GetItemInfoInstant and select(7, GetItemInfoInstant(link)) or nil
         local per, norm = C.REF.SinisterStrikeAp(100, sub)
         if per then
-          Ref("Sinister Strike +100 AP", ("+%s"):format(F1(per)), ("100 × %s / 14 (your main hand's normalized speed; " .. C.REF.ssSource .. ")"):format(F1(norm)))
+          Ref("Sinister Strike +100 AP", ("+%s"):format(F1(per)), (L"100 × %s / 14 (your main hand's normalized speed; " .. C.REF.ssSource .. ")"):format(F1(norm)))
         end
       end
       if class == "HUNTER" then
@@ -1643,37 +1655,37 @@ function UI.pages.combat()
         local rb, rpos, rneg = UnitRangedAttackPower and UnitRangedAttackPower("player")
         local melee = (base or 0) + (pos or 0) + (neg or 0)
         local ranged = (rb or 0) + (rpos or 0) + (rneg or 0)
-        Ref("Pet's inherited AP", ("+%d"):format(math.floor(C.REF.HunterPetAp(melee, ranged) + 0.5)),
-          ("0.10 × max(%d melee, %d ranged AP); fixed when summoned, does not change until resummoned (%s)"):format(melee, ranged, C.REF.petSource))
+        Ref(L"Pet's inherited AP", ("+%d"):format(math.floor(C.REF.HunterPetAp(melee, ranged) + 0.5)),
+          (L"0.10 × max(%d melee, %d ranged AP); fixed when summoned, does not change until resummoned (%s)"):format(melee, ranged, C.REF.petSource))
       end
       if class == "WARLOCK" and GetSpellBonusDamage then
         -- the game's per-school numbers already include the general bonus: S = max(shadow, fire)
         local shadow, fire = GetSpellBonusDamage(6) or 0, GetSpellBonusDamage(3) or 0
         local ap, sp, s = C.REF.WarlockDemon(0, shadow, fire)
-        Ref("Demon's inherited AP / spell damage", ("+%d / +%d"):format(math.floor(ap + 0.5), math.floor(sp + 0.5)),
-          ("S = max(%d shadow, %d fire) = %d (the game's per-school value already includes the general bonus); 0.17 × S and 0.10 × S (%s)"):format(shadow, fire, s, C.REF.demonSource))
+        Ref(L"Demon's inherited AP / spell damage", ("+%d / +%d"):format(math.floor(ap + 0.5), math.floor(sp + 0.5)),
+          (L"S = max(%d shadow, %d fire) = %d (the game's per-school value already includes the general bonus); 0.17 × S and 0.10 × S (%s)"):format(shadow, fire, s, C.REF.demonSource))
       end
       -- WA-030: which spec the model counts for and why; chosen by hand for a mixed build
-      local specButtons = { { label = "Spec: automatic", width = 140, active = not spec.manual, onClick = function()
+      local specButtons = { { label = L"Spec: automatic", width = 140, active = not spec.manual, onClick = function()
         WA.charDB.spec = nil UI.Refresh() end } }
       for i, name in ipairs(WA.Model.SPEC_NAMES[class] or {}) do
         specButtons[#specButtons + 1] = { label = name, width = 110, active = spec.manual and spec.tab == i, onClick = function()
           WA.charDB.spec = i UI.Refresh() end }
       end
       local blocks5 = {
-        { p = ("%s %s."):format(Color(HEX.gold, spec.name and ("The model counts for the %s spec:"):format(spec.name) or "Spec:"), spec.from or "–") },
+        { p = ("%s %s."):format(Color(HEX.gold, spec.name and (L"The model counts for the %s spec:"):format(spec.name) or "Spec:"), spec.from or "–") },
         { buttons = specButtons },
-        { p = ("WoWSims Forever (%s): the %s%s. The engine only builds level 60 characters%s."):format(C.SIM_SOURCE, cm.name,
-          cm.shared and (" " .. cm.shared .. " modeled after") or " specs are separate models",
-          level > 0 and level < 60 and (", so at your level (" .. level .. ") there is no same-level reference; your own measured data is still usable") or ""), muted = true },
-        { table = { id = "combat.models", cols = { { "Spec", 170 }, { "WoWSims", 90 }, { "Waystone", 120 }, { "What it means", 0, flex = true } }, rows = rows5 } },
+        { p = (L"WoWSims Forever (%s): the %s%s. The engine only builds level 60 characters%s."):format(C.SIM_SOURCE, cm.name,
+          cm.shared and (" " .. cm.shared .. L" modeled after") or (L" specs are separate models"),
+          level > 0 and level < 60 and (L", so at your level (" .. level .. L") there is no same-level reference; your own measured data is still usable") or ""), muted = true },
+        { table = { id = "combat.models", cols = { { "Spec", 170 }, { "WoWSims", 90 }, { "Waystone", 120 }, { L"What it means", 0, flex = true } }, rows = rows5 } },
       }
       if cm.note then blocks5[#blocks5 + 1] = { p = cm.note, muted = true } end
       if #refs > 0 then
-        blocks5[#blocks5 + 1] = { h = "Reference functions (the model's inputs)" }
-        blocks5[#blocks5 + 1] = { table = { id = "combat.refs", cols = { { "What", 190 }, { "Value", 90, "RIGHT" }, { "From", 0, flex = true } }, rows = refs } }
+        blocks5[#blocks5 + 1] = { h = L"Reference functions (the model's inputs)" }
+        blocks5[#blocks5 + 1] = { table = { id = "combat.refs", cols = { { L"What", 190 }, { L"Value", 90, "RIGHT" }, { L"From", 0, flex = true } }, rows = refs } }
       end
-      out[#out + 1] = Section("combat.models", "Model for your class" .. (spec.name and (" · " .. spec.name) or ""), blocks5, false, #rows5)
+      out[#out + 1] = Section("combat.models", L"Model for your class" .. (spec.name and (" · " .. spec.name) or ""), blocks5, false, #rows5)
     end
   end
   -- WA-006: the suggested rotation for your spec, beside your fights (a calculation, not a verdict)
@@ -1682,24 +1694,24 @@ function UI.pages.combat()
     if rot then
       out[#out + 1] = RotationSection(rot, r)
     elseif why then
-      out[#out + 1] = Section("combat.rot", "Suggested rotation", { { p = "No suggested rotation for this yet: " .. why .. ".", muted = true } }, false)
+      out[#out + 1] = Section("combat.rot", L"Suggested rotation", { { p = L"No suggested rotation for this yet: " .. why .. ".", muted = true } }, false)
     end
   end
   if r.cooldowns and #r.cooldowns > 0 then
     local rows4 = {}
     for _, u in ipairs(r.cooldowns) do
-      local from = ("%d fights, %d s of combat; of that, %d s on cooldown%s. Cooldown: %s")
+      local from = (L"%d fights, %d s of combat; of that, %d s on cooldown%s. Cooldown: %s")
         :format(u.fights, math.floor(u.seconds + 0.5), math.floor(u.active + 0.5),
-          u.carried > 0 and (" (" .. math.floor(u.carried + 0.5) .. " s carried over from the previous fight)") or "", u.source)
-      rows4[#rows4 + 1] = { u.name, Cell(u.cd >= 60 and (math.floor(u.cd / 60) .. " min") or (u.cd .. " s"), u.cd), Cell(u.casts, u.casts),
+          u.carried > 0 and (" (" .. math.floor(u.carried + 0.5) .. L" s carried over from the previous fight)") or "", u.source)
+      rows4[#rows4 + 1] = { u.name, Cell(u.cd >= 60 and (math.floor(u.cd / 60) .. L" min") or (u.cd .. L" s"), u.cd), Cell(u.casts, u.casts),
         u.pct and Cell(Pct(u.pct), u.pct) or Cell("–", -1), from }
     end
-    out[#out + 1] = Section("combat.cd", "Cooldown usage", {
-      { p = "measured, from the combat log's casts: the share of combat time the ability was on cooldown (" .. WA.Combat.CD_METHOD .. "; " ..
-        "instant abilities, so no cast time or GCD wait). Only cooldowns verified for Forever, and only fights after the first " ..
-        "use. A low value is not a mistake: the fight may be shorter than the cooldown, or the ability could not be used.", muted = true },
-      { table = { id = "combat.cd", cols = { { "Ability", 120 }, { "Cooldown", 70, "RIGHT" }, { "Cast", 50, "RIGHT" },
-        { "Usage", 90, "RIGHT" }, { "From", 0, flex = true } }, rows = rows4 } } }, true, #rows4)
+    out[#out + 1] = Section("combat.cd", L"Cooldown usage", {
+      { p = L"measured, from the combat log's casts: the share of combat time the ability was on cooldown (" .. WA.Combat.CD_METHOD .. "; " ..
+        L"instant abilities, so no cast time or GCD wait). Only cooldowns verified for Forever, and only fights after the first " ..
+        L"use. A low value is not a mistake: the fight may be shorter than the cooldown, or the ability could not be used.", muted = true },
+      { table = { id = "combat.cd", cols = { { L"Ability", 120 }, { "Cooldown", 70, "RIGHT" }, { "Cast", 50, "RIGHT" },
+        { L"Usage", 90, "RIGHT" }, { L"From", 0, flex = true } }, rows = rows4 } } }, true, #rows4)
   end
   return out
 end
@@ -1707,7 +1719,7 @@ end
 ---------------------------------------------------------------------------
 -- Pet (hunters): your pet, what to teach it, the best beasts for your level, the bestiary
 ---------------------------------------------------------------------------
-local HAPPY = { "|cffff5555unhappy|r", "|cffffd100content|r", "|cff55ff55happy|r" }
+local HAPPY = WA.LR { "|cffff5555unhappy|r", "|cffffd100content|r", "|cff55ff55happy|r" }
 local function FamilyHu(name)
   local f = WA.Pets.FAMILY[name]
   return f and f.hu or (name or "?")
@@ -1726,13 +1738,13 @@ local function BeastRow(e, level)
   return { cells = { Cell(name, b.name), Cell(FamilyHu(b.family), b.family),
     Cell(b.speed < 200 and Color(HEX.good, WA.Pets.SpeedLabel(b)) or WA.Pets.SpeedLabel(b), b.speed),
     Cell(("%.2f×"):format(factor), factor),
-    Cell(WA.Pets.Where(b) .. ((level and b.elite) and Color(HEX.warn, " – with a group") or ""), b.min),
+    Cell(WA.Pets.Where(b) .. ((level and b.elite) and Color(HEX.warn, L" – with a group") or ""), b.min),
     taught },
-    tip = ("%s – %s\nAttack speed: %s\nTeaches: %s"):format(b.name, Plain(FamilyHu(b.family)), WA.Pets.SpeedLabel(b),
-      taught ~= "" and taught or "nothing") }
+    tip = (L"%s – %s\nAttack speed: %s\nTeaches: %s"):format(b.name, Plain(FamilyHu(b.family)), WA.Pets.SpeedLabel(b),
+      taught ~= "" and taught or (L"nothing")) }
 end
-local BEAST_COLS = { { "Beast", 0, flex = true }, { "Family", 150 }, { "Attack", 96, "RIGHT" }, { "Damage", 60, "RIGHT" },
-  { "Where", 230 }, { "Teaches", 0, flex = true, extra = true } }
+local BEAST_COLS = WA.LR { { L"Beast", 0, flex = true }, { L"Family", 150 }, { L"Attack", 96, "RIGHT" }, { L"Damage", 60, "RIGHT" },
+  { L"Where", 230 }, { L"Teaches", 0, flex = true, extra = true } }
 
 -- Pet share of your damage in the recorded fights (the newest 50).
 local function PetShare()
@@ -1751,9 +1763,9 @@ local function PetShare()
 end
 
 function UI.pages.pet()
-  UI.head.pet = { "Pet", "What to teach your pet, where to tame a better one, and what each family is good for" }
+  UI.head.pet = { "Pet", L"What to teach your pet, where to tame a better one, and what each family is good for" }
   if G.Class() ~= "HUNTER" then
-    return { { empty = { "Hunters only", "The Pet page is about the hunter's pet." } } }
+    return { { empty = { L"Hunters only", L"The Pet page is about the hunter's pet." } } }
   end
   local PT = WA.Pets
   local level = UnitLevel("player") or 1
@@ -1762,63 +1774,63 @@ function UI.pages.pet()
   local share, nFights = PetShare()
   local tr = pet and PT.HasData() and PT.Training({ level = level, pet = pet, taught = G.Taught() }) or nil
   out[#out + 1] = { cards = {
-    { label = "Pet", value = pet and (pet.name or "?") or Muted("no"),
-      sub = pet and ("%s, level %s"):format(Plain(FamilyHu(pet.family)), tostring(pet.level or "?")) or "Call Pet / Tame Beast" },
-    { label = "Training point", value = tr and tostring(tr.left) or "–", sub = pet and pet.tp and ("total " .. pet.tp) or "" },
-    { label = "Mood", value = pet and pet.happiness and HAPPY[pet.happiness] or "–",
-      sub = pet and pet.loyalty and tostring(pet.loyalty) or "feed it to keep it happy" },
-    { label = "Pet share of your damage", value = share and Pct(share) or "–", sub = nFights > 0 and (nFights .. " fights") or "no recorded fights",
-      tip = "While leveling a good pet does 25–40% of your damage." },
+    { label = "Pet", value = pet and (pet.name or "?") or Muted(L"no"),
+      sub = pet and (L"%s, level %s"):format(Plain(FamilyHu(pet.family)), tostring(pet.level or "?")) or "Call Pet / Tame Beast" },
+    { label = "Training point", value = tr and tostring(tr.left) or "–", sub = pet and pet.tp and (L"total " .. pet.tp) or "" },
+    { label = L"Mood", value = pet and pet.happiness and HAPPY[pet.happiness] or "–",
+      sub = pet and pet.loyalty and tostring(pet.loyalty) or (L"feed it to keep it happy") },
+    { label = L"Pet share of your damage", value = share and Pct(share) or "–", sub = nFights > 0 and (nFights .. L" fights") or (L"no recorded fights"),
+      tip = L"While leveling a good pet does 25–40% of your damage." },
   } }
   local warn = {}
-  if not PT.HasData() then warn[#warn + 1] = "PetData.lua is missing (the list of beasts): node scripts/build-pets.mjs --install" end
-  if not G.Taught() then warn[#warn + 1] = "Open the Beast Training window once: that is how the addon sees which ranks you can already teach." end
-  if pet and not UnitExists("pet") then warn[#warn + 1] = "Your pet is not out now: showing the state it was last seen in." end
+  if not PT.HasData() then warn[#warn + 1] = L"PetData.lua is missing (the list of beasts): node scripts/build-pets.mjs --install" end
+  if not G.Taught() then warn[#warn + 1] = L"Open the Beast Training window once: that is how the addon sees which ranks you can already teach." end
+  if pet and not UnitExists("pet") then warn[#warn + 1] = L"Your pet is not out now: showing the state it was last seen in." end
   Add(out, Warnings(warn))
 
   if tr then
-    local STATUS = { teach = Color(HEX.good, "teach"), tame = Color(HEX.gold, "tame"), done = Muted("learned"),
-      later = Muted("later"), skip = Muted("do not teach") }
+    local STATUS = { teach = Color(HEX.good, L"teach"), tame = Color(HEX.gold, L"tame"), done = Muted(L"learned"),
+      later = Muted(L"later"), skip = Muted(L"do not teach") }
     local ORDER = { teach = 1, tame = 2, done = 3, later = 4, skip = 5 }
     local rows = {}
     for _, r in ipairs(tr.rows) do
       local how
       if r.status == "teach" then
-        how = "in the Beast Training window" .. (r.fits == false and Color(HEX.warn, " (not enough training points)") or "")
+        how = L"in the Beast Training window" .. (r.fits == false and Color(HEX.warn, L" (not enough training points)") or "")
       elseif r.status == "tame" then
         local t = {}
         for _, b in ipairs(r.teachers or {}) do t[#t + 1] = b.name .. Muted(" – " .. PT.Where(b)) end
-        if #t > 0 then how = "Tame: " .. table.concat(t, "; ")
-        elseif r.laterTeacher then how = Muted(("From level %d: "):format(r.laterTeacher.min)) .. r.laterTeacher.name .. Muted(" – " .. PT.Where(r.laterTeacher))
-        else how = Muted("no tameable beast teaches it") end
+        if #t > 0 then how = L"Tame: " .. table.concat(t, "; ")
+        elseif r.laterTeacher then how = Muted((L"From level %d: "):format(r.laterTeacher.min)) .. r.laterTeacher.name .. Muted(" – " .. PT.Where(r.laterTeacher))
+        else how = Muted(L"no tameable beast teaches it") end
       elseif r.status == "later" then
-        how = r.petLevel and ("pet level " .. r.petLevel .. "+") or ""
+        how = r.petLevel and L("pet level %s+"):format(r.petLevel) or ""
       elseif r.status == "skip" then
         how = r.hu
       else
-        how = r.next and Muted(("next rank: pet level %d"):format(r.next.level)) or Muted("the highest rank")
+        how = r.next and Muted((L"next rank: pet level %d"):format(r.next.level)) or Muted(L"the highest rank")
       end
       local rank = r.status == "done" and tostring(r.have) or ((r.have > 0 and (r.have .. " → ") or "") .. tostring(r.rank or "?"))
       rows[#rows + 1] = { cells = { r.ability, Cell(STATUS[r.status] or r.status, ORDER[r.status] or 9), rank,
         Cell((r.tp and r.status ~= "done") and r.tp or "", r.tp or 0), how },
         tip = r.ability .. ": " .. (r.hu or "") .. (r.desc and ("\n" .. r.desc) or "") }
     end
-    out[#out + 1] = Section("pet.train", "What to teach your pet", { { p = ("%s, level %d, %d free training points. The pet can only learn a rank " ..
-      "you have already learned from a tamed beast (Beast Training); a new rank gives back the old one's points."):format(Plain(FamilyHu(tr.family)), pet.level or 0, tr.left),
+    out[#out + 1] = Section("pet.train", L"What to teach your pet", { { p = (L"%s, level %d, %d free training points. The pet can only learn a rank " ..
+      L"you have already learned from a tamed beast (Beast Training); a new rank gives back the old one's points."):format(Plain(FamilyHu(tr.family)), pet.level or 0, tr.left),
       muted = true },
-      { table = { id = "pet.train", cols = { { "Ability", 130 }, { "To do", 80 }, { "Rank", 60 }, { "TP", 40, "RIGHT" }, { "How", 0, flex = true } },
+      { table = { id = "pet.train", cols = { { L"Ability", 130 }, { L"To do", 80 }, { L"Rank", 60 }, { "TP", 40, "RIGHT" }, { L"How", 0, flex = true } },
         rows = rows } } }, true, #rows)
   elseif pet then
-    Add(out, { tips = { { level = "info", text = ("The pet's family (%s) is not in the data."):format(tostring(pet.family)) } } })
+    Add(out, { tips = { { level = "info", text = (L"The pet's family (%s) is not in the data."):format(tostring(pet.family)) } } })
   end
 
   if PT.HasData() then
     local best = PT.Best(level, 8)
     local rows = {}
     for _, e in ipairs(best.dps) do rows[#rows + 1] = BeastRow(e, level) end
-    out[#out + 1] = Section("pet.best", "Best damage pet for your level", { { p = "Damage = the family's multiplier × the attack speed " ..
-      "(a normal 2.0 s pet is 1.00×). By the Classic rule a pet does the same damage per hit, so a faster beast does more DPS. " ..
-      "Beasts close to your level first; ★ rare.", muted = true },
+    out[#out + 1] = Section("pet.best", L"Best damage pet for your level", { { p = L"Damage = the family's multiplier × the attack speed " ..
+      L"(a normal 2.0 s pet is 1.00×). By the Classic rule a pet does the same damage per hit, so a faster beast does more DPS. " ..
+      L"Beasts close to your level first; ★ rare.", muted = true },
       { table = { id = "pet.best", cols = BEAST_COLS, rows = rows } } }, true, #rows)
     local tank = {}
     for _, e in ipairs(best.tank) do
@@ -1826,8 +1838,8 @@ function UI.pages.pet()
       row.cells[4] = Cell(("%.2f×"):format(e.factor), e.factor)
       tank[#tank + 1] = row
     end
-    out[#out + 1] = Section("pet.tank", "Best tank pet (for elites, many mobs)", { { p = "Toughness = the family's armor × health multiplier.", muted = true },
-      { table = { id = "pet.tank", cols = { BEAST_COLS[1], BEAST_COLS[2], BEAST_COLS[3], { "Toughness", 60, "RIGHT" }, BEAST_COLS[5], BEAST_COLS[6] },
+    out[#out + 1] = Section("pet.tank", L"Best tank pet (for elites, many mobs)", { { p = L"Toughness = the family's armor × health multiplier.", muted = true },
+      { table = { id = "pet.tank", cols = { BEAST_COLS[1], BEAST_COLS[2], BEAST_COLS[3], { L"Toughness", 60, "RIGHT" }, BEAST_COLS[5], BEAST_COLS[6] },
         rows = tank } } }, false, #tank)
 
     local fams = {}
@@ -1838,24 +1850,24 @@ function UI.pages.pet()
       table.sort(ab)
       fams[#fams + 1] = { cells = { Cell(FamilyHu(name), name), Cell(f.dmg and ("%.2f"):format(f.dmg) or "?", f.dmg or 1),
         Cell(f.armor and ("%.2f"):format(f.armor) or "?", f.armor or 1), Cell(f.hp and ("%.2f"):format(f.hp) or "?", f.hp or 1),
-        Cell(info.fastest < 200 and Color(HEX.good, ("%.1f s"):format(info.fastest / 100)) or "2.0 s", info.fastest),
+        Cell(info.fastest < 200 and Color(HEX.good, (L"%.1f s"):format(info.fastest / 100)) or (L"2.0 s"), info.fastest),
         f.diet and table.concat(f.diet, ", ") or Muted("?"), f.role or "", table.concat(ab, ", ") },
-        tip = (f.role or "") .. "\nSpecial: " .. (f.sig or "?") .. "\n" .. info.count .. " tameable beasts, level " .. info.minLevel .. "+" }
+        tip = (f.role or "") .. L"\nSpecial: " .. (f.sig or "?") .. "\n" .. info.count .. L" tameable beasts, level " .. info.minLevel .. L"+" }
     end
     WA.Model.Stable(fams, function(a, b)
       if a.cells[2][2] ~= b.cells[2][2] then return a.cells[2][2] > b.cells[2][2] end
       return a.cells[5][2] < b.cells[5][2]
     end)
-    out[#out + 1] = Section("pet.fam", "Families (strongest damage first)", { { table = { id = "pet.fam", limit = 20, cols = { { "Family", 170 }, { "Damage", 56, "RIGHT" },
-      { "Armor", 56, "RIGHT" }, { "Health", 50, "RIGHT" }, { "Fastest", 80, "RIGHT" }, { "Eats", 120, extra = true },
-      { "Good for", 0, flex = true }, { "Abilities", 220, extra = true } }, rows = fams } } }, true, #fams)
+    out[#out + 1] = Section("pet.fam", L"Families (strongest damage first)", { { table = { id = "pet.fam", limit = 20, cols = { { L"Family", 170 }, { L"Damage", 56, "RIGHT" },
+      { L"Armor", 56, "RIGHT" }, { L"Health", 50, "RIGHT" }, { L"Fastest", 80, "RIGHT" }, { L"Eats", 120, extra = true },
+      { L"Good for", 0, flex = true }, { L"Abilities", 220, extra = true } }, rows = fams } } }, true, #fams)
 
     local all = {}
     for _, b in ipairs(PT.Beasts()) do
       if b.min > 0 then all[#all + 1] = BeastRow({ beast = b }, nil) end
     end
-    out[#out + 1] = Section("pet.all", "Bestiary: every tameable beast", { { p = "Search by name, family, zone or ability " ..
-      "(for example \"Claw 6\", \"Wetlands\", \"Cat\").", muted = true },
+    out[#out + 1] = Section("pet.all", L"Bestiary: every tameable beast", { { p = L"Search by name, family, zone or ability " ..
+      L"(for example \"Claw 6\", \"Wetlands\", \"Cat\").", muted = true },
       { table = { id = "pet.all", cols = BEAST_COLS, rows = all, limit = 15 } } }, false, #all)
 
     local abRows = {}
@@ -1864,10 +1876,10 @@ function UI.pages.pet()
         abRows[#abRows + 1] = { cells = { name, Cell(r.rank, r.rank), Cell(r.level, r.level), Cell(r.tp, r.tp), r.desc or "" }, tip = PT.ABILITY[name].hu }
       end
     end
-    out[#out + 1] = Section("pet.ranks", "Abilities by rank", { { table = { id = "pet.ranks", cols = { { "Ability", 130 }, { "Rank", 44, "RIGHT" },
-      { "Pet level", 64, "RIGHT" }, { "TP", 40, "RIGHT" }, { "What it does (Wowhead)", 0, flex = true } }, rows = abRows, limit = 12 } } }, false, #abRows)
+    out[#out + 1] = Section("pet.ranks", L"Abilities by rank", { { table = { id = "pet.ranks", cols = { { L"Ability", 130 }, { L"Rank", 44, "RIGHT" },
+      { L"Pet level", 64, "RIGHT" }, { "TP", 40, "RIGHT" }, { L"What it does (Wowhead)", 0, flex = true } }, rows = abRows, limit = 12 } } }, false, #abRows)
   end
-  UI.status = pet and ("%s · level %d"):format(pet.name or "pet", pet.level or 0) or "no pet"
+  UI.status = pet and (L"%s · level %d"):format(pet.name or "pet", pet.level or 0) or (L"no pet")
   return out
 end
 
@@ -1889,47 +1901,47 @@ local function EnchantBlocks(ctx)
     end
   end
   out[#out + 1] = { buttons = {
-    { label = "Role: automatic", width = 150, active = cur == nil, onClick = Pick(nil) },
+    { label = L"Role: automatic", width = 150, active = cur == nil, onClick = Pick(nil) },
     { label = "DPS", width = 70, active = cur == "dps", onClick = Pick("dps") },
     { label = "Tank", width = 70, active = cur == "tank", onClick = Pick("tank") },
-    { label = "Healer", width = 90, active = cur == "healer", onClick = Pick("healer") },
+    { label = L"Healer", width = 90, active = cur == "healer", onClick = Pick("healer") },
   } }
   local how
-  if r.useModel then how = "the value is the damage model's DPS with your current item"
-  elseif r.profile then how = ("the value is the %s weight (EP, %s %s)"):format(r.profile.name, WA.Enchant.SIM, r.profile.source)
-  else how = "no damage model or weight table for this class yet: enchants cannot be ranked without scoring" end
+  if r.useModel then how = L"the value is the damage model's DPS with your current item"
+  elseif r.profile then how = (L"the value is the %s weight (EP, %s %s)"):format(r.profile.name, WA.Enchant.SIM, r.profile.source)
+  else how = L"no damage model or weight table for this class yet: enchants cannot be ranked without scoring" end
   out[#out + 1] = { p = ("%s: %s. %s."):format(Color(HEX.gold, WA.Enchant.ROLE_HU[r.role]), r.reason, how) .. (r.borrowed and (" " .. Color(HEX.warn, r.borrowed .. ".")) or "") }
   if r.missing then
-    out[#out + 1] = { tips = { { level = "warn", text = "Enchants.lua is missing: node scripts/build-enchants.mjs --install" } } }
+    out[#out + 1] = { tips = { { level = "warn", text = L"Enchants.lua is missing: node scripts/build-enchants.mjs --install" } } }
     return out, 0
   end
   local rows, n = {}, 0
   for _, s in ipairs(r.slots) do
     for i, b in ipairs(s.best) do
       if i == 1 then n = n + 1 end
-      local now = i == 1 and ((s.current or "–") .. " · " .. (s.enchant and Color(HEX.good, "enchanted") or Color(HEX.warn, "no enchant"))) or ""
+      local now = i == 1 and ((s.current or "–") .. " · " .. (s.enchant and Color(HEX.good, L"enchanted") or Color(HEX.warn, L"no enchant"))) or ""
       local value = r.useModel and Gain(b.value) or Color(HEX.good, F1(b.value))
       rows[#rows + 1] = { cells = { Cell(i == 1 and (WA.Model.SLOT_HU[(s.slot:gsub("_[12]$", ""))] or s.slot) or "", s.slot .. i),
         Cell(b.name:gsub("^Enchant ", ""), b.name), Cell(value, b.value), b.effect,
         Cell(b.cost and (Money(b.cost) .. (b.partial and "+?" or "")) or "?", b.cost or math.huge),
-        Cell(b.skill .. (b.trainer and "" or Muted(" recipe")), b.skill), now },
-        tip = b.detail .. (b.partial and "\n(a reagent's price is unknown)" or ""), first = i == 1 }
+        Cell(b.skill .. (b.trainer and "" or Muted(L" recipe")), b.skill), now },
+        tip = b.detail .. (b.partial and (L"\n(a reagent's price is unknown)") or ""), first = i == 1 }
     end
   end
   local detail = State().detail["gear.enchant"]
   local shown = {}
   for _, row in ipairs(rows) do if detail or row.first then shown[#shown + 1] = row end end
-  out[#out + 1] = { table = { id = "gear.enchant", cols = { { "Slot", 92 }, { "Enchant", 0, flex = true }, { r.unit, 56, "RIGHT" },
-    { "What it gives", 170 }, { "Reagents", 92, "RIGHT" }, { "Skill", 70, "RIGHT", extra = true }, { "Now", 230, extra = true } },
-    rows = shown, empty = "No scorable enchant for this role on any item you wear." } }
+  out[#out + 1] = { table = { id = "gear.enchant", cols = { { L"Slot", 92 }, { "Enchant", 0, flex = true }, { r.unit, 56, "RIGHT" },
+    { L"What it gives", 170 }, { L"Reagents", 92, "RIGHT" }, { "Skill", 70, "RIGHT", extra = true }, { L"Now", 230, extra = true } },
+    rows = shown, empty = L"No scorable enchant for this role on any item you wear." } }
   if #r.procs > 0 then
-    out[#out + 1] = { p = Muted("Proc enchants, unscored (their rate is not given): " .. table.concat(r.procs, ", "):gsub("Enchant ", "")) }
+    out[#out + 1] = { p = Muted(L"Proc enchants, unscored (their rate is not given): " .. table.concat(r.procs, ", "):gsub("Enchant ", "")) }
   end
   if r.profile then
     local bits = {}
     for k, v in pairs(r.profile.w) do if v ~= 0 then bits[#bits + 1] = ("%s %s"):format(k, v) end end
     table.sort(bits)
-    out[#out + 1] = { p = Muted(("Weights (%s, %s): %s. Units: crit/hit/haste/dodge/block in rating (14/10/10/12/5 = 1%%), defense = rating, mhDps = weapon DPS."):format(
+    out[#out + 1] = { p = Muted((L"Weights (%s, %s): %s. Units: crit/hit/haste/dodge/block in rating (14/10/10/12/5 = 1%%), defense = rating, mhDps = weapon DPS."):format(
       r.profile.name, r.profile.source, table.concat(bits, ", "))), muted = true }
   end
   return out, n
@@ -1937,28 +1949,28 @@ end
 
 function UI.pages.gear()
   if not G.Supported() then
-    local out = NotSupported("gear", "Gear")
+    local out = NotSupported("gear", L"Gear")
     local blocks, n = EnchantBlocks(nil)
-    out[#out + 1] = Section("gear.enchant", "Enchants for your role", blocks, true, n)
+    out[#out + 1] = Section("gear.enchant", L"Enchants for your role", blocks, true, n)
     return out
   end
   local ctx = G.Context()
   local g = WA.Model.GearReport(ctx, 3)
   local sh = g.sheet
-  UI.head.gear = { "Gear", "The next upgrade for every slot: what it gives and where to get it" }
+  UI.head.gear = { L"Gear", L"The next upgrade for every slot: what it gives and where to get it" }
   local out = {}
-  local dpsCard = { label = "Estimated DPS", value = F1(g.baseline), sub = "without buffs " .. F1(g.unbuffed) .. (g.measuredDps and (" · measured " .. F1(g.measuredDps)) or "") }
+  local dpsCard = { label = L"Estimated DPS", value = F1(g.baseline), sub = L"without buffs " .. F1(g.unbuffed) .. (g.measuredDps and (L" · measured " .. F1(g.measuredDps)) or "") }
   if ctx.class == "HUNTER" then
     out[#out + 1] = { cards = {
       dpsCard,
-      { label = "Ranged AP", value = tostring(math.floor((sh.rap or 0) + 0.5)), sub = "ranged " .. Weapon(sh.ranged) },
-      { label = "Crit", value = Pct(sh.crit), sub = "ammo " .. ((sh.ammo or 0) > 0 and (F1(sh.ammo) .. " DPS") or "no") },
-      { label = "Hit", value = Pct(sh.hit), sub = (sh.haste or 1) > 1.001 and (("quiver +%d%% speed"):format(math.floor((sh.haste - 1) * 100 + 0.5))) or "no quiver" },
+      { label = "Ranged AP", value = tostring(math.floor((sh.rap or 0) + 0.5)), sub = L"ranged " .. Weapon(sh.ranged) },
+      { label = "Crit", value = Pct(sh.crit), sub = L"ammo " .. ((sh.ammo or 0) > 0 and (F1(sh.ammo) .. " DPS") or (L"no")) },
+      { label = "Hit", value = Pct(sh.hit), sub = (sh.haste or 1) > 1.001 and ((L"quiver +%d%% speed"):format(math.floor((sh.haste - 1) * 100 + 0.5))) or (L"no quiver") },
     } }
   elseif ctx.class == "SHAMAN" then
     out[#out + 1] = { cards = {
       dpsCard,
-      { label = "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)), sub = "weapon " .. Weapon(sh.mh) },
+      { label = "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)), sub = L"weapon " .. Weapon(sh.mh) },
       { label = "Crit", value = Pct(sh.crit), sub = "spell crit " .. Pct(sh.spellCrit or 0) },
       { label = "Spell power", value = tostring(math.floor((sh.sp or 0) + 0.5)), sub = "hit " .. Pct(sh.hit) },
     } }
@@ -1967,19 +1979,19 @@ function UI.pages.gear()
       dpsCard,
       { label = "Spell power", value = tostring(math.floor((sh.sp or 0) + 0.5)), sub = "shadow" },
       { label = "Spell crit", value = Pct(sh.spellCrit or 0), sub = "spell hit " .. Pct(sh.spellHit or 0) },
-      { label = "Wand", value = F1(WA.Warlock.WandDps(sh.wand)) .. " DPS", sub = Weapon(sh.wand) },
+      { label = L"Wand", value = F1(WA.Warlock.WandDps(sh.wand)) .. " DPS", sub = Weapon(sh.wand) },
     } }
   elseif ctx.class == "WARRIOR" then
     out[#out + 1] = { cards = {
       dpsCard,
-      { label = "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)), sub = "main hand " .. Weapon(sh.mh) },
-      { label = "Crit", value = Pct(sh.crit), sub = sh.oh and ("off hand " .. Weapon(sh.oh)) or "no second weapon" },
-      { label = "Rage / s", value = F1(WA.Warrior.WhiteRage(sh, ctx.params)), sub = "from white hits (Forever rule)" },
+      { label = "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)), sub = L"main hand " .. Weapon(sh.mh) },
+      { label = "Crit", value = Pct(sh.crit), sub = sh.oh and (L"off hand " .. Weapon(sh.oh)) or (L"no second weapon") },
+      { label = L"Rage / s", value = F1(WA.Warrior.WhiteRage(sh, ctx.params)), sub = L"from white hits (Forever rule)" },
     } }
   elseif ctx.class == "PALADIN" then
     out[#out + 1] = { cards = {
       dpsCard,
-      { label = "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)), sub = "weapon " .. Weapon(sh.mh) },
+      { label = "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)), sub = L"weapon " .. Weapon(sh.mh) },
       { label = "Crit", value = Pct(sh.crit), sub = "hit " .. Pct(sh.hit) },
       { label = "Spell power", value = tostring(math.floor((sh.sp or 0) + 0.5)), sub = "holy: Holy Strike, seal" },
     } }
@@ -1989,33 +2001,33 @@ function UI.pages.gear()
       { label = "Spell power", value = tostring(math.floor((sh.sp or 0) + 0.5)),
         sub = ("holy %d, shadow %d"):format(math.floor((sh.spHoly or 0) + 0.5), math.floor((sh.spShadow or 0) + 0.5)) },
       { label = "Spell crit", value = Pct(sh.spellCrit or 0), sub = "spell hit " .. Pct(sh.spellHit or 0) },
-      { label = "Wand", value = F1(WA.Priest.WandDps(sh.wand)) .. " DPS", sub = Weapon(sh.wand) },
+      { label = L"Wand", value = F1(WA.Priest.WandDps(sh.wand)) .. " DPS", sub = Weapon(sh.wand) },
     } }
   elseif ctx.class == "MAGE" then
     out[#out + 1] = { cards = {
       dpsCard,
       { label = "Spell power", value = tostring(math.floor((sh.sp or 0) + 0.5)), sub = ctx.params.school == "fire" and "fire (Fireball)" or "frost (Frostbolt)" },
       { label = "Spell crit", value = Pct(sh.spellCrit or 0), sub = "spell hit " .. Pct(sh.spellHit or 0) },
-      { label = "Wand", value = F1(WA.Mage.WandDps(sh.wand)) .. " DPS", sub = Weapon(sh.wand) },
+      { label = L"Wand", value = F1(WA.Mage.WandDps(sh.wand)) .. " DPS", sub = Weapon(sh.wand) },
     } }
   elseif ctx.class == "DRUID" then
     out[#out + 1] = { cards = {
       dpsCard,
       { label = ctx.params.cat and "Attack power (Cat)" or "Attack power", value = tostring(math.floor((sh.ap or 0) + 0.5)),
-        sub = ctx.params.cat and ("paw " .. F1(WA.Druid.PawAvg(sh.mh)) .. " DPS") or ("weapon " .. Weapon(sh.mh)) },
+        sub = ctx.params.cat and (L"paw " .. F1(WA.Druid.PawAvg(sh.mh)) .. " DPS") or (L"weapon " .. Weapon(sh.mh)) },
       { label = "Crit", value = Pct(sh.crit), sub = "spell crit " .. Pct(sh.spellCrit or 0) },
       { label = "Spell power", value = tostring(math.floor((sh.sp or 0) + 0.5)), sub = "hit " .. Pct(sh.hit) },
     } }
   else
     out[#out + 1] = { cards = {
       dpsCard,
-      { label = "Attack power", value = tostring(sh.ap or 0), sub = "main hand " .. Weapon(sh.mh) },
-      { label = "Crit", value = Pct(sh.crit), sub = "off hand " .. Weapon(sh.oh) },
+      { label = "Attack power", value = tostring(sh.ap or 0), sub = L"main hand " .. Weapon(sh.mh) },
+      { label = "Crit", value = Pct(sh.crit), sub = L"off hand " .. Weapon(sh.oh) },
       { label = "Hit", value = Pct(sh.hit), sub = "" },
     } }
   end
   if not WowAssistantData then
-    out[#out + 1] = { tips = { { level = "warn", text = "GameData.lua is missing (dungeon loot): node scripts/build-addon-recipes.mjs --install" } } }
+    out[#out + 1] = { tips = { { level = "warn", text = L"GameData.lua is missing (dungeon loot): node scripts/build-addon-recipes.mjs --install" } } }
   end
 
   -- the best upgrade for each slot first; the next ones with "Több oszlop"
@@ -2032,12 +2044,12 @@ function UI.pages.gear()
   for _, r in ipairs(rows) do if r.first then firsts[#firsts + 1] = r end end
   table.sort(firsts, function(a, b) return (a.cells[3][2] or 0) > (b.cells[3][2] or 0) end)
   local detail = State().detail["gear.best"]
-  out[#out + 1] = Section("gear.best", "Best upgrades", { { table = { id = "gear.best", cols = { { "Slot", 92 },
-    { "Item", 0, flex = true }, { "DPS", 56, "RIGHT" }, { "Source", 230 }, { "Now", 150, extra = true }, { "%", 52, "RIGHT", extra = true },
-    { "Drop", 52, "RIGHT", extra = true } }, rows = detail and rows or firsts, limit = 10 } } }, true, #firsts)
+  out[#out + 1] = Section("gear.best", L"Best upgrades", { { table = { id = "gear.best", cols = { { L"Slot", 92 },
+    { L"Item", 0, flex = true }, { "DPS", 56, "RIGHT" }, { L"Source", 230 }, { L"Now", 150, extra = true }, { "%", 52, "RIGHT", extra = true },
+    { L"Drop", 52, "RIGHT", extra = true } }, rows = detail and rows or firsts, limit = 10 } } }, true, #firsts)
 
   local eblocks, en = EnchantBlocks(ctx)
-  out[#out + 1] = Section("gear.enchant", "Enchants for your role", eblocks, true, en)
+  out[#out + 1] = Section("gear.enchant", L"Enchants for your role", eblocks, true, en)
 
   local checks, on = {}, 0
   for _, b in ipairs(g.buffs) do
@@ -2052,7 +2064,7 @@ function UI.pages.gear()
       end,
     }
   end
-  out[#out + 1] = Section("gear.buffs", "Buffs and consumables in the calculation", { { checks = checks, perRow = 2 } }, false, on)
+  out[#out + 1] = Section("gear.buffs", L"Buffs and consumables in the calculation", { { checks = checks, perRow = 2 } }, false, on)
 
   local drows = {}
   for _, d in ipairs(g.dungeons) do
@@ -2061,9 +2073,9 @@ function UI.pages.gear()
     drows[#drows + 1] = { d.name, d.levels, Cell(Gain(d.gain), d.gain), Cell(d.perRun and Gain(d.perRun) or "–", d.perRun or 0),
       Cell(#d.upgrades, #d.upgrades), table.concat(names, ", ") }
   end
-  out[#out + 1] = Section("gear.dungeons", "Dungeons", { { table = { id = "gear.dungeons", cols = { { "Dungeon", 0, flex = true },
-    { "Level", 60 }, { "Total DPS", 80, "RIGHT" }, { "Per run", 84, "RIGHT" }, { "Item", 50, "RIGHT", extra = true },
-    { "Best", 0, flex = true, extra = true } }, rows = drows } } }, false, #drows)
+  out[#out + 1] = Section("gear.dungeons", L"Dungeons", { { table = { id = "gear.dungeons", cols = { { "Dungeon", 0, flex = true },
+    { L"Level", 60 }, { L"Total DPS", 80, "RIGHT" }, { L"Per run", 84, "RIGHT" }, { L"Item", 50, "RIGHT", extra = true },
+    { L"Best", 0, flex = true, extra = true } }, rows = drows } } }, false, #drows)
 
   if #g.later > 0 then
     local lrows = {}
@@ -2071,30 +2083,30 @@ function UI.pages.gear()
       lrows[#lrows + 1] = { cells = { Cell(u.reqLevel, u.reqLevel), Cell(Item(u.name, u.quality), u.name), WA.Model.SLOT_HU[u.slot] or u.slot,
         Cell(Gain(u.gain), u.gain), u.dungeon .. (u.boss and (" · " .. u.boss) or "") }, itemId = u.itemId, tip = u.detail }
     end
-    out[#out + 1] = Section("gear.later", "A few levels later", { { table = { id = "gear.later", cols = { { "Level", 50 },
-      { "Item", 0, flex = true }, { "Slot", 100 }, { "DPS", 56, "RIGHT" }, { "Source", 240, extra = true } }, rows = lrows } } }, false, #lrows)
+    out[#out + 1] = Section("gear.later", L"A few levels later", { { table = { id = "gear.later", cols = { { L"Level", 50 },
+      { L"Item", 0, flex = true }, { L"Slot", 100 }, { "DPS", 56, "RIGHT" }, { L"Source", 240, extra = true } }, rows = lrows } } }, false, #lrows)
   end
   local notes = {}
   for _, n in ipairs(g.params.notes or {}) do notes[#notes + 1] = { p = n, muted = true } end
-  if #notes > 0 then out[#out + 1] = Section("gear.model", "How the model counts", notes, false) end
-  UI.status = ("%d fights calibrate the model"):format(ctx.combat and ctx.combat.fights or 0)
+  if #notes > 0 then out[#out + 1] = Section("gear.model", L"How the model counts", notes, false) end
+  UI.status = (L"%d fights calibrate the model"):format(ctx.combat and ctx.combat.fights or 0)
   return out
 end
 
 function UI.pages.prof()
   local out = {}
-  UI.head.prof = { "Professions", ("The cheapest path to %d, with a shopping list"):format(UI.target) }
+  UI.head.prof = { L"Professions", (L"The cheapest path to %d, with a shopping list"):format(UI.target) }
   out[#out + 1] = { buttons = {
-    { label = "Goal: 225", width = 96, active = UI.target == 225, onClick = function() UI.target = 225 UI.cache.prof = nil UI.Draw() end },
-    { label = "Goal: 300", width = 96, active = UI.target == 300, onClick = function() UI.target = 300 UI.cache.prof = nil UI.Draw() end },
+    { label = L"Goal: 225", width = 96, active = UI.target == 225, onClick = function() UI.target = 225 UI.cache.prof = nil UI.Draw() end },
+    { label = L"Goal: 300", width = 96, active = UI.target == 300, onClick = function() UI.target = 300 UI.cache.prof = nil UI.Draw() end },
   } }
   if not WowAssistantRecipes then
-    out[#out + 1] = { tips = { { level = "warn", text = "Recipe data is missing (Recipes.lua): node scripts/build-addon-recipes.mjs --install" } } }
+    out[#out + 1] = { tips = { { level = "warn", text = L"Recipe data is missing (Recipes.lua): node scripts/build-addon-recipes.mjs --install" } } }
     return out
   end
   local routes = G.Routes(UI.target)
   if #routes == 0 then
-    out[#out + 1] = { empty = { "You have no crafting profession", "Or the client has not given its level yet: open the profession window once." } }
+    out[#out + 1] = { empty = { L"You have no crafting profession", L"Or the client has not given its level yet: open the profession window once." } }
     return out
   end
   local market = WowAssistantDB and WowAssistantDB.market
@@ -2102,41 +2114,41 @@ function UI.pages.prof()
   for i, r in ipairs(routes) do
     if i <= 4 then
       cards[#cards + 1] = { label = r.profession, value = ("%d → %d"):format(r.skill, r.target),
-        sub = Money(r.totalMats + r.totalTraining) .. " total" }
+        sub = Money(r.totalMats + r.totalTraining) .. L" total" }
     end
   end
   out[#out + 1] = { cards = cards }
   for i, r in ipairs(routes) do
     local blocks = {}
-    blocks[#blocks + 1] = { p = ("Materials %s (you already have: %s) · training %s · the vendor gives back %s"):format(Money(r.totalMats), Money(r.ownedValue),
+    blocks[#blocks + 1] = { p = (L"Materials %s (you already have: %s) · training %s · the vendor gives back %s"):format(Money(r.totalMats), Money(r.ownedValue),
       Money(r.totalTraining), Money(r.totalVendorBack)) }
     if r.unreachableFrom then
-      blocks[#blocks + 1] = { tips = { { level = "warn", text = ("No known recipe above %d (max now %d)."):format(r.unreachableFrom, r.cap) } } }
+      blocks[#blocks + 1] = { tips = { { level = "warn", text = (L"No known recipe above %d (max now %d)."):format(r.unreachableFrom, r.cap) } } }
     end
     for _, n in ipairs(r.notes or {}) do blocks[#blocks + 1] = { p = n, muted = true } end
     local rows = {}
     for _, s in ipairs(r.steps) do
       local reag = {}
       for _, rg in ipairs(s.reagents) do reag[#reag + 1] = rg.qty .. "× " .. rg.name end
-      rows[#rows + 1] = { cells = { Cell(s.from .. " → " .. s.to, s.from), s.recipe .. (s.known and "" or Color(HEX.warn, " (to learn)")), Cell(s.crafts, s.crafts),
+      rows[#rows + 1] = { cells = { Cell(s.from .. " → " .. s.to, s.from), s.recipe .. (s.known and "" or Color(HEX.warn, L" (to learn)")), Cell(s.crafts, s.crafts),
         Cell(Money(s.matsCost), s.matsCost), Cell(s.trainingCost > 0 and Money(s.trainingCost) or "", s.trainingCost),
         Cell(s.vendorBack > 0 and Money(s.vendorBack) or "", s.vendorBack) }, tip = table.concat(reag, ", ") }
     end
-    blocks[#blocks + 1] = { table = { id = "prof.steps." .. r.professionId, cols = { { "Skill", 80 }, { "Recipe", 0, flex = true },
-      { "Qty", 44, "RIGHT" }, { "Materials", 92, "RIGHT" }, { "Training", 92, "RIGHT", extra = true }, { "Vendor back", 100, "RIGHT", extra = true } },
+    blocks[#blocks + 1] = { table = { id = "prof.steps." .. r.professionId, cols = { { "Skill", 80 }, { L"Recipe", 0, flex = true },
+      { L"Qty", 44, "RIGHT" }, { L"Materials", 92, "RIGHT" }, { L"Training", 92, "RIGHT", extra = true }, { L"Vendor back", 100, "RIGHT", extra = true } },
       rows = rows, limit = 12 } }
     out[#out + 1] = Section("prof.route." .. r.professionId, ("%s: %d → %d"):format(r.profession, r.skill, r.target), blocks, i == 1, #r.steps)
     local shop = {}
     for _, x in ipairs(r.shopping) do
       shop[#shop + 1] = { cells = { Cell(x.name, x.name), Cell(x.qty, x.qty), Cell(Money(x.total), x.total),
         Cell(x.owned > 0 and x.owned or "", x.owned), Cell(Money(x.unit), x.unit or 0),
-        x.source == "vendor" and "vendor" or (x.source == "AH" and "AH" or Color(HEX.warn, "no price")) }, itemId = x.itemId }
+        x.source == "vendor" and (L"vendor") or (x.source == "AH" and "AH" or Color(HEX.warn, L"no price")) }, itemId = x.itemId }
     end
-    out[#out + 1] = Section("prof.shop." .. r.professionId, "Shopping list – " .. r.profession, { { table = { id = "prof.shop." .. r.professionId,
-      cols = { { "Materials", 0, flex = true }, { "Need", 56, "RIGHT" }, { "Total", 92, "RIGHT" }, { "Have", 64, "RIGHT", extra = true },
-      { "Unit price", 92, "RIGHT", extra = true }, { "Source", 96, extra = true } }, rows = shop, limit = 12 } } }, false, #shop)
+    out[#out + 1] = Section("prof.shop." .. r.professionId, L"Shopping list – " .. r.profession, { { table = { id = "prof.shop." .. r.professionId,
+      cols = { { L"Materials", 0, flex = true }, { L"Need", 56, "RIGHT" }, { L"Total", 92, "RIGHT" }, { L"Have", 64, "RIGHT", extra = true },
+      { L"Unit price", 92, "RIGHT", extra = true }, { L"Source", 96, extra = true } }, rows = shop, limit = 12 } } }, false, #shop)
   end
-  UI.status = ("Prices: %s"):format(market and market.at and ("AH scan " .. date("%m/%d %H:%M", market.at)) or "no AH scan (/wa ah)")
+  UI.status = (L"Prices: %s"):format(market and market.at and (L"AH scan " .. date(L"%m/%d %H:%M", market.at)) or (L"no AH scan (/wa ah)"))
   return out
 end
 
@@ -2178,11 +2190,11 @@ local function S2(n) return WA.Talent.Signed(n) end
 function UI.pages.talent()
   local T = WA.Talent
   local class = G.Class()
-  UI.head.talent = { "Talents", "Forever's talent trees, your points and a plan, every talent's value with your current gear" }
+  UI.head.talent = { L"Talents", L"Forever's talent trees, your points and a plan, every talent's value with your current gear" }
   local tree = T.ReadTree()
   local pt = T.PlanTrees(class, tree)
   if #pt.tabs == 0 then
-    return { { empty = { "No talent tree", "The game gave no talent tree, and the talent data (TalentData.lua) is missing too: node scripts/build-talents.mjs --install" } } }
+    return { { empty = { L"No talent tree", L"The game gave no talent tree, and the talent data (TalentData.lua) is missing too: node scripts/build-talents.mjs --install" } } }
   end
   local total = T.PlanPoints(tree)
   local cur = T.PlanCurrent(pt)
@@ -2206,37 +2218,37 @@ function UI.pages.talent()
   if UI.talentMsg then Add(out, { tips = { { level = UI.talentMsg.level, title = UI.talentMsg.title, text = UI.talentMsg.text } } }) end
   local plans = T.PlanList()
   Add(out, { cards = {
-    { label = "Points in the plan", value = ("%d / %d"):format(spent, total), sub = ("%d free · %d spent now"):format(free, spentNow),
-      tip = tree.unspent and "Your points: spent and free (from the game)." or "Your points: level − 9 (the first point comes at level 10)." },
-    { label = "The plan's DPS", value = value and T.F2(value.plan) or "–",
-      sub = value and ("%s (%s%%) compared with now"):format(S2(value.diff), S2(value.diffPct)) or (G.Supported() and "cannot be computed" or "no model for this class"),
-      tip = value and ("The model's DPS with your current gear: now %s, with the plan %s."):format(T.F2(value.now), T.F2(value.plan)) or err },
-    { label = "Best next point", value = best and best.name or "–",
-      sub = best and ("%s DPS (%s%%)"):format(S2(best.next), S2(best.nextPct)) or (free <= 0 and "no free point in the plan" or "no open talent adds DPS now"),
-      tip = best and best.nextSource and ("Source: " .. best.nextSource) or nil },
-    { label = "Saved plans", value = tostring(#plans), sub = st.saved and plans[st.saved] and ("loaded: " .. plans[st.saved].name) or "the current plan is not saved" },
+    { label = L"Points in the plan", value = ("%d / %d"):format(spent, total), sub = (L"%d free · %d spent now"):format(free, spentNow),
+      tip = tree.unspent and (L"Your points: spent and free (from the game).") or (L"Your points: level − 9 (the first point comes at level 10).") },
+    { label = L"The plan's DPS", value = value and T.F2(value.plan) or "–",
+      sub = value and (L"%s (%s%%) compared with now"):format(S2(value.diff), S2(value.diffPct)) or (G.Supported() and (L"cannot be computed") or (L"no model for this class")),
+      tip = value and (L"The model's DPS with your current gear: now %s, with the plan %s."):format(T.F2(value.now), T.F2(value.plan)) or err },
+    { label = L"Best next point", value = best and best.name or "–",
+      sub = best and ("%s DPS (%s%%)"):format(S2(best.next), S2(best.nextPct)) or (free <= 0 and (L"no free point in the plan") or (L"no open talent adds DPS now")),
+      tip = best and best.nextSource and (L"Source: " .. best.nextSource) or nil },
+    { label = L"Saved plans", value = tostring(#plans), sub = st.saved and plans[st.saved] and (L"loaded: " .. plans[st.saved].name) or (L"the current plan is not saved") },
   } })
 
   -- what to do with the plan
   Add(out, { buttons = {
-    { label = "Current talents", width = 130, onClick = function() st.ranks, st.saved = CopyRanks(cur), nil TalentRedraw() end },
-    { label = "Empty plan", width = 100, onClick = function() st.ranks, st.saved = {}, nil TalentRedraw() end },
-    { label = "Save", width = 90, onClick = function()
-      local name = st.saved and plans[st.saved] and plans[st.saved].name or "Plan " .. (#plans + 1)
+    { label = L"Current talents", width = 130, onClick = function() st.ranks, st.saved = CopyRanks(cur), nil TalentRedraw() end },
+    { label = L"Empty plan", width = 100, onClick = function() st.ranks, st.saved = {}, nil TalentRedraw() end },
+    { label = L"Save", width = 90, onClick = function()
+      local name = st.saved and plans[st.saved] and plans[st.saved].name or L("Plan %d"):format(#plans + 1)
       st.saved = T.PlanSave(name, st.ranks)
-      TalentRedraw({ level = "good", title = "Saved:", text = name })
+      TalentRedraw({ level = "good", title = L"Saved:", text = name })
     end },
-    { label = "Save as new", width = 120, onClick = function()
-      local name = "Plan " .. (#plans + 1)
+    { label = L"Save as new", width = 120, onClick = function()
+      local name = L("Plan %d"):format(#plans + 1)
       st.saved = T.PlanSave(name, st.ranks)
-      TalentRedraw({ level = "good", title = "Saved:", text = name })
+      TalentRedraw({ level = "good", title = L"Saved:", text = name })
     end },
-    { label = "Delete", width = 80, onClick = function()
-      if not (st.saved and plans[st.saved]) then return TalentRedraw({ level = "warn", title = "No plan is loaded,", text = "nothing to delete." }) end
+    { label = L"Delete", width = 80, onClick = function()
+      if not (st.saved and plans[st.saved]) then return TalentRedraw({ level = "warn", title = L"No plan is loaded,", text = L"nothing to delete." }) end
       local name = plans[st.saved].name
       T.PlanDelete(st.saved)
       st.saved = nil
-      TalentRedraw({ level = "info", title = "Deleted:", text = name })
+      TalentRedraw({ level = "info", title = L"Deleted:", text = name })
     end },
   } })
   if #plans > 0 then
@@ -2261,55 +2273,55 @@ function UI.pages.talent()
     local usedGame = pt.client and x.index and tt.SetTalent and pcall(tt.SetTalent, tt, x.tab, x.index)
     if not usedGame then
       tt:AddLine(x.name, 1, 0.82, 0)
-      tt:AddLine(("Rank: %d/%d"):format(r, x.max), 1, 1, 1)
+      tt:AddLine((L"Rank: %d/%d"):format(r, x.max), 1, 1, 1)
       local d = x.data
       if d and d.desc then
         tt:AddLine(WA.Fix(d.desc[math.max(1, math.min(r, x.max))] or ""), 1, 0.82, 0.5, true)
         if r > 0 and r < x.max and d.desc[r + 1] then
           tt:AddLine(" ")
-          tt:AddLine(WA.Fix("Next rank:"), 1, 1, 1)
+          tt:AddLine(WA.Fix(L"Next rank:"), 1, 1, 1)
           tt:AddLine(WA.Fix(d.desc[r + 1]), 1, 0.82, 0.5, true)
         end
       end
     end
     tt:AddLine(" ")
-    if r ~= now then tt:AddLine(WA.Fix(("Plan: %d/%d (now %d/%d)"):format(r, x.max, now, x.max)), 0.4, 0.8, 1) end
+    if r ~= now then tt:AddLine(WA.Fix((L"Plan: %d/%d (now %d/%d)"):format(r, x.max, now, x.max)), 0.4, 0.8, 1) end
     if r < x.max and not Open(x.name) then
       local why = Why(x.name)
-      if why then tt:AddLine(WA.Fix("Cannot add: " .. why), 1, 0.35, 0.35, true) end
+      if why then tt:AddLine(WA.Fix(L"Cannot add: " .. why), 1, 0.35, 0.35, true) end
     end
-    tt:AddLine(WA.Fix("Waystone, with your current gear:"), 1, 0.82, 0)
+    tt:AddLine(WA.Fix(L"Waystone, with your current gear:"), 1, 0.82, 0)
     local row = rows[x.name]
     if not value then
-      tt:AddLine(WA.Fix(G.Supported() and ("The model cannot compute now: " .. tostring(err)) or "No DPS model for this class yet."), 0.62, 0.57, 0.48, true)
+      tt:AddLine(WA.Fix(G.Supported() and (L"The model cannot compute now: " .. tostring(err)) or (L"No DPS model for this class yet.")), 0.62, 0.57, 0.48, true)
     elseif row and row.counted then
-      if row.now then tt:AddLine(WA.Fix(("The %d ranks in the plan: %s DPS (%s%%)"):format(r, S2(row.now), S2(row.nowPct))), 1, 1, 1) end
-      if row.next then tt:AddLine(WA.Fix(("The next point: %s DPS (%s%%)"):format(S2(row.next), S2(row.nextPct))), 1, 1, 1) end
+      if row.now then tt:AddLine(WA.Fix((L"The %d ranks in the plan: %s DPS (%s%%)"):format(r, S2(row.now), S2(row.nowPct))), 1, 1, 1) end
+      if row.next then tt:AddLine(WA.Fix((L"The next point: %s DPS (%s%%)"):format(S2(row.next), S2(row.nextPct))), 1, 1, 1) end
       for _, wt in ipairs(row.weights or {}) do
-        tt:AddLine(WA.Fix(("Because of it %s: %s → %s DPS / %d"):format(wt.label, T.F2(wt.without), T.F2(wt.with), wt.per)), 0.8, 0.8, 0.8)
+        tt:AddLine(WA.Fix((L"Because of it %s: %s → %s DPS / %d"):format(wt.label, T.F2(wt.without), T.F2(wt.with), wt.per)), 0.8, 0.8, 0.8)
       end
       if row.note then tt:AddLine(WA.Fix(row.note), 1, 0.6, 0.2, true) end
       local src = row.nextSource or row.source
-      if src then tt:AddLine(WA.Fix("Source: " .. src), 0.62, 0.57, 0.48, true) end
+      if src then tt:AddLine(WA.Fix(L"Source: " .. src), 0.62, 0.57, 0.48, true) end
     elseif row and row.reason then
-      tt:AddLine(WA.Fix("No value: " .. row.reason), 0.62, 0.57, 0.48, true)
+      tt:AddLine(WA.Fix(L"No value: " .. row.reason), 0.62, 0.57, 0.48, true)
     else
       local e = (T.EFFECTS[class] or {})[x.name]
-      if e and e.reason then tt:AddLine(WA.Fix("No value: " .. e.reason), 0.62, 0.57, 0.48, true)
-      else tt:AddLine(WA.Fix("Its value is computed once the plan lets you put a point in it."), 0.62, 0.57, 0.48, true) end
+      if e and e.reason then tt:AddLine(WA.Fix(L"No value: " .. e.reason), 0.62, 0.57, 0.48, true)
+      else tt:AddLine(WA.Fix(L"Its value is computed once the plan lets you put a point in it."), 0.62, 0.57, 0.48, true) end
     end
-    if best and best.name == x.name then tt:AddLine(WA.Fix("This is the most valuable next point now."), 0.37, 0.88, 0.37) end
-    tt:AddLine(WA.Fix("Left-click: +1 point in the plan · right-click: −1 point"), 0.62, 0.57, 0.48)
+    if best and best.name == x.name then tt:AddLine(WA.Fix(L"This is the most valuable next point now."), 0.37, 0.88, 0.37) end
+    tt:AddLine(WA.Fix(L"Left-click: +1 point in the plan · right-click: −1 point"), 0.62, 0.57, 0.48)
   end
   local function Click(x, button)
     local fn = button == "RightButton" and T.PlanRemove or T.PlanAdd
     local new, why = fn(pt, st.ranks, x.name, total)
-    if not new then return TalentRedraw({ level = "warn", title = button == "RightButton" and "Cannot remove:" or "Cannot add:", text = why }) end
+    if not new then return TalentRedraw({ level = "warn", title = button == "RightButton" and (L"Cannot remove:") or (L"Cannot add:"), text = why }) end
     st.ranks = new
     TalentRedraw()
   end
   Add(out, { talents = { tabs = pt.tabs, ranks = ranks, cur = cur, open = Open, best = best and best.name, tip = Tip, onClick = Click } })
-  Add(out, { p = "Left-click: a point into the plan, right-click: a point out. The plan is only a plan: you learn the talent yourself in the game's talent window. Blue rank: the plan differs from now here; gold frame: the most valuable next point.", muted = true })
+  Add(out, { p = L"Left-click: a point into the plan, right-click: a point out. The plan is only a plan: you learn the talent yourself in the game's talent window. Blue rank: the plan differs from now here; gold frame: the most valuable next point.", muted = true })
 
   -- the plan against now, change by change
   local diffRows = {}
@@ -2322,27 +2334,27 @@ function UI.pages.talent()
   end
   local diffBlocks = {}
   if value then
-    Add(diffBlocks, { p = ("The model's DPS: now %s, with the plan %s, the difference %s (%s%%). Per row: that one change against now; together they can differ from their sum.")
+    Add(diffBlocks, { p = (L"The model's DPS: now %s, with the plan %s, the difference %s (%s%%). Per row: that one change against now; together they can differ from their sum.")
       :format(T.F2(value.now), T.F2(value.plan), S2(value.diff), S2(value.diffPct)) })
   elseif err then
-    Add(diffBlocks, { p = Color(HEX.bad, "The plan's value cannot be computed now: " .. err) })
+    Add(diffBlocks, { p = Color(HEX.bad, L"The plan's value cannot be computed now: " .. err) })
   end
-  Add(diffBlocks, { table = { id = "talent.diff", cols = { { "Talent", 0, flex = true }, { "Rank", 70, "RIGHT" }, { "DPS", 70, "RIGHT" }, { "Source", 260 } },
-    rows = diffRows, empty = "The plan is the same as your current talents.", limit = 12 } })
-  Add(out, Section("talent.diff", "The plan against now", diffBlocks, true, #diffRows))
+  Add(diffBlocks, { table = { id = "talent.diff", cols = { { "Talent", 0, flex = true }, { L"Rank", 70, "RIGHT" }, { "DPS", 70, "RIGHT" }, { L"Source", 260 } },
+    rows = diffRows, empty = L"The plan is the same as your current talents.", limit = 12 } })
+  Add(out, Section("talent.diff", L"The plan against now", diffBlocks, true, #diffRows))
 
   -- sharing
-  Add(out, Section("talent.share", "Share as text", {
-    { p = "Copy the text (click into it, Ctrl+C), or paste another plan and press Load.", muted = true },
-    { edit = { text = T.PlanExport(class, pt, ranks), button = "Load", onEnter = function(text)
+  Add(out, Section("talent.share", L"Share as text", {
+    { p = L"Copy the text (click into it, Ctrl+C), or paste another plan and press Load.", muted = true },
+    { edit = { text = T.PlanExport(class, pt, ranks), button = L"Load", onEnter = function(text)
       local new, why = T.PlanImport(class, pt, text, total)
-      if not new then return TalentRedraw({ level = "warn", title = "Cannot load:", text = why }) end
+      if not new then return TalentRedraw({ level = "warn", title = L"Cannot load:", text = why }) end
       st.ranks, st.saved = new, nil
-      TalentRedraw({ level = "good", title = "Loaded:", text = ("%d points"):format(T.PlanSpent(pt, new)) })
+      TalentRedraw({ level = "good", title = L"Loaded:", text = (L"%d points"):format(T.PlanSpent(pt, new)) })
     end } },
   }, false))
   UI.talentMsg = nil
-  UI.status = WowAssistantTalents and ("Talent data: Wowhead Forever, %s"):format(WowAssistantTalents.fetched or "?") or "no talent data"
+  UI.status = WowAssistantTalents and (L"Talent data: Wowhead Forever, %s"):format(WowAssistantTalents.fetched or "?") or (L"no talent data")
   return out
 end
 
@@ -2372,7 +2384,7 @@ for _, e in ipairs({ "PLAYER_EQUIPMENT_CHANGED", "PLAYER_LEVEL_UP", "CHARACTER_P
   pcall(ev.RegisterEvent, ev, e)
 end
 
-WA.Command("plan", function() UI.Show("plan") end, "/wa – main window · /wa plan | combat | gear | prof | pet – one of its pages")
+WA.Command("plan", function() UI.Show("plan") end, L"/wa – main window · /wa plan | combat | gear | prof | pet – one of its pages")
 WA.Command("combat", function() UI.Show("combat") end)
 WA.Command("harc", function() UI.Show("combat") end) -- old name
 WA.Command("gear", function() UI.Show("gear") end)

@@ -7,6 +7,7 @@
 -- Part of WoW Assistant: data in WowAssistantDB.chronicle (the old AzerothChronicleDB is copied
 -- there once by Core.lua), the character id in WowAssistantCharDB.id.
 local _, WA = ...
+local L = WA.L
 local PREFIX = "AZCHR"
 local WEEK = 604800
 local WEEK_OFFSET = 6 * 86400 + 7 * 3600 -- weeks start Wednesday 07:00 UTC (EU reset)
@@ -18,13 +19,13 @@ local BROADCAST_EVERY = 600
 local PROF_HEADERS = { ["Professions"] = true, ["Secondary Skills"] = true }
 if TRADE_SKILLS then PROF_HEADERS[TRADE_SKILLS] = true end
 
-local CATEGORIES = {
+local CATEGORIES = WA.LR {
   { id = "xp",       label = "XP" },
-  { id = "levels",   label = "Level" },
-  { id = "money",    label = "Gold" },
-  { id = "skills",   label = "Profession" },
+  { id = "levels",   label = L"Level" },
+  { id = "money",    label = L"Gold" },
+  { id = "skills",   label = L"Profession" },
   { id = "quests",   label = "Quest" },
-  { id = "survivor", label = "Survivor" },
+  { id = "survivor", label = L"Survivor" },
 }
 
 local db, me, myKey, charDb
@@ -282,7 +283,7 @@ local function BuildPanel()
   -- guild, category and week go on a line of their own so they never run into the close button.
   local St = WA.Style
   local W = 460
-  local f = St.Window("AzerothChronicleFrame", W, 0, "Weekly contest")
+  local f = St.Window("AzerothChronicleFrame", W, 0, L"Weekly contest")
   local inset = f.inset
   f.cat = db.lastCategory or "xp"
   f.view = "guild"
@@ -310,12 +311,12 @@ local function BuildPanel()
   end
 
   local bottom = inset - 4
-  local mine = St.Button(f, "My characters", 110, function()
+  local mine = St.Button(f, L"My characters", 110, function()
     f.view = f.view == "mine" and "guild" or "mine"
     f:Refresh()
   end)
   mine:SetPoint("BOTTOMLEFT", inset, bottom)
-  local sync = St.Button(f, "Refresh", 90, function()
+  local sync = St.Button(f, L"Refresh", 90, function()
     Broadcast(true)
     Request()
     f:Refresh()
@@ -366,7 +367,7 @@ local function BuildPanel()
 
   function f:Refresh()
     local wk = WeekKey()
-    local from = date("%m/%d", WeekStart(wk))
+    local from = date(L"%m/%d", WeekStart(wk))
     for id, b in pairs(self.tabs) do
       if id == self.cat and self.view == "guild" then b:LockHighlight() else b:UnlockHighlight() end
     end
@@ -374,7 +375,7 @@ local function BuildPanel()
     self.empty:SetText("")
 
     if self.view == "mine" then
-      self.sub:SetText(("My characters – this week (since %s)"):format(from))
+      self.sub:SetText((L"My characters – this week (since %s)"):format(from))
       local list = {}
       for key, c in pairs(db.chars) do
         local g = Gains(c, wk)
@@ -387,7 +388,7 @@ local function BuildPanel()
           ("+%s XP  %s  +%d q"):format(Abbrev(e.g.xp), Money(e.g.money), e.g.quests))
       end
       self.footer:SetText("")
-      if #list == 0 then self.empty:SetText("No weekly data yet.") end
+      if #list == 0 then self.empty:SetText(L"No weekly data yet.") end
       return
     end
 
@@ -395,11 +396,11 @@ local function BuildPanel()
     local cat = self.cat
     local label = cat
     for _, c in ipairs(CATEGORIES) do if c.id == cat then label = c.label end end
-    self.sub:SetText(("%s · %s · since %s"):format(guild or "No guild", label, from))
+    self.sub:SetText((L"%s · %s · since %s"):format(guild or (L"No guild"), label, from))
     if not db.share then
-      self.footer:SetText("Sharing is off: /azc share on")
+      self.footer:SetText(L"Sharing is off: /azc share on")
     else
-      self.footer:SetText("Self-reported data · /azc help")
+      self.footer:SetText(L"Self-reported data · /azc help")
     end
     local week = guild and db.guild[guild] and db.guild[guild][wk] or {}
     local list = {}
@@ -415,7 +416,7 @@ local function BuildPanel()
       if x.member == GuildName() then name = name .. " |cff00ff00(te)|r" end
       self:SetRow(i, i .. ".", name, x.e.level and ("Lv " .. x.e.level) or "", FormatValue(cat, Value(x.e, cat)))
     end
-    if #list == 0 then self.empty:SetText("No data in this category yet.") end
+    if #list == 0 then self.empty:SetText(L"No data in this category yet.") end
   end
 
   f:Hide()
@@ -450,7 +451,7 @@ local function AdoptLegacy(key)
   table.insert(c.formerKeys, old)
   db.chars[key] = c
   db.chars[old] = nil
-  Print("the earlier shared \"" .. UnitName("player") .. "\" data was moved to this character.")
+  Print(L"the earlier shared \"" .. UnitName("player") .. L"\" data was moved to this character.")
 end
 
 local ev = CreateFrame("Frame")
@@ -536,19 +537,19 @@ local function ChronicleCommand(msg)
     TogglePanel()
   elseif cmd == "share" then
     db.share = arg == "on"
-    Print(db.share and "sharing ON: the guild's other Chronicle users see your weekly results." or "sharing off.")
+    Print(db.share and (L"sharing ON: the guild's other Chronicle users see your weekly results.") or (L"sharing off."))
     if db.share then Broadcast(true) end
   elseif cmd == "sync" then
     Broadcast(true)
     Request()
-    Print(CanTalk() and "request sent to the guild." or "cannot send now (no guild, combat, instance or sharing off).")
+    Print(CanTalk() and (L"request sent to the guild.") or (L"cannot send now (no guild, combat, instance or sharing off)."))
   elseif cmd == "week" then
     Snapshot()
     local wk = WeekKey()
     for key, c in pairs(db.chars) do
       local g = Gains(c, wk)
       if g then
-        Print(("%s: +%s XP, %+d levels, %s, +%d skill, %d quests, %d deaths"):format(key, Abbrev(g.xp), g.levels, Money(g.money), g.skills, g.quests, g.deaths))
+        Print((L"%s: +%s XP, %+d levels, %s, +%d skill, %d quests, %d deaths"):format(key, Abbrev(g.xp), g.levels, Money(g.money), g.skills, g.quests, g.deaths))
       end
     end
   else
@@ -557,6 +558,6 @@ local function ChronicleCommand(msg)
 end
 WA.Chronicle = { Command = ChronicleCommand, Gains = function(c, wk) return Gains(c, wk) end, WeekKey = WeekKey,
   Snapshot = function() return Snapshot() end, db = function() return db end }
-WA.Command("azc", ChronicleCommand, "/wa azc [share on|off | sync | week] – Azeroth Chronicle (formerly /azc)")
+WA.Command("azc", ChronicleCommand, L"/wa azc [share on|off | sync | week] – Azeroth Chronicle (formerly /azc)")
 SLASH_AZEROTHCHRONICLE1 = "/azc"
 SlashCmdList.AZEROTHCHRONICLE = ChronicleCommand

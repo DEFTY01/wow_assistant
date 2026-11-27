@@ -14,79 +14,80 @@
 --     after you have tamed a beast that knows that rank, for training points (pet level × loyalty)
 
 local _, WA = ...
+local L = WA.L
 WA = WA or {}
 local P = {}
 WA.Pets = P
 
 -- dmg, armor, hp: classic family modifiers. diet, signature ability, what it is good for.
-P.FAMILY = {
-  Cat = { hu = "Cat", dmg = 1.10, armor = 1.00, hp = 0.98, diet = { "meat", "fish" }, sig = "Prowl",
-    role = "The most damage: Claw + Bite, Prowl to open. The best choice for solo play and dungeons." },
-  Raptor = { hu = "Raptor", dmg = 1.10, armor = 1.03, hp = 0.95, diet = { "meat" }, sig = "Savage Rend",
-    role = "Cat-level damage, with Savage Rend's bleed. A little less health: weaker for tanking." },
-  Wolf = { hu = "Wolf", dmg = 1.00, armor = 1.05, hp = 1.00, diet = { "meat" }, sig = "Furious Howl",
-    role = "Furious Howl raises the whole group's melee attack power: valuable in groups and raids." },
-  Boar = { hu = "Boar", dmg = 0.90, armor = 1.09, hp = 1.04, diet = { "everything" }, sig = "Charge",
-    role = "Pulls aggro and stops the mob with Charge. Tough and cheap to feed (eats everything)." },
-  Bear = { hu = "Bear", dmg = 0.91, armor = 1.05, hp = 1.08, diet = { "everything" }, sig = "Swipe",
-    role = "The most health: a good tank. Swipe hits 3 mobs, for holding several mobs. Eats everything." },
-  Gorilla = { hu = "Gorilla", dmg = 1.02, armor = 1.00, hp = 1.04, diet = { "fruit", "fungus" }, sig = "Thunderstomp",
-    role = "Thunderstomp deals area damage and holds aggro: the best pet tank for multi-mob pulls." },
-  Turtle = { hu = "Turtle", dmg = 0.90, armor = 1.13, hp = 1.00, diet = { "fish", "fruit", "fungus" }, sig = "Shell Shield",
-    role = "The most armor and Shell Shield (50% less damage): for tanking elite mobs and bosses." },
-  Crab = { hu = "Crab", dmg = 0.95, armor = 1.13, hp = 0.96, diet = { "bread", "fish", "fruit", "fungus" }, sig = "Pinch",
-    role = "High armor, Pinch slows. Good as a tank, weak for damage." },
-  Scorpid = { hu = "Scorpid", dmg = 0.94, armor = 1.10, hp = 1.00, diet = { "meat" }, sig = "Scorpid Poison",
-    role = "Tough, Scorpid Poison stacks 5 times. A good medium tank." },
-  Bat = { hu = "Bat", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "fruit", "fungus" }, sig = "Sonic Blast",
-    role = "Good damage; Sonic Blast slows casters' casting. Gets there fast with Dive." },
-  ["Bird of Prey"] = { hu = "Owl", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "meat" }, sig = "Mine!",
-    role = "Good damage with Claw; Mine! disarms warrior-type mobs for 3 s." },
-  ["Carrion Bird"] = { hu = "Carrion Bird", dmg = 1.07, armor = 1.05, hp = 1.00, diet = { "meat", "fish" }, sig = "Demoralizing Screech",
-    role = "Good damage and armor together; Demoralizing Screech lowers the mobs' attack power." },
-  ["Wind Serpent"] = { hu = "Wind Serpent", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "bread", "cheese", "fish" }, sig = "Lightning Breath",
-    role = "Lightning Breath is nature damage, armor does not reduce it: strong on heavily armored mobs and casters." },
-  Spider = { hu = "Spider", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { "meat" }, sig = "Web",
-    role = "Good damage; Web roots the target (fleeing mob, PvP)." },
-  Hyena = { hu = "Hyena", dmg = 1.00, armor = 1.05, hp = 1.00, diet = { "fruit", "meat" }, sig = "Tendon Rip",
-    role = "Average; Tendon Rip slows and damages. Balanced, but has no standout strength." },
-  Crocolisk = { hu = "Crocodile", dmg = 1.00, armor = 1.10, hp = 0.95, diet = { "meat", "fish" }, sig = "Dismember",
-    role = "High armor; Dismember weakens healing by 25% (PvP, healer mobs)." },
-  Tallstrider = { hu = "Tallstrider", dmg = 1.00, armor = 1.00, hp = 1.05, diet = { "cheese", "fruit", "fungus" }, sig = "Dust Cloud",
-    role = "More health; Dust Cloud lowers the target's armor, so your shots deal more damage too." },
-  Fox = { hu = "Fox", dmg = 1.00, armor = 1.00, hp = 1.00, diet = nil, sig = "Trickster's Dance", new = true,
-    role = "New in Forever: Trickster's Dance gives +50% dodge and 30% faster attacks for 12 s. The family's multipliers are not known." },
+P.FAMILY = WA.LR {
+  Cat = { hu = L"Cat", dmg = 1.10, armor = 1.00, hp = 0.98, diet = { L"meat", L"fish" }, sig = "Prowl",
+    role = L"The most damage: Claw + Bite, Prowl to open. The best choice for solo play and dungeons." },
+  Raptor = { hu = "Raptor", dmg = 1.10, armor = 1.03, hp = 0.95, diet = { L"meat" }, sig = "Savage Rend",
+    role = L"Cat-level damage, with Savage Rend's bleed. A little less health: weaker for tanking." },
+  Wolf = { hu = L"Wolf", dmg = 1.00, armor = 1.05, hp = 1.00, diet = { L"meat" }, sig = "Furious Howl",
+    role = L"Furious Howl raises the whole group's melee attack power: valuable in groups and raids." },
+  Boar = { hu = L"Boar", dmg = 0.90, armor = 1.09, hp = 1.04, diet = { L"everything" }, sig = "Charge",
+    role = L"Pulls aggro and stops the mob with Charge. Tough and cheap to feed (eats everything)." },
+  Bear = { hu = L"Bear", dmg = 0.91, armor = 1.05, hp = 1.08, diet = { L"everything" }, sig = "Swipe",
+    role = L"The most health: a good tank. Swipe hits 3 mobs, for holding several mobs. Eats everything." },
+  Gorilla = { hu = "Gorilla", dmg = 1.02, armor = 1.00, hp = 1.04, diet = { L"fruit", L"fungus" }, sig = "Thunderstomp",
+    role = L"Thunderstomp deals area damage and holds aggro: the best pet tank for multi-mob pulls." },
+  Turtle = { hu = L"Turtle", dmg = 0.90, armor = 1.13, hp = 1.00, diet = { L"fish", L"fruit", L"fungus" }, sig = "Shell Shield",
+    role = L"The most armor and Shell Shield (50% less damage): for tanking elite mobs and bosses." },
+  Crab = { hu = L"Crab", dmg = 0.95, armor = 1.13, hp = 0.96, diet = { L"bread", L"fish", L"fruit", L"fungus" }, sig = "Pinch",
+    role = L"High armor, Pinch slows. Good as a tank, weak for damage." },
+  Scorpid = { hu = L"Scorpid", dmg = 0.94, armor = 1.10, hp = 1.00, diet = { L"meat" }, sig = "Scorpid Poison",
+    role = L"Tough, Scorpid Poison stacks 5 times. A good medium tank." },
+  Bat = { hu = L"Bat", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { L"fruit", L"fungus" }, sig = "Sonic Blast",
+    role = L"Good damage; Sonic Blast slows casters' casting. Gets there fast with Dive." },
+  ["Bird of Prey"] = { hu = L"Owl", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { L"meat" }, sig = "Mine!",
+    role = L"Good damage with Claw; Mine! disarms warrior-type mobs for 3 s." },
+  ["Carrion Bird"] = { hu = L"Carrion Bird", dmg = 1.07, armor = 1.05, hp = 1.00, diet = { L"meat", L"fish" }, sig = "Demoralizing Screech",
+    role = L"Good damage and armor together; Demoralizing Screech lowers the mobs' attack power." },
+  ["Wind Serpent"] = { hu = L"Wind Serpent", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { L"bread", L"cheese", L"fish" }, sig = "Lightning Breath",
+    role = L"Lightning Breath is nature damage, armor does not reduce it: strong on heavily armored mobs and casters." },
+  Spider = { hu = L"Spider", dmg = 1.07, armor = 1.00, hp = 1.00, diet = { L"meat" }, sig = "Web",
+    role = L"Good damage; Web roots the target (fleeing mob, PvP)." },
+  Hyena = { hu = L"Hyena", dmg = 1.00, armor = 1.05, hp = 1.00, diet = { L"fruit", L"meat" }, sig = "Tendon Rip",
+    role = L"Average; Tendon Rip slows and damages. Balanced, but has no standout strength." },
+  Crocolisk = { hu = L"Crocodile", dmg = 1.00, armor = 1.10, hp = 0.95, diet = { L"meat", L"fish" }, sig = "Dismember",
+    role = L"High armor; Dismember weakens healing by 25% (PvP, healer mobs)." },
+  Tallstrider = { hu = L"Tallstrider", dmg = 1.00, armor = 1.00, hp = 1.05, diet = { L"cheese", L"fruit", L"fungus" }, sig = "Dust Cloud",
+    role = L"More health; Dust Cloud lowers the target's armor, so your shots deal more damage too." },
+  Fox = { hu = L"Fox", dmg = 1.00, armor = 1.00, hp = 1.00, diet = nil, sig = "Trickster's Dance", new = true,
+    role = L"New in Forever: Trickster's Dance gives +50% dodge and 30% faster attacks for 12 s. The family's multipliers are not known." },
 }
 
 -- What each pet ability does, in a line, and how much it is worth training.
 -- prio: 1 core damage, 2 the family's own, 3 useful, 4 movement, 9 do not train for leveling
-P.ABILITY = {
-  Bite = { hu = "Bite: a strong hit every 10 s, the main damage of most pets.", prio = 1 },
-  Claw = { hu = "Claw: a hit from focus, no cooldown. The main damage of cats, birds, bears and scorpids.", prio = 1 },
-  ["Lightning Breath"] = { hu = "Lightning Breath: nature damage from range, through armor.", prio = 1 },
-  ["Savage Rend"] = { hu = "A bleed over 18 s (raptor).", prio = 2 },
-  ["Scorpid Poison"] = { hu = "A stacking nature poison (scorpid).", prio = 2 },
-  Thunderstomp = { hu = "Area nature damage and aggro (gorilla).", prio = 2 },
-  Swipe = { hu = "Hits 3 nearby enemies (bear).", prio = 2 },
-  Pinch = { hu = "Damage and a 50% slow (crab).", prio = 2 },
-  Dismember = { hu = "Damage and −25% healing on the target (crocodile).", prio = 2 },
-  ["Tendon Rip"] = { hu = "A bleed and a 50% slow (hyena).", prio = 2 },
-  Web = { hu = "Roots the target (spider).", prio = 3 },
-  ["Sonic Blast"] = { hu = "Nature damage, slows casting (bat).", prio = 2 },
-  ["Mine!"] = { hu = "Disarms for 3 s (owl).", prio = 3 },
-  ["Dust Cloud"] = { hu = "−armor on the target for 30 s (tallstrider).", prio = 2 },
-  ["Demoralizing Screech"] = { hu = "Damage and −attack power on nearby mobs (carrion bird).", prio = 2 },
-  ["Furious Howl"] = { hu = "+melee attack power for the group (wolf).", prio = 2 },
-  Charge = { hu = "Charge: stops the mob and a strong first hit (boar).", prio = 2 },
-  ["Shell Shield"] = { hu = "50% less damage for 12 s, slower attacks (turtle).", prio = 3 },
-  ["Trickster's Dance"] = { hu = "+50% dodge and faster attacks for 12 s (fox).", prio = 2 },
-  Prowl = { hu = "Prowl; the first hit +50% (cat).", prio = 3 },
-  Dash = { hu = "+movement speed for 15 s.", prio = 4 },
-  Dive = { hu = "+movement speed for 15 s.", prio = 4 },
-  Cower = { hu = "Lowers the pet's threat: if the pet tanks, do not teach it.", prio = 9 },
+P.ABILITY = WA.LR {
+  Bite = { hu = L"Bite: a strong hit every 10 s, the main damage of most pets.", prio = 1 },
+  Claw = { hu = L"Claw: a hit from focus, no cooldown. The main damage of cats, birds, bears and scorpids.", prio = 1 },
+  ["Lightning Breath"] = { hu = L"Lightning Breath: nature damage from range, through armor.", prio = 1 },
+  ["Savage Rend"] = { hu = L"A bleed over 18 s (raptor).", prio = 2 },
+  ["Scorpid Poison"] = { hu = L"A stacking nature poison (scorpid).", prio = 2 },
+  Thunderstomp = { hu = L"Area nature damage and aggro (gorilla).", prio = 2 },
+  Swipe = { hu = L"Hits 3 nearby enemies (bear).", prio = 2 },
+  Pinch = { hu = L"Damage and a 50% slow (crab).", prio = 2 },
+  Dismember = { hu = L"Damage and −25% healing on the target (crocodile).", prio = 2 },
+  ["Tendon Rip"] = { hu = L"A bleed and a 50% slow (hyena).", prio = 2 },
+  Web = { hu = L"Roots the target (spider).", prio = 3 },
+  ["Sonic Blast"] = { hu = L"Nature damage, slows casting (bat).", prio = 2 },
+  ["Mine!"] = { hu = L"Disarms for 3 s (owl).", prio = 3 },
+  ["Dust Cloud"] = { hu = L"−armor on the target for 30 s (tallstrider).", prio = 2 },
+  ["Demoralizing Screech"] = { hu = L"Damage and −attack power on nearby mobs (carrion bird).", prio = 2 },
+  ["Furious Howl"] = { hu = L"+melee attack power for the group (wolf).", prio = 2 },
+  Charge = { hu = L"Charge: stops the mob and a strong first hit (boar).", prio = 2 },
+  ["Shell Shield"] = { hu = L"50% less damage for 12 s, slower attacks (turtle).", prio = 3 },
+  ["Trickster's Dance"] = { hu = L"+50% dodge and faster attacks for 12 s (fox).", prio = 2 },
+  Prowl = { hu = L"Prowl; the first hit +50% (cat).", prio = 3 },
+  Dash = { hu = L"+movement speed for 15 s.", prio = 4 },
+  Dive = { hu = L"+movement speed for 15 s.", prio = 4 },
+  Cower = { hu = L"Lowers the pet's threat: if the pet tanks, do not teach it.", prio = 9 },
 }
 
-local DIET_EN = { meat = "meat", fish = "fish", bread = "bread", cheese = "cheese", fruit = "fruit", fungus = "fungus" }
+local DIET_EN = WA.LR { meat = L"meat", fish = L"fish", bread = L"bread", cheese = L"cheese", fruit = L"fruit", fungus = L"fungus" }
 P.DIET_EN = DIET_EN
 
 local function Data() return WowAssistantPets end
@@ -113,9 +114,9 @@ function P.Reset() beasts = nil end
 function P.Speed(b) return (b.speed or 200) / 100 end
 function P.SpeedLabel(b)
   local s = P.Speed(b)
-  if s >= 2 - 1e-6 and s <= 2 + 1e-6 then return "2.0 s" end
+  if s >= 2 - 1e-6 and s <= 2 + 1e-6 then return (L"2.0 s") end
   local pct = math.floor((2 / s - 1) * 100 + 0.5)
-  return ("%.1f s (%s%d%%)"):format(s, pct >= 0 and "+" or "", pct)
+  return (L"%.1f s (%s%d%%)"):format(s, pct >= 0 and "+" or "", pct)
 end
 
 -- Relative pet DPS: family damage × attack speed (a 2.0 s, 1.00 damage beast is 1).
@@ -208,9 +209,9 @@ end
 function P.Where(b)
   local lvl = b.min == b.max and tostring(b.min) or (b.min .. "–" .. b.max)
   local flags = {}
-  if b.rare then flags[#flags + 1] = "rare" end
-  if b.elite then flags[#flags + 1] = "elite" end
-  return ("%s, level %s%s"):format(b.zone, lvl, #flags > 0 and (" (" .. table.concat(flags, ", ") .. ")") or "")
+  if b.rare then flags[#flags + 1] = L"rare" end
+  if b.elite then flags[#flags + 1] = L"elite" end
+  return (L"%s, level %s%s"):format(b.zone, lvl, #flags > 0 and (" (" .. table.concat(flags, ", ") .. ")") or "")
 end
 
 -- What to teach the pet next. input = { level (hunter), pet = { family, level, tp, tpSpent, known = { [ability] = rank } }

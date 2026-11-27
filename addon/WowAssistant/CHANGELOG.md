@@ -1,11 +1,13 @@
-## 2.35.0
+## 2.36.0
 
-English interface: every window, tooltip, advice and chat message of the addon is now in English.
+Waystone now speaks English, and you can switch it to Hungarian.
 
-- All pages (Plan, Combat, Gear, Professions, Pet, Talents), the session bar, the chronicle, the minimap button and the chat commands speak English. Numbers use a decimal point, dates are month/day.
-- New command name: `/wa talents` opens the talent calculator. The old Hungarian names still work: `/wa talentek`, `/wa harc`, `/wa ah lassu`, and the session bar's `cel`, `tanacs`, `zonak`, `osszegzes`.
-- Nothing changed in the calculations: the same numbers, sources and rules, only the words.
-- Fix: the Chronicle's weekly guild list showed your own character twice ("Defty" and "Defty Graveshade"). The game sends the sender's name as "Name Realm", which the addon did not recognise as you. It now does, and the duplicates already saved are merged on login.
+- **English by default**: every window, tooltip, piece of advice and chat message is in English, on all pages (Plan, Combat, Gear, Professions, Pet, Talents), the session bar, the chronicle and the minimap button. Numbers use a decimal point.
+- **Language switch**: click the EN/HU button next to the main window's close button, or type `/wa lang en` or `/wa lang hu`. The interface reloads in the chosen language. The choice is saved for the whole account.
+- **English commands**: `/wa talents` opens the talent calculator, `/wa help` lists every command. The old Hungarian names still work: `/wa talentek`, `/wa harc`, `/wa ah lassu`, and the session bar's `cel`, `tanacs`, `zonak`, `osszegzes`, `torol`.
+- Nothing changed in the calculations: the same numbers, sources and rules in both languages.
+- Fix: the Chronicle's weekly guild list showed your own character twice ("Name" and "Name Realm"). The game sends the sender's name as "Name Realm", which the addon did not recognise as you. It now does, and the duplicates already saved are merged on login.
+- Fix: the vendor crafting chat message mixed up the number of professions and the number of crafts per profession.
 
 ## 2.34.0
 

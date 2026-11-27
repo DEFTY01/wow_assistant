@@ -3,6 +3,7 @@
 -- are read live, so the windows are up to date without /reload.
 
 local _, WA = ...
+local L = WA.L
 local G = {}
 WA.Game = G
 local M = WA.Model
@@ -430,7 +431,7 @@ local function TalentNote(input, ctx)
     for _, w in ipairs(shift) do
       bits[#bits + 1] = ("%s %s → %s DPS / %d"):format(w.label, WA.Talent.F2(w.without), WA.Talent.F2(w.with), w.per)
     end
-    shiftCache = { key = k, note = #bits > 0 and ("Your talents change the stats' values (without talents → with them): %s. Details: /wa talent."):format(table.concat(bits, ", ")) or nil }
+    shiftCache = { key = k, note = #bits > 0 and (L"Your talents change the stats' values (without talents → with them): %s. Details: /wa talent."):format(table.concat(bits, ", ")) or nil }
   end
   return shiftCache.note
 end
@@ -450,7 +451,7 @@ function G.Context()
   -- WA-030: which spec the model counts for, first among the notes
   local sp = input.spec
   if sp and ctx.params and ctx.params.notes then
-    table.insert(ctx.params.notes, 1, ("Spec: %s – %s."):format(sp.name or "not yet", sp.from or ""))
+    table.insert(ctx.params.notes, 1, ("Spec: %s – %s."):format(sp.name or (L"not yet"), sp.from or ""))
   end
   return ctx
 end
@@ -503,7 +504,7 @@ function G.Offers()
       quality = QUALITY[it.q or 1] or "COMMON", stats = M.GameStats(it.st, it.dmg),
     }
     if not (item.itemClass == 2 and not item.stats.weapon) and M.Usable(G.Class(), item) and (it.price or 0) > 0 then
-      out[#out + 1] = { item = item, price = it.price, listings = it.count or 0, where = "Auction house (scanned in game)" }
+      out[#out + 1] = { item = item, price = it.price, listings = it.count or 0, where = L"Auction house (scanned in game)" }
     end
   end
   return out, ah.at
@@ -547,19 +548,19 @@ function G.PlanInput(ctx)
   local trainer = G.Trainer()
   local warnings = {}
   local c = WA.char or {}
-  if not c.bankAt then warnings[#warnings + 1] = "The bank's contents are unknown: open the bank once." end
+  if not c.bankAt then warnings[#warnings + 1] = L"The bank's contents are unknown: open the bank once." end
   local classHu = ({ ROGUE = "rogue", HUNTER = "hunter", SHAMAN = "shaman", DRUID = "druid", WARLOCK = "warlock", MAGE = "mage", WARRIOR = "warrior", PRIEST = "priest", PALADIN = "paladin" })[ctx.class] or "class"
-  if #trainer == 0 then warnings[#warnings + 1] = ("No trainer data: open the %s trainer's window with every filter on."):format(classHu) end
+  if #trainer == 0 then warnings[#warnings + 1] = (L"No trainer data: open the %s trainer's window with every filter on."):format(classHu) end
   if ctx.class == "HUNTER" and not (WA.char and WA.char.spells and #WA.char.spells > 0) then
-    warnings[#warnings + 1] = "Your spellbook is not read yet: after /reload the addon checks what you know (Aimed Shot, Multi-Shot, pet)."
+    warnings[#warnings + 1] = L"Your spellbook is not read yet: after /reload the addon checks what you know (Aimed Shot, Multi-Shot, pet)."
   end
   if not scanAt then
-    warnings[#warnings + 1] = "You have not scanned the auction house yet: /wa ah at the auction house. Without it there are no AH offers or prices."
+    warnings[#warnings + 1] = L"You have not scanned the auction house yet: /wa ah at the auction house. Without it there are no AH offers or prices."
   elseif #offers == 0 then
-    warnings[#warnings + 1] = "Your auction house scan is more than 12 hours old: /wa ah at the auction house."
+    warnings[#warnings + 1] = L"Your auction house scan is more than 12 hours old: /wa ah at the auction house."
   end
-  if not ctx.combat then warnings[#warnings + 1] = "No recorded fights: the model uses textbook values. /wa log, and keep the uploader running." end
-  if not WowAssistantData then warnings[#warnings + 1] = "GameData.lua is missing (dungeon loot): npm run addon:recipes" end
+  if not ctx.combat then warnings[#warnings + 1] = L"No recorded fights: the model uses textbook values. /wa log, and keep the uploader running." end
+  if not WowAssistantData then warnings[#warnings + 1] = L"GameData.lua is missing (dungeon loot): npm run addon:recipes" end
   local routes = WA.Routes.Plan({ profs = profs, recipes = recipes, book = G.Book(), owned = owned, level = level, target = 300 })
   return {
     ctx = ctx, gold = GetMoney(), offers = offers, ownedGear = ownedGear, crafts = crafts, owned = owned, book = G.Book(),
@@ -661,7 +662,7 @@ function G.AmmoPrice(id)
   local book = G.Book().unit(id)
   if book then return book.price, book.source end
   local sell = select(11, GetItemInfo(id))
-  if sell and sell > 0 then return sell * 4, "estimate" end
+  if sell and sell > 0 then return sell * 4, L"estimate" end
   return nil, nil
 end
 

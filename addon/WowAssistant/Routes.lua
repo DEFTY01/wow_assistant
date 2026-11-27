@@ -11,6 +11,7 @@
 --   level, target
 
 local _, WA = ...
+local L = WA.L
 WA = WA or {}
 local Routes = {}
 WA.Routes = Routes
@@ -74,8 +75,8 @@ function Routes.Plan(input)
       local notes = {}
       for _, rank in ipairs(Routes.RANKS) do
         if rank.cap > cap and rank.cap - 75 < target then
-          notes[#notes + 1] = ("%s rank (up to %d): learnable from skill %d, %sg at the trainer."):format(rank.name, rank.cap, rank.trainAt, Money2(rank.cost)) ..
-            ((rank.name == "Artisan" and (input.level or 0) < 35) and " Per Classic it needs level 35 (not verified)." or "")
+          notes[#notes + 1] = (L"%s rank (up to %d): learnable from skill %d, %sg at the trainer."):format(rank.name, rank.cap, rank.trainAt, Money2(rank.cost)) ..
+            ((rank.name == "Artisan" and (input.level or 0) < 35) and (L" Per Classic it needs level 35 (not verified).") or "")
         end
       end
 
@@ -108,8 +109,8 @@ function Routes.Plan(input)
       if #unpriced > 0 then
         local first = {}
         for i = 1, math.min(8, #unpriced) do first[i] = unpriced[i] end
-        notes[#notes + 1] = "Known recipes without a price (so skipped): " .. table.concat(first, ", ") ..
-          (#unpriced > 8 and (" plus " .. (#unpriced - 8)) or "") .. "."
+        notes[#notes + 1] = L"Known recipes without a price (so skipped): " .. table.concat(first, ", ") ..
+          (#unpriced > 8 and (L" plus " .. (#unpriced - 8)) or "") .. "."
       end
 
       -- Cheapest recipe for every skill point with the recipes available so far.
